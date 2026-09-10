@@ -57,7 +57,9 @@ Need a change outside your paths? Say so in the PR or issue. Do not reach across
 | `scripts/new-task.sh <area> <slug>` | issue + branch + worktree in one step |
 | `scripts/setup-worktree.sh <branch>` | worktree with linked `node_modules` |
 | `scripts/pr.sh <issue>` | open PR with `Closes #n`, test output, screenshots |
-| `scripts/merge.sh <pr>` | squash-merge, delete branch, close issue, update `PROGRESS.md` |
+| `scripts/merge.sh <pr>` | squash-merge, delete branch, close issue, refresh `PROGRESS.md` |
+| `scripts/progress.sh` | regenerate `PROGRESS.md` from GitHub (it is derived, never hand-edited) |
+| `scripts/boundaries.sh` | dependency-cruiser ownership-boundary check |
 | `scripts/graph.sh` | regenerate the project graph |
 | `scripts/review-graph.sh <pr>` | blast radius of a PR — changed exports + who imports them |
 | `scripts/seed.sh <days>` | realistic demo data |
@@ -66,6 +68,16 @@ Need a change outside your paths? Say so in the PR or issue. Do not reach across
 | `scripts/labels.sh` · `scripts/board.sh` | idempotent GitHub setup |
 
 If you run a command twice, it belongs in a script. Add it.
+
+## `main` is protected — you cannot push to it
+
+A ruleset on `main` requires a pull request and a green CI run, and blocks force-push and deletion.
+There are **no bypass actors**, so this applies to every agent and to the repo owner alike: a direct
+push is rejected with `GH013: Repository rule violations found`.
+
+That is not an obstacle to route around — it is the guarantee that `main` is always releasable. Work
+on a branch, open a PR, let CI go green. `PROGRESS.md` follows the same rule: it is regenerated from
+GitHub by `scripts/progress.sh` and rides the next PR like any other change.
 
 ## TDD is mandatory
 

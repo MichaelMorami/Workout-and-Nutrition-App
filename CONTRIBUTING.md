@@ -91,3 +91,7 @@ on green CI and reviewer approval; sprint boundaries are the client's gate.
 - Conventional Commits: `feat:` `fix:` `test:` `chore:` `docs:` `refactor:`
 - Branches: `feat/<issue>-<slug>`, `fix/<issue>-<slug>`, `chore/<issue>-<slug>`
 - Squash-merge only. `main` is always releasable and always green.
+- `main` is protected by a ruleset with **no bypass actors**: pull request required, CI must
+  pass, force-push and deletion blocked. This binds every agent and the repo owner equally.
+- `PROGRESS.md` is **derived**, not hand-edited — `scripts/progress.sh` regenerates it from
+  merged pull requests. GitHub is the authoritative progress record; the file is its snapshot.
