@@ -22,15 +22,9 @@ title="$(jq -r .title <<<"$info")"
 gh pr merge "$PR" --repo "$REPO" --squash --delete-branch
 ok "merged #$PR  $title"
 
-# Record progress. PROGRESS.md is DERIVED from GitHub, not hand-kept — see scripts/progress.sh.
-# `main` requires a pull request, so nothing here pushes to it; the refreshed file rides the next PR.
-if "$ROOT/scripts/progress.sh" >/dev/null 2>&1; then
-  if ! git -C "$ROOT" diff --quiet -- PROGRESS.md 2>/dev/null; then
-    warn "PROGRESS.md refreshed locally — commit it on a branch (main requires a PR)"
-  fi
-fi
+# PROGRESS.md is DERIVED and is refreshed when a PR is OPENED (see scripts/pr.sh), not here.
+# Refreshing it after a merge would leave the working tree dirty after every single merge — which is
+# exactly the papercut this file used to have.
 
-# The issues this PR closed, for the one-line summary. Computed here rather than earlier so the
-# script has no state that outlives the step that needs it.
 closed="$(jq -r '[.closingIssuesReferences[]?.number] | map("#"+tostring) | join(" ")' <<<"$info")"
 printf '%s✓%s %s %s\n' "$GRN" "$OFF" "$title" "$closed"
