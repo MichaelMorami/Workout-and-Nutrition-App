@@ -10,6 +10,17 @@ ISSUE="${1:-$(issue_from_branch)}"
 BRANCH="$(git rev-parse --abbrev-ref HEAD)"
 [ "$BRANCH" != "main" ] || die "refusing to open a PR from main"
 
+# PROGRESS.md is derived from GitHub. Refresh it here so every PR carries the current picture and
+# `main` never drifts — main is protected, so this is the only way generated files get there.
+if "$ROOT/scripts/progress.sh" >/dev/null 2>&1; then
+  if ! git -C "$ROOT" diff --quiet -- PROGRESS.md 2>/dev/null; then
+    git -C "$ROOT" add PROGRESS.md
+    git -C "$ROOT" commit --quiet -m "docs: refresh PROGRESS.md" \
+      -m "Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>"
+    ok "PROGRESS.md refreshed and committed onto this branch"
+  fi
+fi
+
 say "running checks before opening the PR"
 TEST_OUT="$(mktemp)"
 if ! "$ROOT/scripts/check.sh" >"$TEST_OUT" 2>&1; then
