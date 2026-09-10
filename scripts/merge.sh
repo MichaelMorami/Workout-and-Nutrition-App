@@ -30,4 +30,7 @@ if "$ROOT/scripts/progress.sh" >/dev/null 2>&1; then
   fi
 fi
 
-printf '%s✓%s %s %s\n' "$GRN" "$OFF" "$title" "$issues"
+# The issues this PR closed, for the one-line summary. Computed here rather than earlier so the
+# script has no state that outlives the step that needs it.
+closed="$(jq -r '[.closingIssuesReferences[]?.number] | map("#"+tostring) | join(" ")' <<<"$info")"
+printf '%s✓%s %s %s\n' "$GRN" "$OFF" "$title" "$closed"

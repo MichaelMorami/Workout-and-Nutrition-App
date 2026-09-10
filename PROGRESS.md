@@ -24,3 +24,4 @@ screen is coded.
 ## Merged
 
 - 2026-09-10  chore: scaffold the Expo app, TypeScript, and lint  (PR #6 closes #1)
+- 2026-09-10  chore: CI pipeline, ownership-boundary enforcement, and repo templates  (PR #7 closes #2 #5)
