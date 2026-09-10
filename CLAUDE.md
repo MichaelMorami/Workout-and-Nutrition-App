@@ -97,9 +97,12 @@ schema and migrations the phone runs. They are milliseconds fast — there is no
 
 ## Stack (pinned majors)
 
-Expo SDK 57 · React Native 0.87 · expo-router 57 · expo-sqlite 57 · Drizzle ORM 0.45 ·
+Expo SDK 57 · React Native 0.86.3 · expo-router 57 · expo-sqlite 57 · Drizzle ORM 0.45 ·
 @supabase/supabase-js 2 · react-native-gifted-charts + react-native-svg 15 · reanimated 4 ·
-zustand 5 · jest 30 + jest-expo 57 + @testing-library/react-native 14 + better-sqlite3 13
+zustand 5 · jest 29 + jest-expo 57 + @testing-library/react-native 14 + better-sqlite3 13
+
+The SDK pins the versions, not the latest release on npm: `expo install` resolves RN and jest for
+you (jest 29 comes in transitively via `jest-expo`). Do not "upgrade" past the SDK.
 
 Charts must work inside **Expo Go** — that rules out Skia-based chart libraries. Do not add a
 dependency with a native module without raising it in the issue first.
