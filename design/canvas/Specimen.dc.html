@@ -1,0 +1,678 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..800&amp;display=swap">
+  <style>
+    * { box-sizing: border-box; }
+    body { margin: 0; background: #101218; font-family: Archivo,'Helvetica Neue',Helvetica,system-ui,sans-serif; -webkit-font-smoothing: antialiased; font-variant-numeric: tabular-nums; font-feature-settings: 'tnum' 1; }
+    a { color: #FAAB3F; text-decoration: none; }
+    a:hover { color: #FFC97A; }
+    text { font-variant-numeric: tabular-nums; }
+  </style>
+</helmet>
+<div style="width:1240px;background:#101218;padding:40px;font-family:Archivo,'Helvetica Neue',Helvetica,system-ui,sans-serif;color:#F5F7FA">
+<div style="display:flex;flex-direction:column;gap:9px;margin-bottom:28px">
+  <div style="font-size:30px;font-weight:700;font-stretch:116%;letter-spacing:-0.018em;line-height:1.06;color:#F5F7FA">Colour &amp; type</div>
+  <div style="font-size:15.5px;font-weight:450;font-stretch:100%;letter-spacing:0;line-height:1.35;color:#B4B7BE;max-width:760px;text-wrap:pretty">Dark is the product; light is the courtesy. Both palettes are generated from the same OKLCH ramp, so every hue keeps its lightness relationship when the theme flips. Every token below is named, has one stated job, and clears 4.5:1 where it carries text.</div>
+</div>
+<div style="display:flex;gap:20px;align-items:flex-start">
+<div style="flex:1;min-width:0;background:#181B21;border:1px solid #2A2E36;border-radius:20px;padding:20px 22px">
+  <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px"><span style="width:13px;height:13px;border-radius:4px;background:#0C0E13;border:1px solid #2A2E36"></span><span style="font-size:17px;font-weight:700;font-stretch:104%;letter-spacing:-0.012em;line-height:1.2;color:#F5F7FA">Dark — primary</span></div>
+  <div style="margin-top:18px"><div style="font-size:10px;font-weight:650;font-stretch:100%;letter-spacing:0.14em;line-height:1;text-transform:uppercase;color:#9598A0">Surfaces &amp; lines</div><div style="display:flex;gap:13px;align-items:flex-start;padding:9px 0;border-top:1px solid #2A2E36">
+  <span style="width:46px;height:46px;flex:none;border-radius:11px;background:#0C0E13;border:1px solid #2A2E36"></span>
+  <span style="display:flex;flex-direction:column;gap:4px;min-width:0;flex:1">
+    <span style="display:flex;align-items:baseline;gap:9px;flex-wrap:wrap">
+      <span style="font-size:13px;font-weight:700;color:#F5F7FA;letter-spacing:-0.005em">bg.canvas</span>
+      <span style="font-size:11.5px;font-weight:600;font-stretch:108%;letter-spacing:-0.008em;line-height:1;color:#9598A0">#0C0E13</span>
+      
+    </span>
+    <span style="font-size:12.5px;font-weight:450;line-height:1.45;color:#B4B7BE;text-wrap:pretty">The ground behind every screen. Never pure black — pure black kills the ring glow and bands on OLED.</span>
+  </span>
+</div><div style="display:flex;gap:13px;align-items:flex-start;padding:9px 0;border-top:1px solid #2A2E36">
+  <span style="width:46px;height:46px;flex:none;border-radius:11px;background:#17191F;border:1px solid #2A2E36"></span>
+  <span style="display:flex;flex-direction:column;gap:4px;min-width:0;flex:1">
+    <span style="display:flex;align-items:baseline;gap:9px;flex-wrap:wrap">
+      <span style="font-size:13px;font-weight:700;color:#F5F7FA;letter-spacing:-0.005em">bg.surface</span>
+      <span style="font-size:11.5px;font-weight:600;font-stretch:108%;letter-spacing:-0.008em;line-height:1;color:#9598A0">#17191F</span>
+      
+    </span>
+    <span style="font-size:12.5px;font-weight:450;line-height:1.45;color:#B4B7BE;text-wrap:pretty">Cards, the tab bar, the rings panel.</span>
+  </span>
+</div><div style="display:flex;gap:13px;align-items:flex-start;padding:9px 0;border-top:1px solid #2A2E36">
+  <span style="width:46px;height:46px;flex:none;border-radius:11px;background:#21252B;border:1px solid #2A2E36"></span>
+  <span style="display:flex;flex-direction:column;gap:4px;min-width:0;flex:1">
+    <span style="display:flex;align-items:baseline;gap:9px;flex-wrap:wrap">
+      <span style="font-size:13px;font-weight:700;color:#F5F7FA;letter-spacing:-0.005em">bg.raised</span>
+      <span style="font-size:11.5px;font-weight:600;font-stretch:108%;letter-spacing:-0.008em;line-height:1;color:#9598A0">#21252B</span>
+      
+    </span>
+    <span style="font-size:12.5px;font-weight:450;line-height:1.45;color:#B4B7BE;text-wrap:pretty">Insets inside a card: stat cells, stepper value, segmented track.</span>
+  </span>
+</div><div style="display:flex;gap:13px;align-items:flex-start;padding:9px 0;border-top:1px solid #2A2E36">
+  <span style="width:46px;height:46px;flex:none;border-radius:11px;background:#25282F;border:1px solid #2A2E36"></span>
+  <span style="display:flex;flex-direction:column;gap:4px;min-width:0;flex:1">
+    <span style="display:flex;align-items:baseline;gap:9px;flex-wrap:wrap">
+      <span style="font-size:13px;font-weight:700;color:#F5F7FA;letter-spacing:-0.005em">bg.tile</span>
+      <span style="font-size:11.5px;font-weight:600;font-stretch:108%;letter-spacing:-0.008em;line-height:1;color:#9598A0">#25282F</span>
+      
+    </span>
+    <span style="font-size:12.5px;font-weight:450;line-height:1.45;color:#B4B7BE;text-wrap:pretty">The quick-add tile. One step above the card so it reads as a button, not a row.</span>
+  </span>
+</div><div style="display:flex;gap:13px;align-items:flex-start;padding:9px 0;border-top:1px solid #2A2E36">
+  <span style="width:46px;height:46px;flex:none;border-radius:11px;background:#2C3038;border:1px solid #2A2E36"></span>
+  <span style="display:flex;flex-direction:column;gap:4px;min-width:0;flex:1">
+    <span style="display:flex;align-items:baseline;gap:9px;flex-wrap:wrap">
+      <span style="font-size:13px;font-weight:700;color:#F5F7FA;letter-spacing:-0.005em">bg.press</span>
+      <span style="font-size:11.5px;font-weight:600;font-stretch:108%;letter-spacing:-0.008em;line-height:1;color:#9598A0">#2C3038</span>
+      
+    </span>
+    <span style="font-size:12.5px;font-weight:450;line-height:1.45;color:#B4B7BE;text-wrap:pretty">Pressed state for any tile or row. Lightened (dark) / darkened (light) just far enough to read as pressed while every label on top of it still clears 4.5:1.</span>
+  </span>
+</div><div style="display:flex;gap:13px;align-items:flex-start;padding:9px 0;border-top:1px solid #2A2E36">
+  <span style="width:46px;height:46px;flex:none;border-radius:11px;background:#32353D;border:1px solid #2A2E36"></span>
+  <span style="display:flex;flex-direction:column;gap:4px;min-width:0;flex:1">
+    <span style="display:flex;align-items:baseline;gap:9px;flex-wrap:wrap">
+      <span style="font-size:13px;font-weight:700;color:#F5F7FA;letter-spacing:-0.005em">line.hairline</span>
+      <span style="font-size:11.5px;font-weight:600;font-stretch:108%;letter-spacing:-0.008em;line-height:1;color:#9598A0">#32353D</span>
+      
+    </span>
+    <span style="font-size:12.5px;font-weight:450;line-height:1.45;color:#B4B7BE;text-wrap:pretty">Every 1 px divider and card border.</span>
+  </span>
+</div><div style="display:flex;gap:13px;align-items:flex-start;padding:9px 0;border-top:1px solid #2A2E36">
+  <span style="width:46px;height:46px;flex:none;border-radius:11px;background:#494D55;border:1px solid #2A2E36"></span>
+  <span style="display:flex;flex-direction:column;gap:4px;min-width:0;flex:1">
+    <span style="display:flex;align-items:baseline;gap:9px;flex-wrap:wrap">
+      <span style="font-size:13px;font-weight:700;color:#F5F7FA;letter-spacing:-0.005em">line.strong</span>
+      <span style="font-size:11.5px;font-weight:600;font-stretch:108%;letter-spacing:-0.008em;line-height:1;color:#9598A0">#494D55</span>
+      
+    </span>
+    <span style="font-size:12.5px;font-weight:450;line-height:1.45;color:#B4B7BE;text-wrap:pretty">Dashed “add” affordances and unselected segment outlines.</span>
+  </span>
+</div></div>
+  <div style="margin-top:18px"><div style="font-size:10px;font-weight:650;font-stretch:100%;letter-spacing:0.14em;line-height:1;text-transform:uppercase;color:#9598A0">Text</div><div style="display:flex;gap:13px;align-items:flex-start;padding:9px 0;border-top:1px solid #2A2E36">
+  <span style="width:46px;height:46px;flex:none;border-radius:11px;background:#F5F7FA;border:1px solid #2A2E36"></span>
+  <span style="display:flex;flex-direction:column;gap:4px;min-width:0;flex:1">
+    <span style="display:flex;align-items:baseline;gap:9px;flex-wrap:wrap">
+      <span style="font-size:13px;font-weight:700;color:#F5F7FA;letter-spacing:-0.005em">text.primary</span>
+      <span style="font-size:11.5px;font-weight:600;font-stretch:108%;letter-spacing:-0.008em;line-height:1;color:#9598A0">#F5F7FA</span>
+      <span style="font-size:10.5px;font-weight:700;font-stretch:108%;letter-spacing:-0.008em;line-height:1;padding:2px 6px;border-radius:5px;background:rgba(123,215,127,0.16);color:#7BD77F">17.99:1 on canvas</span>
+    </span>
+    <span style="font-size:12.5px;font-weight:450;line-height:1.45;color:#B4B7BE;text-wrap:pretty">Numbers, food names, screen titles. Everything you actually read.</span>
+  </span>
+</div><div style="display:flex;gap:13px;align-items:flex-start;padding:9px 0;border-top:1px solid #2A2E36">
+  <span style="width:46px;height:46px;flex:none;border-radius:11px;background:#B4B7BE;border:1px solid #2A2E36"></span>
+  <span style="display:flex;flex-direction:column;gap:4px;min-width:0;flex:1">
+    <span style="display:flex;align-items:baseline;gap:9px;flex-wrap:wrap">
+      <span style="font-size:13px;font-weight:700;color:#F5F7FA;letter-spacing:-0.005em">text.secondary</span>
+      <span style="font-size:11.5px;font-weight:600;font-stretch:108%;letter-spacing:-0.008em;line-height:1;color:#9598A0">#B4B7BE</span>
+      <span style="font-size:10.5px;font-weight:700;font-stretch:108%;letter-spacing:-0.008em;line-height:1;padding:2px 6px;border-radius:5px;background:rgba(123,215,127,0.16);color:#7BD77F">9.61:1 on canvas</span>
+    </span>
+    <span style="font-size:12.5px;font-weight:450;line-height:1.45;color:#B4B7BE;text-wrap:pretty">Supporting text you are meant to read, just not first.</span>
+  </span>
+</div><div style="display:flex;gap:13px;align-items:flex-start;padding:9px 0;border-top:1px solid #2A2E36">
+  <span style="width:46px;height:46px;flex:none;border-radius:11px;background:#9598A0;border:1px solid #2A2E36"></span>
+  <span style="display:flex;flex-direction:column;gap:4px;min-width:0;flex:1">
+    <span style="display:flex;align-items:baseline;gap:9px;flex-wrap:wrap">
+      <span style="font-size:13px;font-weight:700;color:#F5F7FA;letter-spacing:-0.005em">text.tertiary</span>
+      <span style="font-size:11.5px;font-weight:600;font-stretch:108%;letter-spacing:-0.008em;line-height:1;color:#9598A0">#9598A0</span>
+      <span style="font-size:10.5px;font-weight:700;font-stretch:108%;letter-spacing:-0.008em;line-height:1;padding:2px 6px;border-radius:5px;background:rgba(123,215,127,0.16);color:#7BD77F">5.11:1 on tile</span>
+    </span>
+    <span style="font-size:12.5px;font-weight:450;line-height:1.45;color:#B4B7BE;text-wrap:pretty">Units, timestamps, section eyebrows. The lowest rung — still ≥ 4.5:1 on every surface it lands on.</span>
+  </span>
+</div></div>
+  <div style="margin-top:18px"><div style="font-size:10px;font-weight:650;font-stretch:100%;letter-spacing:0.14em;line-height:1;text-transform:uppercase;color:#9598A0">Data &amp; semantic</div><div style="display:flex;gap:13px;align-items:flex-start;padding:9px 0;border-top:1px solid #2A2E36">
+  <span style="width:46px;height:46px;flex:none;border-radius:11px;background:#FAAB3F;border:1px solid #2A2E36"></span>
+  <span style="display:flex;flex-direction:column;gap:4px;min-width:0;flex:1">
+    <span style="display:flex;align-items:baseline;gap:9px;flex-wrap:wrap">
+      <span style="font-size:13px;font-weight:700;color:#F5F7FA;letter-spacing:-0.005em">data.kcal</span>
+      <span style="font-size:11.5px;font-weight:600;font-stretch:108%;letter-spacing:-0.008em;line-height:1;color:#9598A0">#FAAB3F</span>
+      <span style="font-size:10.5px;font-weight:700;font-stretch:108%;letter-spacing:-0.008em;line-height:1;padding:2px 6px;border-radius:5px;background:rgba(123,215,127,0.16);color:#7BD77F">7.7:1 on tile</span>
+    </span>
+    <span style="font-size:12.5px;font-weight:450;line-height:1.45;color:#B4B7BE;text-wrap:pretty">Calories, everywhere. The ring, the tile, the average line, the overlay area. Also the primary CTA on Today.</span>
+  </span>
+</div><div style="display:flex;gap:13px;align-items:flex-start;padding:9px 0;border-top:1px solid #2A2E36">
+  <span style="width:46px;height:46px;flex:none;border-radius:11px;background:#8F6127;border:1px solid #2A2E36"></span>
+  <span style="display:flex;flex-direction:column;gap:4px;min-width:0;flex:1">
+    <span style="display:flex;align-items:baseline;gap:9px;flex-wrap:wrap">
+      <span style="font-size:13px;font-weight:700;color:#F5F7FA;letter-spacing:-0.005em">data.kcalMuted</span>
+      <span style="font-size:11.5px;font-weight:600;font-stretch:108%;letter-spacing:-0.008em;line-height:1;color:#9598A0">#8F6127</span>
+      
+    </span>
+    <span style="font-size:12.5px;font-weight:450;line-height:1.45;color:#B4B7BE;text-wrap:pretty">The individual days scattered behind the calorie average. Texture, not information — the average line and the headline number carry the meaning.</span>
+  </span>
+</div><div style="display:flex;gap:13px;align-items:flex-start;padding:9px 0;border-top:1px solid #2A2E36">
+  <span style="width:46px;height:46px;flex:none;border-radius:11px;background:#57E0C6;border:1px solid #2A2E36"></span>
+  <span style="display:flex;flex-direction:column;gap:4px;min-width:0;flex:1">
+    <span style="display:flex;align-items:baseline;gap:9px;flex-wrap:wrap">
+      <span style="font-size:13px;font-weight:700;color:#F5F7FA;letter-spacing:-0.005em">data.protein</span>
+      <span style="font-size:11.5px;font-weight:600;font-stretch:108%;letter-spacing:-0.008em;line-height:1;color:#9598A0">#57E0C6</span>
+      <span style="font-size:10.5px;font-weight:700;font-stretch:108%;letter-spacing:-0.008em;line-height:1;padding:2px 6px;border-radius:5px;background:rgba(123,215,127,0.16);color:#7BD77F">9.05:1 on tile</span>
+    </span>
+    <span style="font-size:12.5px;font-weight:450;line-height:1.45;color:#B4B7BE;text-wrap:pretty">Protein, everywhere. Never used for anything that is not protein.</span>
+  </span>
+</div><div style="display:flex;gap:13px;align-items:flex-start;padding:9px 0;border-top:1px solid #2A2E36">
+  <span style="width:46px;height:46px;flex:none;border-radius:11px;background:#307769;border:1px solid #2A2E36"></span>
+  <span style="display:flex;flex-direction:column;gap:4px;min-width:0;flex:1">
+    <span style="display:flex;align-items:baseline;gap:9px;flex-wrap:wrap">
+      <span style="font-size:13px;font-weight:700;color:#F5F7FA;letter-spacing:-0.005em">data.proteinMuted</span>
+      <span style="font-size:11.5px;font-weight:600;font-stretch:108%;letter-spacing:-0.008em;line-height:1;color:#9598A0">#307769</span>
+      
+    </span>
+    <span style="font-size:12.5px;font-weight:450;line-height:1.45;color:#B4B7BE;text-wrap:pretty">The individual days behind the protein average. Same job, same rule.</span>
+  </span>
+</div><div style="display:flex;gap:13px;align-items:flex-start;padding:9px 0;border-top:1px solid #2A2E36">
+  <span style="width:46px;height:46px;flex:none;border-radius:11px;background:#96C0FE;border:1px solid #2A2E36"></span>
+  <span style="display:flex;flex-direction:column;gap:4px;min-width:0;flex:1">
+    <span style="display:flex;align-items:baseline;gap:9px;flex-wrap:wrap">
+      <span style="font-size:13px;font-weight:700;color:#F5F7FA;letter-spacing:-0.005em">data.body</span>
+      <span style="font-size:11.5px;font-weight:600;font-stretch:108%;letter-spacing:-0.008em;line-height:1;color:#9598A0">#96C0FE</span>
+      <span style="font-size:10.5px;font-weight:700;font-stretch:108%;letter-spacing:-0.008em;line-height:1;padding:2px 6px;border-radius:5px;background:rgba(123,215,127,0.16);color:#7BD77F">7.92:1 on tile</span>
+    </span>
+    <span style="font-size:12.5px;font-weight:450;line-height:1.45;color:#B4B7BE;text-wrap:pretty">Body weight and its trend line. Owns the Charts tab.</span>
+  </span>
+</div><div style="display:flex;gap:13px;align-items:flex-start;padding:9px 0;border-top:1px solid #2A2E36">
+  <span style="width:46px;height:46px;flex:none;border-radius:11px;background:#476A9C;border:1px solid #2A2E36"></span>
+  <span style="display:flex;flex-direction:column;gap:4px;min-width:0;flex:1">
+    <span style="display:flex;align-items:baseline;gap:9px;flex-wrap:wrap">
+      <span style="font-size:13px;font-weight:700;color:#F5F7FA;letter-spacing:-0.005em">data.bodyMuted</span>
+      <span style="font-size:11.5px;font-weight:600;font-stretch:108%;letter-spacing:-0.008em;line-height:1;color:#9598A0">#476A9C</span>
+      
+    </span>
+    <span style="font-size:12.5px;font-weight:450;line-height:1.45;color:#B4B7BE;text-wrap:pretty">Raw daily scale readings — deliberately quieter than the trend that runs through them.</span>
+  </span>
+</div><div style="display:flex;gap:13px;align-items:flex-start;padding:9px 0;border-top:1px solid #2A2E36">
+  <span style="width:46px;height:46px;flex:none;border-radius:11px;background:#E19FFF;border:1px solid #2A2E36"></span>
+  <span style="display:flex;flex-direction:column;gap:4px;min-width:0;flex:1">
+    <span style="display:flex;align-items:baseline;gap:9px;flex-wrap:wrap">
+      <span style="font-size:13px;font-weight:700;color:#F5F7FA;letter-spacing:-0.005em">data.strength</span>
+      <span style="font-size:11.5px;font-weight:600;font-stretch:108%;letter-spacing:-0.008em;line-height:1;color:#9598A0">#E19FFF</span>
+      <span style="font-size:10.5px;font-weight:700;font-stretch:108%;letter-spacing:-0.008em;line-height:1;padding:2px 6px;border-radius:5px;background:rgba(123,215,127,0.16);color:#7BD77F">7.45:1 on tile</span>
+    </span>
+    <span style="font-size:12.5px;font-weight:450;line-height:1.45;color:#B4B7BE;text-wrap:pretty">Sets, reps, e1RM. Owns the Workout tab and the rest timer.</span>
+  </span>
+</div><div style="display:flex;gap:13px;align-items:flex-start;padding:9px 0;border-top:1px solid #2A2E36">
+  <span style="width:46px;height:46px;flex:none;border-radius:11px;background:#7C588D;border:1px solid #2A2E36"></span>
+  <span style="display:flex;flex-direction:column;gap:4px;min-width:0;flex:1">
+    <span style="display:flex;align-items:baseline;gap:9px;flex-wrap:wrap">
+      <span style="font-size:13px;font-weight:700;color:#F5F7FA;letter-spacing:-0.005em">data.strengthMuted</span>
+      <span style="font-size:11.5px;font-weight:600;font-stretch:108%;letter-spacing:-0.008em;line-height:1;color:#9598A0">#7C588D</span>
+      
+    </span>
+    <span style="font-size:12.5px;font-weight:450;line-height:1.45;color:#B4B7BE;text-wrap:pretty">Set-number badges and strength gridline labels.</span>
+  </span>
+</div><div style="display:flex;gap:13px;align-items:flex-start;padding:9px 0;border-top:1px solid #2A2E36">
+  <span style="width:46px;height:46px;flex:none;border-radius:11px;background:#7BD77F;border:1px solid #2A2E36"></span>
+  <span style="display:flex;flex-direction:column;gap:4px;min-width:0;flex:1">
+    <span style="display:flex;align-items:baseline;gap:9px;flex-wrap:wrap">
+      <span style="font-size:13px;font-weight:700;color:#F5F7FA;letter-spacing:-0.005em">state.success</span>
+      <span style="font-size:11.5px;font-weight:600;font-stretch:108%;letter-spacing:-0.008em;line-height:1;color:#9598A0">#7BD77F</span>
+      <span style="font-size:10.5px;font-weight:700;font-stretch:108%;letter-spacing:-0.008em;line-height:1;padding:2px 6px;border-radius:5px;background:rgba(123,215,127,0.16);color:#7BD77F">9.93:1 on surface</span>
+    </span>
+    <span style="font-size:12.5px;font-weight:450;line-height:1.45;color:#B4B7BE;text-wrap:pretty">A target met, a trend going the right way, sync healthy.</span>
+  </span>
+</div><div style="display:flex;gap:13px;align-items:flex-start;padding:9px 0;border-top:1px solid #2A2E36">
+  <span style="width:46px;height:46px;flex:none;border-radius:11px;background:#F66D67;border:1px solid #2A2E36"></span>
+  <span style="display:flex;flex-direction:column;gap:4px;min-width:0;flex:1">
+    <span style="display:flex;align-items:baseline;gap:9px;flex-wrap:wrap">
+      <span style="font-size:13px;font-weight:700;color:#F5F7FA;letter-spacing:-0.005em">state.danger</span>
+      <span style="font-size:11.5px;font-weight:600;font-stretch:108%;letter-spacing:-0.008em;line-height:1;color:#9598A0">#F66D67</span>
+      <span style="font-size:10.5px;font-weight:700;font-stretch:108%;letter-spacing:-0.008em;line-height:1;padding:2px 6px;border-radius:5px;background:rgba(123,215,127,0.16);color:#7BD77F">6.11:1 on surface</span>
+    </span>
+    <span style="font-size:12.5px;font-weight:450;line-height:1.45;color:#B4B7BE;text-wrap:pretty">Delete, discard a session, sync failure. Nothing else.</span>
+  </span>
+</div></div>
+  <div style="margin-top:18px"><div style="font-size:10px;font-weight:650;font-stretch:100%;letter-spacing:0.14em;line-height:1;text-transform:uppercase;color:#9598A0">Washes &amp; depth</div><div style="display:flex;gap:13px;align-items:flex-start;padding:9px 0;border-top:1px solid #2A2E36">
+  <span style="width:46px;height:46px;flex:none;border-radius:11px;background:linear-gradient(0deg, rgba(250,171,63,0.13), rgba(250,171,63,0.13)) #25282F;border:1px solid #2A2E36"></span>
+  <span style="display:flex;flex-direction:column;gap:4px;min-width:0;flex:1">
+    <span style="display:flex;align-items:baseline;gap:9px;flex-wrap:wrap">
+      <span style="font-size:13px;font-weight:700;color:#F5F7FA;letter-spacing:-0.005em">wash.kcal</span>
+      <span style="font-size:11.5px;font-weight:600;font-stretch:108%;letter-spacing:-0.008em;line-height:1;color:#9598A0">rgba(250,171,63,0.13)</span>
+      
+    </span>
+    <span style="font-size:12.5px;font-weight:450;line-height:1.45;color:#B4B7BE;text-wrap:pretty">The 900 ms confirmation fill across a tile that has just been logged.</span>
+  </span>
+</div><div style="display:flex;gap:13px;align-items:flex-start;padding:9px 0;border-top:1px solid #2A2E36">
+  <span style="width:46px;height:46px;flex:none;border-radius:11px;background:linear-gradient(0deg, rgba(87,224,198,0.13), rgba(87,224,198,0.13)) #25282F;border:1px solid #2A2E36"></span>
+  <span style="display:flex;flex-direction:column;gap:4px;min-width:0;flex:1">
+    <span style="display:flex;align-items:baseline;gap:9px;flex-wrap:wrap">
+      <span style="font-size:13px;font-weight:700;color:#F5F7FA;letter-spacing:-0.005em">wash.protein</span>
+      <span style="font-size:11.5px;font-weight:600;font-stretch:108%;letter-spacing:-0.008em;line-height:1;color:#9598A0">rgba(87,224,198,0.13)</span>
+      
+    </span>
+    <span style="font-size:12.5px;font-weight:450;line-height:1.45;color:#B4B7BE;text-wrap:pretty">Protein-owned highlights — the protein half of a split row.</span>
+  </span>
+</div><div style="display:flex;gap:13px;align-items:flex-start;padding:9px 0;border-top:1px solid #2A2E36">
+  <span style="width:46px;height:46px;flex:none;border-radius:11px;background:linear-gradient(0deg, rgba(150,192,254,0.13), rgba(150,192,254,0.13)) #25282F;border:1px solid #2A2E36"></span>
+  <span style="display:flex;flex-direction:column;gap:4px;min-width:0;flex:1">
+    <span style="display:flex;align-items:baseline;gap:9px;flex-wrap:wrap">
+      <span style="font-size:13px;font-weight:700;color:#F5F7FA;letter-spacing:-0.005em">wash.body</span>
+      <span style="font-size:11.5px;font-weight:600;font-stretch:108%;letter-spacing:-0.008em;line-height:1;color:#9598A0">rgba(150,192,254,0.13)</span>
+      
+    </span>
+    <span style="font-size:12.5px;font-weight:450;line-height:1.45;color:#B4B7BE;text-wrap:pretty">Weight-owned highlights.</span>
+  </span>
+</div><div style="display:flex;gap:13px;align-items:flex-start;padding:9px 0;border-top:1px solid #2A2E36">
+  <span style="width:46px;height:46px;flex:none;border-radius:11px;background:linear-gradient(0deg, rgba(225,159,255,0.13), rgba(225,159,255,0.13)) #25282F;border:1px solid #2A2E36"></span>
+  <span style="display:flex;flex-direction:column;gap:4px;min-width:0;flex:1">
+    <span style="display:flex;align-items:baseline;gap:9px;flex-wrap:wrap">
+      <span style="font-size:13px;font-weight:700;color:#F5F7FA;letter-spacing:-0.005em">wash.strength</span>
+      <span style="font-size:11.5px;font-weight:600;font-stretch:108%;letter-spacing:-0.008em;line-height:1;color:#9598A0">rgba(225,159,255,0.13)</span>
+      
+    </span>
+    <span style="font-size:12.5px;font-weight:450;line-height:1.45;color:#B4B7BE;text-wrap:pretty">The active set block and the set-index badge on Workout.</span>
+  </span>
+</div><div style="display:flex;gap:13px;align-items:flex-start;padding:9px 0;border-top:1px solid #2A2E36">
+  <span style="width:46px;height:46px;flex:none;border-radius:11px;background:linear-gradient(0deg, rgba(255,255,255,0.09), rgba(255,255,255,0.09)) #25282F;border:1px solid #2A2E36"></span>
+  <span style="display:flex;flex-direction:column;gap:4px;min-width:0;flex:1">
+    <span style="display:flex;align-items:baseline;gap:9px;flex-wrap:wrap">
+      <span style="font-size:13px;font-weight:700;color:#F5F7FA;letter-spacing:-0.005em">line.ghost</span>
+      <span style="font-size:11.5px;font-weight:600;font-stretch:108%;letter-spacing:-0.008em;line-height:1;color:#9598A0">rgba(255,255,255,0.09)</span>
+      
+    </span>
+    <span style="font-size:12.5px;font-weight:450;line-height:1.45;color:#B4B7BE;text-wrap:pretty">Dashed outlines for things that do not exist yet: an unlearned tile, an empty chart, a routine with no exercises. Shown here over bg.tile, as all five of these are.</span>
+  </span>
+</div></div>
+</div>
+<div style="flex:1;min-width:0;background:#181B21;border:1px solid #2A2E36;border-radius:20px;padding:20px 22px">
+  <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px"><span style="width:13px;height:13px;border-radius:4px;background:#F9FAFD;border:1px solid #2A2E36"></span><span style="font-size:17px;font-weight:700;font-stretch:104%;letter-spacing:-0.012em;line-height:1.2;color:#F5F7FA">Light</span></div>
+  <div style="margin-top:18px"><div style="font-size:10px;font-weight:650;font-stretch:100%;letter-spacing:0.14em;line-height:1;text-transform:uppercase;color:#9598A0">Surfaces &amp; lines</div><div style="display:flex;gap:13px;align-items:flex-start;padding:9px 0;border-top:1px solid #2A2E36">
+  <span style="width:46px;height:46px;flex:none;border-radius:11px;background:#F9FAFD;border:1px solid #2A2E36"></span>
+  <span style="display:flex;flex-direction:column;gap:4px;min-width:0;flex:1">
+    <span style="display:flex;align-items:baseline;gap:9px;flex-wrap:wrap">
+      <span style="font-size:13px;font-weight:700;color:#F5F7FA;letter-spacing:-0.005em">bg.canvas</span>
+      <span style="font-size:11.5px;font-weight:600;font-stretch:108%;letter-spacing:-0.008em;line-height:1;color:#9598A0">#F9FAFD</span>
+      
+    </span>
+    <span style="font-size:12.5px;font-weight:450;line-height:1.45;color:#B4B7BE;text-wrap:pretty">The ground behind every screen. Never pure black — pure black kills the ring glow and bands on OLED.</span>
+  </span>
+</div><div style="display:flex;gap:13px;align-items:flex-start;padding:9px 0;border-top:1px solid #2A2E36">
+  <span style="width:46px;height:46px;flex:none;border-radius:11px;background:#FFFFFF;border:1px solid #2A2E36"></span>
+  <span style="display:flex;flex-direction:column;gap:4px;min-width:0;flex:1">
+    <span style="display:flex;align-items:baseline;gap:9px;flex-wrap:wrap">
+      <span style="font-size:13px;font-weight:700;color:#F5F7FA;letter-spacing:-0.005em">bg.surface</span>
+      <span style="font-size:11.5px;font-weight:600;font-stretch:108%;letter-spacing:-0.008em;line-height:1;color:#9598A0">#FFFFFF</span>
+      
+    </span>
+    <span style="font-size:12.5px;font-weight:450;line-height:1.45;color:#B4B7BE;text-wrap:pretty">Cards, the tab bar, the rings panel.</span>
+  </span>
+</div><div style="display:flex;gap:13px;align-items:flex-start;padding:9px 0;border-top:1px solid #2A2E36">
+  <span style="width:46px;height:46px;flex:none;border-radius:11px;background:#F1F3F8;border:1px solid #2A2E36"></span>
+  <span style="display:flex;flex-direction:column;gap:4px;min-width:0;flex:1">
+    <span style="display:flex;align-items:baseline;gap:9px;flex-wrap:wrap">
+      <span style="font-size:13px;font-weight:700;color:#F5F7FA;letter-spacing:-0.005em">bg.raised</span>
+      <span style="font-size:11.5px;font-weight:600;font-stretch:108%;letter-spacing:-0.008em;line-height:1;color:#9598A0">#F1F3F8</span>
+      
+    </span>
+    <span style="font-size:12.5px;font-weight:450;line-height:1.45;color:#B4B7BE;text-wrap:pretty">Insets inside a card: stat cells, stepper value, segmented track.</span>
+  </span>
+</div><div style="display:flex;gap:13px;align-items:flex-start;padding:9px 0;border-top:1px solid #2A2E36">
+  <span style="width:46px;height:46px;flex:none;border-radius:11px;background:#ECEEF4;border:1px solid #2A2E36"></span>
+  <span style="display:flex;flex-direction:column;gap:4px;min-width:0;flex:1">
+    <span style="display:flex;align-items:baseline;gap:9px;flex-wrap:wrap">
+      <span style="font-size:13px;font-weight:700;color:#F5F7FA;letter-spacing:-0.005em">bg.tile</span>
+      <span style="font-size:11.5px;font-weight:600;font-stretch:108%;letter-spacing:-0.008em;line-height:1;color:#9598A0">#ECEEF4</span>
+      
+    </span>
+    <span style="font-size:12.5px;font-weight:450;line-height:1.45;color:#B4B7BE;text-wrap:pretty">The quick-add tile. One step above the card so it reads as a button, not a row.</span>
+  </span>
+</div><div style="display:flex;gap:13px;align-items:flex-start;padding:9px 0;border-top:1px solid #2A2E36">
+  <span style="width:46px;height:46px;flex:none;border-radius:11px;background:#E5E8ED;border:1px solid #2A2E36"></span>
+  <span style="display:flex;flex-direction:column;gap:4px;min-width:0;flex:1">
+    <span style="display:flex;align-items:baseline;gap:9px;flex-wrap:wrap">
+      <span style="font-size:13px;font-weight:700;color:#F5F7FA;letter-spacing:-0.005em">bg.press</span>
+      <span style="font-size:11.5px;font-weight:600;font-stretch:108%;letter-spacing:-0.008em;line-height:1;color:#9598A0">#E5E8ED</span>
+      
+    </span>
+    <span style="font-size:12.5px;font-weight:450;line-height:1.45;color:#B4B7BE;text-wrap:pretty">Pressed state for any tile or row. Lightened (dark) / darkened (light) just far enough to read as pressed while every label on top of it still clears 4.5:1.</span>
+  </span>
+</div><div style="display:flex;gap:13px;align-items:flex-start;padding:9px 0;border-top:1px solid #2A2E36">
+  <span style="width:46px;height:46px;flex:none;border-radius:11px;background:#DBDEE3;border:1px solid #2A2E36"></span>
+  <span style="display:flex;flex-direction:column;gap:4px;min-width:0;flex:1">
+    <span style="display:flex;align-items:baseline;gap:9px;flex-wrap:wrap">
+      <span style="font-size:13px;font-weight:700;color:#F5F7FA;letter-spacing:-0.005em">line.hairline</span>
+      <span style="font-size:11.5px;font-weight:600;font-stretch:108%;letter-spacing:-0.008em;line-height:1;color:#9598A0">#DBDEE3</span>
+      
+    </span>
+    <span style="font-size:12.5px;font-weight:450;line-height:1.45;color:#B4B7BE;text-wrap:pretty">Every 1 px divider and card border.</span>
+  </span>
+</div><div style="display:flex;gap:13px;align-items:flex-start;padding:9px 0;border-top:1px solid #2A2E36">
+  <span style="width:46px;height:46px;flex:none;border-radius:11px;background:#C1C4CB;border:1px solid #2A2E36"></span>
+  <span style="display:flex;flex-direction:column;gap:4px;min-width:0;flex:1">
+    <span style="display:flex;align-items:baseline;gap:9px;flex-wrap:wrap">
+      <span style="font-size:13px;font-weight:700;color:#F5F7FA;letter-spacing:-0.005em">line.strong</span>
+      <span style="font-size:11.5px;font-weight:600;font-stretch:108%;letter-spacing:-0.008em;line-height:1;color:#9598A0">#C1C4CB</span>
+      
+    </span>
+    <span style="font-size:12.5px;font-weight:450;line-height:1.45;color:#B4B7BE;text-wrap:pretty">Dashed “add” affordances and unselected segment outlines.</span>
+  </span>
+</div></div>
+  <div style="margin-top:18px"><div style="font-size:10px;font-weight:650;font-stretch:100%;letter-spacing:0.14em;line-height:1;text-transform:uppercase;color:#9598A0">Text</div><div style="display:flex;gap:13px;align-items:flex-start;padding:9px 0;border-top:1px solid #2A2E36">
+  <span style="width:46px;height:46px;flex:none;border-radius:11px;background:#1A1D24;border:1px solid #2A2E36"></span>
+  <span style="display:flex;flex-direction:column;gap:4px;min-width:0;flex:1">
+    <span style="display:flex;align-items:baseline;gap:9px;flex-wrap:wrap">
+      <span style="font-size:13px;font-weight:700;color:#F5F7FA;letter-spacing:-0.005em">text.primary</span>
+      <span style="font-size:11.5px;font-weight:600;font-stretch:108%;letter-spacing:-0.008em;line-height:1;color:#9598A0">#1A1D24</span>
+      <span style="font-size:10.5px;font-weight:700;font-stretch:108%;letter-spacing:-0.008em;line-height:1;padding:2px 6px;border-radius:5px;background:rgba(123,215,127,0.16);color:#7BD77F">16.16:1 on canvas</span>
+    </span>
+    <span style="font-size:12.5px;font-weight:450;line-height:1.45;color:#B4B7BE;text-wrap:pretty">Numbers, food names, screen titles. Everything you actually read.</span>
+  </span>
+</div><div style="display:flex;gap:13px;align-items:flex-start;padding:9px 0;border-top:1px solid #2A2E36">
+  <span style="width:46px;height:46px;flex:none;border-radius:11px;background:#575B63;border:1px solid #2A2E36"></span>
+  <span style="display:flex;flex-direction:column;gap:4px;min-width:0;flex:1">
+    <span style="display:flex;align-items:baseline;gap:9px;flex-wrap:wrap">
+      <span style="font-size:13px;font-weight:700;color:#F5F7FA;letter-spacing:-0.005em">text.secondary</span>
+      <span style="font-size:11.5px;font-weight:600;font-stretch:108%;letter-spacing:-0.008em;line-height:1;color:#9598A0">#575B63</span>
+      <span style="font-size:10.5px;font-weight:700;font-stretch:108%;letter-spacing:-0.008em;line-height:1;padding:2px 6px;border-radius:5px;background:rgba(123,215,127,0.16);color:#7BD77F">6.53:1 on canvas</span>
+    </span>
+    <span style="font-size:12.5px;font-weight:450;line-height:1.45;color:#B4B7BE;text-wrap:pretty">Supporting text you are meant to read, just not first.</span>
+  </span>
+</div><div style="display:flex;gap:13px;align-items:flex-start;padding:9px 0;border-top:1px solid #2A2E36">
+  <span style="width:46px;height:46px;flex:none;border-radius:11px;background:#63666F;border:1px solid #2A2E36"></span>
+  <span style="display:flex;flex-direction:column;gap:4px;min-width:0;flex:1">
+    <span style="display:flex;align-items:baseline;gap:9px;flex-wrap:wrap">
+      <span style="font-size:13px;font-weight:700;color:#F5F7FA;letter-spacing:-0.005em">text.tertiary</span>
+      <span style="font-size:11.5px;font-weight:600;font-stretch:108%;letter-spacing:-0.008em;line-height:1;color:#9598A0">#63666F</span>
+      <span style="font-size:10.5px;font-weight:700;font-stretch:108%;letter-spacing:-0.008em;line-height:1;padding:2px 6px;border-radius:5px;background:rgba(123,215,127,0.16);color:#7BD77F">4.95:1 on tile</span>
+    </span>
+    <span style="font-size:12.5px;font-weight:450;line-height:1.45;color:#B4B7BE;text-wrap:pretty">Units, timestamps, section eyebrows. The lowest rung — still ≥ 4.5:1 on every surface it lands on.</span>
+  </span>
+</div></div>
+  <div style="margin-top:18px"><div style="font-size:10px;font-weight:650;font-stretch:100%;letter-spacing:0.14em;line-height:1;text-transform:uppercase;color:#9598A0">Data &amp; semantic</div><div style="display:flex;gap:13px;align-items:flex-start;padding:9px 0;border-top:1px solid #2A2E36">
+  <span style="width:46px;height:46px;flex:none;border-radius:11px;background:#A25302;border:1px solid #2A2E36"></span>
+  <span style="display:flex;flex-direction:column;gap:4px;min-width:0;flex:1">
+    <span style="display:flex;align-items:baseline;gap:9px;flex-wrap:wrap">
+      <span style="font-size:13px;font-weight:700;color:#F5F7FA;letter-spacing:-0.005em">data.kcal</span>
+      <span style="font-size:11.5px;font-weight:600;font-stretch:108%;letter-spacing:-0.008em;line-height:1;color:#9598A0">#A25302</span>
+      <span style="font-size:10.5px;font-weight:700;font-stretch:108%;letter-spacing:-0.008em;line-height:1;padding:2px 6px;border-radius:5px;background:rgba(123,215,127,0.16);color:#7BD77F">4.8:1 on tile</span>
+    </span>
+    <span style="font-size:12.5px;font-weight:450;line-height:1.45;color:#B4B7BE;text-wrap:pretty">Calories, everywhere. The ring, the tile, the average line, the overlay area. Also the primary CTA on Today.</span>
+  </span>
+</div><div style="display:flex;gap:13px;align-items:flex-start;padding:9px 0;border-top:1px solid #2A2E36">
+  <span style="width:46px;height:46px;flex:none;border-radius:11px;background:#D79553;border:1px solid #2A2E36"></span>
+  <span style="display:flex;flex-direction:column;gap:4px;min-width:0;flex:1">
+    <span style="display:flex;align-items:baseline;gap:9px;flex-wrap:wrap">
+      <span style="font-size:13px;font-weight:700;color:#F5F7FA;letter-spacing:-0.005em">data.kcalMuted</span>
+      <span style="font-size:11.5px;font-weight:600;font-stretch:108%;letter-spacing:-0.008em;line-height:1;color:#9598A0">#D79553</span>
+      
+    </span>
+    <span style="font-size:12.5px;font-weight:450;line-height:1.45;color:#B4B7BE;text-wrap:pretty">The individual days scattered behind the calorie average. Texture, not information — the average line and the headline number carry the meaning.</span>
+  </span>
+</div><div style="display:flex;gap:13px;align-items:flex-start;padding:9px 0;border-top:1px solid #2A2E36">
+  <span style="width:46px;height:46px;flex:none;border-radius:11px;background:#037567;border:1px solid #2A2E36"></span>
+  <span style="display:flex;flex-direction:column;gap:4px;min-width:0;flex:1">
+    <span style="display:flex;align-items:baseline;gap:9px;flex-wrap:wrap">
+      <span style="font-size:13px;font-weight:700;color:#F5F7FA;letter-spacing:-0.005em">data.protein</span>
+      <span style="font-size:11.5px;font-weight:600;font-stretch:108%;letter-spacing:-0.008em;line-height:1;color:#9598A0">#037567</span>
+      <span style="font-size:10.5px;font-weight:700;font-stretch:108%;letter-spacing:-0.008em;line-height:1;padding:2px 6px;border-radius:5px;background:rgba(123,215,127,0.16);color:#7BD77F">4.83:1 on tile</span>
+    </span>
+    <span style="font-size:12.5px;font-weight:450;line-height:1.45;color:#B4B7BE;text-wrap:pretty">Protein, everywhere. Never used for anything that is not protein.</span>
+  </span>
+</div><div style="display:flex;gap:13px;align-items:flex-start;padding:9px 0;border-top:1px solid #2A2E36">
+  <span style="width:46px;height:46px;flex:none;border-radius:11px;background:#63B4A3;border:1px solid #2A2E36"></span>
+  <span style="display:flex;flex-direction:column;gap:4px;min-width:0;flex:1">
+    <span style="display:flex;align-items:baseline;gap:9px;flex-wrap:wrap">
+      <span style="font-size:13px;font-weight:700;color:#F5F7FA;letter-spacing:-0.005em">data.proteinMuted</span>
+      <span style="font-size:11.5px;font-weight:600;font-stretch:108%;letter-spacing:-0.008em;line-height:1;color:#9598A0">#63B4A3</span>
+      
+    </span>
+    <span style="font-size:12.5px;font-weight:450;line-height:1.45;color:#B4B7BE;text-wrap:pretty">The individual days behind the protein average. Same job, same rule.</span>
+  </span>
+</div><div style="display:flex;gap:13px;align-items:flex-start;padding:9px 0;border-top:1px solid #2A2E36">
+  <span style="width:46px;height:46px;flex:none;border-radius:11px;background:#2E62C9;border:1px solid #2A2E36"></span>
+  <span style="display:flex;flex-direction:column;gap:4px;min-width:0;flex:1">
+    <span style="display:flex;align-items:baseline;gap:9px;flex-wrap:wrap">
+      <span style="font-size:13px;font-weight:700;color:#F5F7FA;letter-spacing:-0.005em">data.body</span>
+      <span style="font-size:11.5px;font-weight:600;font-stretch:108%;letter-spacing:-0.008em;line-height:1;color:#9598A0">#2E62C9</span>
+      <span style="font-size:10.5px;font-weight:700;font-stretch:108%;letter-spacing:-0.008em;line-height:1;padding:2px 6px;border-radius:5px;background:rgba(123,215,127,0.16);color:#7BD77F">4.88:1 on tile</span>
+    </span>
+    <span style="font-size:12.5px;font-weight:450;line-height:1.45;color:#B4B7BE;text-wrap:pretty">Body weight and its trend line. Owns the Charts tab.</span>
+  </span>
+</div><div style="display:flex;gap:13px;align-items:flex-start;padding:9px 0;border-top:1px solid #2A2E36">
+  <span style="width:46px;height:46px;flex:none;border-radius:11px;background:#7FA5E6;border:1px solid #2A2E36"></span>
+  <span style="display:flex;flex-direction:column;gap:4px;min-width:0;flex:1">
+    <span style="display:flex;align-items:baseline;gap:9px;flex-wrap:wrap">
+      <span style="font-size:13px;font-weight:700;color:#F5F7FA;letter-spacing:-0.005em">data.bodyMuted</span>
+      <span style="font-size:11.5px;font-weight:600;font-stretch:108%;letter-spacing:-0.008em;line-height:1;color:#9598A0">#7FA5E6</span>
+      
+    </span>
+    <span style="font-size:12.5px;font-weight:450;line-height:1.45;color:#B4B7BE;text-wrap:pretty">Raw daily scale readings — deliberately quieter than the trend that runs through them.</span>
+  </span>
+</div><div style="display:flex;gap:13px;align-items:flex-start;padding:9px 0;border-top:1px solid #2A2E36">
+  <span style="width:46px;height:46px;flex:none;border-radius:11px;background:#8E3EAE;border:1px solid #2A2E36"></span>
+  <span style="display:flex;flex-direction:column;gap:4px;min-width:0;flex:1">
+    <span style="display:flex;align-items:baseline;gap:9px;flex-wrap:wrap">
+      <span style="font-size:13px;font-weight:700;color:#F5F7FA;letter-spacing:-0.005em">data.strength</span>
+      <span style="font-size:11.5px;font-weight:600;font-stretch:108%;letter-spacing:-0.008em;line-height:1;color:#9598A0">#8E3EAE</span>
+      <span style="font-size:10.5px;font-weight:700;font-stretch:108%;letter-spacing:-0.008em;line-height:1;padding:2px 6px;border-radius:5px;background:rgba(123,215,127,0.16);color:#7BD77F">5.25:1 on tile</span>
+    </span>
+    <span style="font-size:12.5px;font-weight:450;line-height:1.45;color:#B4B7BE;text-wrap:pretty">Sets, reps, e1RM. Owns the Workout tab and the rest timer.</span>
+  </span>
+</div><div style="display:flex;gap:13px;align-items:flex-start;padding:9px 0;border-top:1px solid #2A2E36">
+  <span style="width:46px;height:46px;flex:none;border-radius:11px;background:#C094D6;border:1px solid #2A2E36"></span>
+  <span style="display:flex;flex-direction:column;gap:4px;min-width:0;flex:1">
+    <span style="display:flex;align-items:baseline;gap:9px;flex-wrap:wrap">
+      <span style="font-size:13px;font-weight:700;color:#F5F7FA;letter-spacing:-0.005em">data.strengthMuted</span>
+      <span style="font-size:11.5px;font-weight:600;font-stretch:108%;letter-spacing:-0.008em;line-height:1;color:#9598A0">#C094D6</span>
+      
+    </span>
+    <span style="font-size:12.5px;font-weight:450;line-height:1.45;color:#B4B7BE;text-wrap:pretty">Set-number badges and strength gridline labels.</span>
+  </span>
+</div><div style="display:flex;gap:13px;align-items:flex-start;padding:9px 0;border-top:1px solid #2A2E36">
+  <span style="width:46px;height:46px;flex:none;border-radius:11px;background:#007936;border:1px solid #2A2E36"></span>
+  <span style="display:flex;flex-direction:column;gap:4px;min-width:0;flex:1">
+    <span style="display:flex;align-items:baseline;gap:9px;flex-wrap:wrap">
+      <span style="font-size:13px;font-weight:700;color:#F5F7FA;letter-spacing:-0.005em">state.success</span>
+      <span style="font-size:11.5px;font-weight:600;font-stretch:108%;letter-spacing:-0.008em;line-height:1;color:#9598A0">#007936</span>
+      <span style="font-size:10.5px;font-weight:700;font-stretch:108%;letter-spacing:-0.008em;line-height:1;padding:2px 6px;border-radius:5px;background:rgba(123,215,127,0.16);color:#7BD77F">5.54:1 on surface</span>
+    </span>
+    <span style="font-size:12.5px;font-weight:450;line-height:1.45;color:#B4B7BE;text-wrap:pretty">A target met, a trend going the right way, sync healthy.</span>
+  </span>
+</div><div style="display:flex;gap:13px;align-items:flex-start;padding:9px 0;border-top:1px solid #2A2E36">
+  <span style="width:46px;height:46px;flex:none;border-radius:11px;background:#BE222A;border:1px solid #2A2E36"></span>
+  <span style="display:flex;flex-direction:column;gap:4px;min-width:0;flex:1">
+    <span style="display:flex;align-items:baseline;gap:9px;flex-wrap:wrap">
+      <span style="font-size:13px;font-weight:700;color:#F5F7FA;letter-spacing:-0.005em">state.danger</span>
+      <span style="font-size:11.5px;font-weight:600;font-stretch:108%;letter-spacing:-0.008em;line-height:1;color:#9598A0">#BE222A</span>
+      <span style="font-size:10.5px;font-weight:700;font-stretch:108%;letter-spacing:-0.008em;line-height:1;padding:2px 6px;border-radius:5px;background:rgba(123,215,127,0.16);color:#7BD77F">6.08:1 on surface</span>
+    </span>
+    <span style="font-size:12.5px;font-weight:450;line-height:1.45;color:#B4B7BE;text-wrap:pretty">Delete, discard a session, sync failure. Nothing else.</span>
+  </span>
+</div></div>
+  <div style="margin-top:18px"><div style="font-size:10px;font-weight:650;font-stretch:100%;letter-spacing:0.14em;line-height:1;text-transform:uppercase;color:#9598A0">Washes &amp; depth</div><div style="display:flex;gap:13px;align-items:flex-start;padding:9px 0;border-top:1px solid #2A2E36">
+  <span style="width:46px;height:46px;flex:none;border-radius:11px;background:linear-gradient(0deg, rgba(162,83,2,0.09), rgba(162,83,2,0.09)) #ECEEF4;border:1px solid #2A2E36"></span>
+  <span style="display:flex;flex-direction:column;gap:4px;min-width:0;flex:1">
+    <span style="display:flex;align-items:baseline;gap:9px;flex-wrap:wrap">
+      <span style="font-size:13px;font-weight:700;color:#F5F7FA;letter-spacing:-0.005em">wash.kcal</span>
+      <span style="font-size:11.5px;font-weight:600;font-stretch:108%;letter-spacing:-0.008em;line-height:1;color:#9598A0">rgba(162,83,2,0.09)</span>
+      
+    </span>
+    <span style="font-size:12.5px;font-weight:450;line-height:1.45;color:#B4B7BE;text-wrap:pretty">The 900 ms confirmation fill across a tile that has just been logged.</span>
+  </span>
+</div><div style="display:flex;gap:13px;align-items:flex-start;padding:9px 0;border-top:1px solid #2A2E36">
+  <span style="width:46px;height:46px;flex:none;border-radius:11px;background:linear-gradient(0deg, rgba(3,117,103,0.09), rgba(3,117,103,0.09)) #ECEEF4;border:1px solid #2A2E36"></span>
+  <span style="display:flex;flex-direction:column;gap:4px;min-width:0;flex:1">
+    <span style="display:flex;align-items:baseline;gap:9px;flex-wrap:wrap">
+      <span style="font-size:13px;font-weight:700;color:#F5F7FA;letter-spacing:-0.005em">wash.protein</span>
+      <span style="font-size:11.5px;font-weight:600;font-stretch:108%;letter-spacing:-0.008em;line-height:1;color:#9598A0">rgba(3,117,103,0.09)</span>
+      
+    </span>
+    <span style="font-size:12.5px;font-weight:450;line-height:1.45;color:#B4B7BE;text-wrap:pretty">Protein-owned highlights — the protein half of a split row.</span>
+  </span>
+</div><div style="display:flex;gap:13px;align-items:flex-start;padding:9px 0;border-top:1px solid #2A2E36">
+  <span style="width:46px;height:46px;flex:none;border-radius:11px;background:linear-gradient(0deg, rgba(46,98,201,0.09), rgba(46,98,201,0.09)) #ECEEF4;border:1px solid #2A2E36"></span>
+  <span style="display:flex;flex-direction:column;gap:4px;min-width:0;flex:1">
+    <span style="display:flex;align-items:baseline;gap:9px;flex-wrap:wrap">
+      <span style="font-size:13px;font-weight:700;color:#F5F7FA;letter-spacing:-0.005em">wash.body</span>
+      <span style="font-size:11.5px;font-weight:600;font-stretch:108%;letter-spacing:-0.008em;line-height:1;color:#9598A0">rgba(46,98,201,0.09)</span>
+      
+    </span>
+    <span style="font-size:12.5px;font-weight:450;line-height:1.45;color:#B4B7BE;text-wrap:pretty">Weight-owned highlights.</span>
+  </span>
+</div><div style="display:flex;gap:13px;align-items:flex-start;padding:9px 0;border-top:1px solid #2A2E36">
+  <span style="width:46px;height:46px;flex:none;border-radius:11px;background:linear-gradient(0deg, rgba(142,62,174,0.09), rgba(142,62,174,0.09)) #ECEEF4;border:1px solid #2A2E36"></span>
+  <span style="display:flex;flex-direction:column;gap:4px;min-width:0;flex:1">
+    <span style="display:flex;align-items:baseline;gap:9px;flex-wrap:wrap">
+      <span style="font-size:13px;font-weight:700;color:#F5F7FA;letter-spacing:-0.005em">wash.strength</span>
+      <span style="font-size:11.5px;font-weight:600;font-stretch:108%;letter-spacing:-0.008em;line-height:1;color:#9598A0">rgba(142,62,174,0.09)</span>
+      
+    </span>
+    <span style="font-size:12.5px;font-weight:450;line-height:1.45;color:#B4B7BE;text-wrap:pretty">The active set block and the set-index badge on Workout.</span>
+  </span>
+</div><div style="display:flex;gap:13px;align-items:flex-start;padding:9px 0;border-top:1px solid #2A2E36">
+  <span style="width:46px;height:46px;flex:none;border-radius:11px;background:linear-gradient(0deg, rgba(20,24,34,0.07), rgba(20,24,34,0.07)) #ECEEF4;border:1px solid #2A2E36"></span>
+  <span style="display:flex;flex-direction:column;gap:4px;min-width:0;flex:1">
+    <span style="display:flex;align-items:baseline;gap:9px;flex-wrap:wrap">
+      <span style="font-size:13px;font-weight:700;color:#F5F7FA;letter-spacing:-0.005em">line.ghost</span>
+      <span style="font-size:11.5px;font-weight:600;font-stretch:108%;letter-spacing:-0.008em;line-height:1;color:#9598A0">rgba(20,24,34,0.07)</span>
+      
+    </span>
+    <span style="font-size:12.5px;font-weight:450;line-height:1.45;color:#B4B7BE;text-wrap:pretty">Dashed outlines for things that do not exist yet: an unlearned tile, an empty chart, a routine with no exercises. Shown here over bg.tile, as all five of these are.</span>
+  </span>
+</div></div>
+</div>
+</div>
+
+<div style="margin-top:34px;background:#181B21;border:1px solid #2A2E36;border-radius:20px;padding:22px 24px">
+  <div style="font-size:17px;font-weight:700;font-stretch:104%;letter-spacing:-0.012em;line-height:1.2;color:#F5F7FA">Type — Archivo, one family, two widths</div>
+  <div style="font-size:12.5px;font-weight:500;font-stretch:100%;letter-spacing:0;line-height:1.3;color:#B4B7BE;margin-top:7px;max-width:900px;text-wrap:pretty">Archivo carries a variable width axis. Numbers are set in the expanded cut so they read as instrument readouts; words stay at normal width. Two voices, one file, no pairing risk. Tabular figures everywhere — a changing digit must never shift the ones beside it.</div>
+  <div style="display:flex;gap:24px;align-items:center;padding:15px 0;border-top:1px solid #2A2E36">
+    <span style="width:300px;flex:none;color:#F5F7FA;font-size:33px;font-weight:700;font-stretch:118%;letter-spacing:-0.022em;line-height:1">1,240</span>
+    <span style="width:250px;flex:none;display:flex;flex-direction:column;gap:4px"><span style="font-size:13px;font-weight:700;color:#F5F7FA">type.displayXl</span><span style="font-size:11.5px;font-weight:550;font-stretch:108%;letter-spacing:-0.008em;line-height:1;color:#9598A0">Archivo 33 / 700 / width 118 / −0.022em</span></span>
+    <span style="flex:1;font-size:12.5px;line-height:1.45;color:#B4B7BE;text-wrap:pretty">The number inside each ring, and nothing else.</span>
+  </div>
+  <div style="display:flex;gap:24px;align-items:center;padding:15px 0;border-top:1px solid #2A2E36">
+    <span style="width:300px;flex:none;color:#F5F7FA;font-size:25px;font-weight:700;font-stretch:116%;letter-spacing:-0.018em;line-height:1.06">Today</span>
+    <span style="width:250px;flex:none;display:flex;flex-direction:column;gap:4px"><span style="font-size:13px;font-weight:700;color:#F5F7FA">type.displayLg</span><span style="font-size:11.5px;font-weight:550;font-stretch:108%;letter-spacing:-0.008em;line-height:1;color:#9598A0">Archivo 25 / 700 / width 116 / −0.018em</span></span>
+    <span style="flex:1;font-size:12.5px;line-height:1.45;color:#B4B7BE;text-wrap:pretty">Screen titles and the headline stat on every chart card.</span>
+  </div>
+  <div style="display:flex;gap:24px;align-items:center;padding:15px 0;border-top:1px solid #2A2E36">
+    <span style="width:300px;flex:none;color:#F5F7FA;font-size:19px;font-weight:700;font-stretch:104%;letter-spacing:-0.012em;line-height:1.2">Bench Press</span>
+    <span style="width:250px;flex:none;display:flex;flex-direction:column;gap:4px"><span style="font-size:13px;font-weight:700;color:#F5F7FA">type.title</span><span style="font-size:11.5px;font-weight:550;font-stretch:108%;letter-spacing:-0.008em;line-height:1;color:#9598A0">Archivo 19 / 700 / width 104</span></span>
+    <span style="flex:1;font-size:12.5px;line-height:1.45;color:#B4B7BE;text-wrap:pretty">Card titles, exercise names, sheet headers.</span>
+  </div>
+  <div style="display:flex;gap:24px;align-items:center;padding:15px 0;border-top:1px solid #2A2E36">
+    <span style="width:300px;flex:none;color:#F5F7FA;font-size:16.5px;font-weight:650;font-stretch:100%;letter-spacing:-0.006em;line-height:1.16">Chicken Breast</span>
+    <span style="width:250px;flex:none;display:flex;flex-direction:column;gap:4px"><span style="font-size:13px;font-weight:700;color:#F5F7FA">type.strong</span><span style="font-size:11.5px;font-weight:550;font-stretch:108%;letter-spacing:-0.008em;line-height:1;color:#9598A0">Archivo 16.5 / 650</span></span>
+    <span style="flex:1;font-size:12.5px;line-height:1.45;color:#B4B7BE;text-wrap:pretty">The quick-add tile name. The one size tuned for arm’s length.</span>
+  </div>
+  <div style="display:flex;gap:24px;align-items:center;padding:15px 0;border-top:1px solid #2A2E36">
+    <span style="width:300px;flex:none;color:#F5F7FA;font-size:15px;font-weight:450;font-stretch:100%;letter-spacing:0;line-height:1.35">Chicken &amp; Rice</span>
+    <span style="width:250px;flex:none;display:flex;flex-direction:column;gap:4px"><span style="font-size:13px;font-weight:700;color:#F5F7FA">type.body</span><span style="font-size:11.5px;font-weight:550;font-stretch:108%;letter-spacing:-0.008em;line-height:1;color:#9598A0">Archivo 15 / 450</span></span>
+    <span style="flex:1;font-size:12.5px;line-height:1.45;color:#B4B7BE;text-wrap:pretty">Log rows, settings rows, running text.</span>
+  </div>
+  <div style="display:flex;gap:24px;align-items:center;padding:15px 0;border-top:1px solid #2A2E36">
+    <span style="width:300px;flex:none;color:#F5F7FA;font-size:15px;font-weight:700;font-stretch:108%;letter-spacing:-0.008em;line-height:1">80 kg × 8</span>
+    <span style="width:250px;flex:none;display:flex;flex-direction:column;gap:4px"><span style="font-size:13px;font-weight:700;color:#F5F7FA">type.numeric</span><span style="font-size:11.5px;font-weight:550;font-stretch:108%;letter-spacing:-0.008em;line-height:1;color:#9598A0">Archivo 15 / 700 / width 108 / tabular</span></span>
+    <span style="flex:1;font-size:12.5px;line-height:1.45;color:#B4B7BE;text-wrap:pretty">Every number outside a ring. Tabular so columns never jitter.</span>
+  </div>
+  <div style="display:flex;gap:24px;align-items:center;padding:15px 0;border-top:1px solid #2A2E36">
+    <span style="width:300px;flex:none;color:#F5F7FA;font-size:12.5px;font-weight:500;font-stretch:100%;letter-spacing:0;line-height:1.3">Last: 80 kg × 8 · 4 days ago</span>
+    <span style="width:250px;flex:none;display:flex;flex-direction:column;gap:4px"><span style="font-size:13px;font-weight:700;color:#F5F7FA">type.label</span><span style="font-size:11.5px;font-weight:550;font-stretch:108%;letter-spacing:-0.008em;line-height:1;color:#9598A0">Archivo 12.5 / 500</span></span>
+    <span style="flex:1;font-size:12.5px;line-height:1.45;color:#B4B7BE;text-wrap:pretty">Captions, secondary lines, chart footnotes.</span>
+  </div>
+  <div style="display:flex;gap:24px;align-items:center;padding:15px 0;border-top:1px solid #2A2E36">
+    <span style="width:300px;flex:none;color:#F5F7FA;font-size:10.5px;font-weight:650;font-stretch:100%;letter-spacing:0.14em;line-height:1;text-transform:uppercase">Quick add</span>
+    <span style="width:250px;flex:none;display:flex;flex-direction:column;gap:4px"><span style="font-size:13px;font-weight:700;color:#F5F7FA">type.micro</span><span style="font-size:11.5px;font-weight:550;font-stretch:108%;letter-spacing:-0.008em;line-height:1;color:#9598A0">Archivo 10.5 / 650 / +0.14em / caps</span></span>
+    <span style="flex:1;font-size:12.5px;line-height:1.45;color:#B4B7BE;text-wrap:pretty">Section eyebrows and chart labels. Never for anything you must read.</span>
+  </div>
+</div>
+
+<div style="display:flex;gap:20px;margin-top:20px;align-items:flex-start">
+  <div style="flex:1;min-width:0;background:#181B21;border:1px solid #2A2E36;border-radius:20px;padding:22px 24px">
+    <div style="font-size:17px;font-weight:700;font-stretch:104%;letter-spacing:-0.012em;line-height:1.2;color:#F5F7FA">Space</div>
+    <div style="font-size:12.5px;font-weight:500;font-stretch:100%;letter-spacing:0;line-height:1.3;color:#B4B7BE;margin-top:7px;text-wrap:pretty">Nine steps, no ad-hoc values. Every gap and every padding on every screen is one of these names.</div>
+    <div style="display:flex;gap:14px;align-items:center;padding:10px 0;border-top:1px solid #2A2E36">
+      <span style="width:34px;flex:none;display:flex;justify-content:center"><span style="width:4px;height:30px;background:#FAAB3F;border-radius:2px"></span></span>
+      <span style="width:108px;flex:none;display:flex;flex-direction:column;gap:3px"><span style="font-size:12.5px;font-weight:700;color:#F5F7FA">space.1</span><span style="font-size:11px;font-weight:600;font-stretch:108%;letter-spacing:-0.008em;line-height:1;color:#9598A0">4 pt</span></span>
+      <span style="flex:1;min-width:0;font-size:12px;line-height:1.45;color:#B4B7BE;text-wrap:pretty">The tightest gap in the system: a micro label above the number it names.</span>
+    </div>
+    <div style="display:flex;gap:14px;align-items:center;padding:10px 0;border-top:1px solid #2A2E36">
+      <span style="width:34px;flex:none;display:flex;justify-content:center"><span style="width:6px;height:30px;background:#FAAB3F;border-radius:2px"></span></span>
+      <span style="width:108px;flex:none;display:flex;flex-direction:column;gap:3px"><span style="font-size:12.5px;font-weight:700;color:#F5F7FA">space.2</span><span style="font-size:11px;font-weight:600;font-stretch:108%;letter-spacing:-0.008em;line-height:1;color:#9598A0">6 pt</span></span>
+      <span style="flex:1;min-width:0;font-size:12px;line-height:1.45;color:#B4B7BE;text-wrap:pretty">Inside a control — icon to label, number to unit.</span>
+    </div>
+    <div style="display:flex;gap:14px;align-items:center;padding:10px 0;border-top:1px solid #2A2E36">
+      <span style="width:34px;flex:none;display:flex;justify-content:center"><span style="width:8px;height:30px;background:#FAAB3F;border-radius:2px"></span></span>
+      <span style="width:108px;flex:none;display:flex;flex-direction:column;gap:3px"><span style="font-size:12.5px;font-weight:700;color:#F5F7FA">space.3</span><span style="font-size:11px;font-weight:600;font-stretch:108%;letter-spacing:-0.008em;line-height:1;color:#9598A0">8 pt</span></span>
+      <span style="flex:1;min-width:0;font-size:12px;line-height:1.45;color:#B4B7BE;text-wrap:pretty">Between a section eyebrow and the thing it heads.</span>
+    </div>
+    <div style="display:flex;gap:14px;align-items:center;padding:10px 0;border-top:1px solid #2A2E36">
+      <span style="width:34px;flex:none;display:flex;justify-content:center"><span style="width:10px;height:30px;background:#FAAB3F;border-radius:2px"></span></span>
+      <span style="width:108px;flex:none;display:flex;flex-direction:column;gap:3px"><span style="font-size:12.5px;font-weight:700;color:#F5F7FA">space.4</span><span style="font-size:11px;font-weight:600;font-stretch:108%;letter-spacing:-0.008em;line-height:1;color:#9598A0">10 pt</span></span>
+      <span style="flex:1;min-width:0;font-size:12px;line-height:1.45;color:#B4B7BE;text-wrap:pretty">Between quick-add tiles, and between the two chips under them.</span>
+    </div>
+    <div style="display:flex;gap:14px;align-items:center;padding:10px 0;border-top:1px solid #2A2E36">
+      <span style="width:34px;flex:none;display:flex;justify-content:center"><span style="width:12px;height:30px;background:#FAAB3F;border-radius:2px"></span></span>
+      <span style="width:108px;flex:none;display:flex;flex-direction:column;gap:3px"><span style="font-size:12.5px;font-weight:700;color:#F5F7FA">space.5</span><span style="font-size:11px;font-weight:600;font-stretch:108%;letter-spacing:-0.008em;line-height:1;color:#9598A0">12 pt</span></span>
+      <span style="flex:1;min-width:0;font-size:12px;line-height:1.45;color:#B4B7BE;text-wrap:pretty">The default gap between two cards. If you are unsure, it is this one.</span>
+    </div>
+    <div style="display:flex;gap:14px;align-items:center;padding:10px 0;border-top:1px solid #2A2E36">
+      <span style="width:34px;flex:none;display:flex;justify-content:center"><span style="width:16px;height:30px;background:#FAAB3F;border-radius:2px"></span></span>
+      <span style="width:108px;flex:none;display:flex;flex-direction:column;gap:3px"><span style="font-size:12.5px;font-weight:700;color:#F5F7FA">space.6</span><span style="font-size:11px;font-weight:600;font-stretch:108%;letter-spacing:-0.008em;line-height:1;color:#9598A0">16 pt</span></span>
+      <span style="flex:1;min-width:0;font-size:12px;line-height:1.45;color:#B4B7BE;text-wrap:pretty">Card padding, and the gutter on Workout, Charts and Settings.</span>
+    </div>
+    <div style="display:flex;gap:14px;align-items:center;padding:10px 0;border-top:1px solid #2A2E36">
+      <span style="width:34px;flex:none;display:flex;justify-content:center"><span style="width:20px;height:30px;background:#FAAB3F;border-radius:2px"></span></span>
+      <span style="width:108px;flex:none;display:flex;flex-direction:column;gap:3px"><span style="font-size:12.5px;font-weight:700;color:#F5F7FA">space.7</span><span style="font-size:11px;font-weight:600;font-stretch:108%;letter-spacing:-0.008em;line-height:1;color:#9598A0">20 pt</span></span>
+      <span style="flex:1;min-width:0;font-size:12px;line-height:1.45;color:#B4B7BE;text-wrap:pretty">The Today gutter — Today gets more air than any other screen.</span>
+    </div>
+    <div style="display:flex;gap:14px;align-items:center;padding:10px 0;border-top:1px solid #2A2E36">
+      <span style="width:34px;flex:none;display:flex;justify-content:center"><span style="width:24px;height:30px;background:#FAAB3F;border-radius:2px"></span></span>
+      <span style="width:108px;flex:none;display:flex;flex-direction:column;gap:3px"><span style="font-size:12.5px;font-weight:700;color:#F5F7FA">space.8</span><span style="font-size:11px;font-weight:600;font-stretch:108%;letter-spacing:-0.008em;line-height:1;color:#9598A0">24 pt</span></span>
+      <span style="flex:1;min-width:0;font-size:12px;line-height:1.45;color:#B4B7BE;text-wrap:pretty">Between two settings groups.</span>
+    </div>
+    <div style="display:flex;gap:14px;align-items:center;padding:10px 0;border-top:1px solid #2A2E36">
+      <span style="width:34px;flex:none;display:flex;justify-content:center"><span style="width:32px;height:30px;background:#FAAB3F;border-radius:2px"></span></span>
+      <span style="width:108px;flex:none;display:flex;flex-direction:column;gap:3px"><span style="font-size:12.5px;font-weight:700;color:#F5F7FA">space.9</span><span style="font-size:11px;font-weight:600;font-stretch:108%;letter-spacing:-0.008em;line-height:1;color:#9598A0">32 pt</span></span>
+      <span style="flex:1;min-width:0;font-size:12px;line-height:1.45;color:#B4B7BE;text-wrap:pretty">Above a screen-level heading in a long scroll.</span>
+    </div>
+  </div>
+  <div style="flex:1;min-width:0;background:#181B21;border:1px solid #2A2E36;border-radius:20px;padding:22px 24px">
+    <div style="font-size:17px;font-weight:700;font-stretch:104%;letter-spacing:-0.012em;line-height:1.2;color:#F5F7FA">Radius</div>
+    <div style="font-size:12.5px;font-weight:500;font-stretch:100%;letter-spacing:0;line-height:1.3;color:#B4B7BE;margin-top:7px;text-wrap:pretty">Radius encodes size: the bigger the object, the rounder it is. Seven steps, and nothing in between them.</div>
+    <div style="display:flex;gap:14px;align-items:center;padding:10px 0;border-top:1px solid #2A2E36">
+      <span style="width:46px;height:38px;flex:none;background:#21252B;border:1px solid #494D55;border-radius:8px"></span>
+      <span style="width:108px;flex:none;display:flex;flex-direction:column;gap:3px"><span style="font-size:12.5px;font-weight:700;color:#F5F7FA">radius.xs</span><span style="font-size:11px;font-weight:600;font-stretch:108%;letter-spacing:-0.008em;line-height:1;color:#9598A0">8 pt</span></span>
+      <span style="flex:1;min-width:0;font-size:12px;line-height:1.45;color:#B4B7BE;text-wrap:pretty">Set-index badges and micro pills inside a row.</span>
+    </div>
+    <div style="display:flex;gap:14px;align-items:center;padding:10px 0;border-top:1px solid #2A2E36">
+      <span style="width:46px;height:38px;flex:none;background:#21252B;border:1px solid #494D55;border-radius:10px"></span>
+      <span style="width:108px;flex:none;display:flex;flex-direction:column;gap:3px"><span style="font-size:12.5px;font-weight:700;color:#F5F7FA">radius.sm</span><span style="font-size:11px;font-weight:600;font-stretch:108%;letter-spacing:-0.008em;line-height:1;color:#9598A0">10 pt</span></span>
+      <span style="flex:1;min-width:0;font-size:12px;line-height:1.45;color:#B4B7BE;text-wrap:pretty">A segment inside a segmented track; small utility chips.</span>
+    </div>
+    <div style="display:flex;gap:14px;align-items:center;padding:10px 0;border-top:1px solid #2A2E36">
+      <span style="width:46px;height:38px;flex:none;background:#21252B;border:1px solid #494D55;border-radius:14px"></span>
+      <span style="width:108px;flex:none;display:flex;flex-direction:column;gap:3px"><span style="font-size:12.5px;font-weight:700;color:#F5F7FA">radius.md</span><span style="font-size:11px;font-weight:600;font-stretch:108%;letter-spacing:-0.008em;line-height:1;color:#9598A0">14 pt</span></span>
+      <span style="flex:1;min-width:0;font-size:12px;line-height:1.45;color:#B4B7BE;text-wrap:pretty">Steppers, stat cells, portion chips, segmented tracks, primary buttons.</span>
+    </div>
+    <div style="display:flex;gap:14px;align-items:center;padding:10px 0;border-top:1px solid #2A2E36">
+      <span style="width:46px;height:38px;flex:none;background:#21252B;border:1px solid #494D55;border-radius:18px"></span>
+      <span style="width:108px;flex:none;display:flex;flex-direction:column;gap:3px"><span style="font-size:12.5px;font-weight:700;color:#F5F7FA">radius.lg</span><span style="font-size:11px;font-weight:600;font-stretch:108%;letter-spacing:-0.008em;line-height:1;color:#9598A0">18 pt</span></span>
+      <span style="flex:1;min-width:0;font-size:12px;line-height:1.45;color:#B4B7BE;text-wrap:pretty">The quick-add tile, the weight and workout chips, settings groups.</span>
+    </div>
+    <div style="display:flex;gap:14px;align-items:center;padding:10px 0;border-top:1px solid #2A2E36">
+      <span style="width:46px;height:38px;flex:none;background:#21252B;border:1px solid #494D55;border-radius:22px"></span>
+      <span style="width:108px;flex:none;display:flex;flex-direction:column;gap:3px"><span style="font-size:12.5px;font-weight:700;color:#F5F7FA">radius.xl</span><span style="font-size:11px;font-weight:600;font-stretch:108%;letter-spacing:-0.008em;line-height:1;color:#9598A0">22 pt</span></span>
+      <span style="flex:1;min-width:0;font-size:12px;line-height:1.45;color:#B4B7BE;text-wrap:pretty">Sheets, the rest-timer bar, the account card — the big floating objects.</span>
+    </div>
+    <div style="display:flex;gap:14px;align-items:center;padding:10px 0;border-top:1px solid #2A2E36">
+      <span style="width:46px;height:38px;flex:none;background:#21252B;border:1px solid #494D55;border-radius:24px"></span>
+      <span style="width:108px;flex:none;display:flex;flex-direction:column;gap:3px"><span style="font-size:12.5px;font-weight:700;color:#F5F7FA">radius.card</span><span style="font-size:11px;font-weight:600;font-stretch:108%;letter-spacing:-0.008em;line-height:1;color:#9598A0">24 pt</span></span>
+      <span style="flex:1;min-width:0;font-size:12px;line-height:1.45;color:#B4B7BE;text-wrap:pretty">Cards. The largest thing on any screen, so the roundest.</span>
+    </div>
+    <div style="display:flex;gap:14px;align-items:center;padding:10px 0;border-top:1px solid #2A2E36">
+      <span style="width:46px;height:38px;flex:none;background:#21252B;border:1px solid #494D55;border-radius:999px"></span>
+      <span style="width:108px;flex:none;display:flex;flex-direction:column;gap:3px"><span style="font-size:12.5px;font-weight:700;color:#F5F7FA">radius.pill</span><span style="font-size:11px;font-weight:600;font-stretch:108%;letter-spacing:-0.008em;line-height:1;color:#9598A0">fully rounded</span></span>
+      <span style="flex:1;min-width:0;font-size:12px;line-height:1.45;color:#B4B7BE;text-wrap:pretty">Anything genuinely pill-shaped: avatars, dots, the search button, Sync now.</span>
+    </div>
+  </div>
+</div>
+</x-dc>
+</body>
+</html>
