@@ -18,7 +18,13 @@ if [ "${1:-}" = "--check" ]; then
 
   node scripts/graph-gen.mjs "$ROOT" >/dev/null
   rc=0
-  diff -rq "$tmp/committed" docs/graph >/dev/null 2>&1 || rc=1
+  if ! diff -rq "$tmp/committed" docs/graph >/dev/null 2>&1; then
+    rc=1
+    # Say WHAT differs, not just that something did. A "stale" message with no diff is a dead end
+    # for whoever has to fix it — especially in CI, where they cannot reproduce the machine.
+    printf '%s\n' "--- committed (in git) vs regenerated (from source) ---"
+    diff -ru "$tmp/committed" docs/graph | head -60
+  fi
 
   rm -rf docs/graph
   cp -R "$tmp/committed" docs/graph
