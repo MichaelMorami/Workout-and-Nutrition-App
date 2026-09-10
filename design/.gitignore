@@ -1,0 +1,3 @@
+# The seeded canvas payload is a ~3 MB build artefact — rebuild it with
+# design/build-canvas.mjs + the design skill's seed helper, do not commit it.
+vitals-design-canvas.html

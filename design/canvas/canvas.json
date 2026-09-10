@@ -1,0 +1,184 @@
+{
+  "pages": [
+    {
+      "id": "page-1",
+      "name": "Screens — dark"
+    },
+    {
+      "id": "page-2",
+      "name": "Light theme & system"
+    }
+  ],
+  "artboards": [
+    {
+      "file": "Main.dc.html",
+      "title": "Today",
+      "x": 0,
+      "y": 0,
+      "w": 390,
+      "h": 844,
+      "page": "page-1"
+    },
+    {
+      "file": "Workout.dc.html",
+      "title": "Workout — active",
+      "x": 500,
+      "y": 0,
+      "w": 390,
+      "h": 844,
+      "page": "page-1"
+    },
+    {
+      "file": "Charts.dc.html",
+      "title": "Charts — full scroll",
+      "x": 1000,
+      "y": 0,
+      "w": 390,
+      "h": 1760,
+      "page": "page-1"
+    },
+    {
+      "file": "Settings.dc.html",
+      "title": "Settings — full scroll",
+      "x": 1500,
+      "y": 0,
+      "w": 390,
+      "h": 1560,
+      "page": "page-1"
+    },
+    {
+      "file": "QuickAdd.dc.html",
+      "title": "Quick-add tile — real size",
+      "x": 0,
+      "y": 1990,
+      "w": 860,
+      "h": 800,
+      "page": "page-1"
+    },
+    {
+      "file": "Empty.dc.html",
+      "title": "Empty states",
+      "x": 990,
+      "y": 1990,
+      "w": 1742,
+      "h": 1100,
+      "page": "page-1"
+    },
+    {
+      "file": "TodayLight.dc.html",
+      "title": "Today — light",
+      "x": 0,
+      "y": 0,
+      "w": 390,
+      "h": 844,
+      "page": "page-2"
+    },
+    {
+      "file": "WorkoutLight.dc.html",
+      "title": "Workout — light",
+      "x": 500,
+      "y": 0,
+      "w": 390,
+      "h": 844,
+      "page": "page-2"
+    },
+    {
+      "file": "ChartsLight.dc.html",
+      "title": "Charts — light",
+      "x": 1000,
+      "y": 0,
+      "w": 390,
+      "h": 1760,
+      "page": "page-2"
+    },
+    {
+      "file": "SettingsLight.dc.html",
+      "title": "Settings — light",
+      "x": 1500,
+      "y": 0,
+      "w": 390,
+      "h": 1560,
+      "page": "page-2"
+    },
+    {
+      "file": "Specimen.dc.html",
+      "title": "Colour & type specimen",
+      "x": 2000,
+      "y": 0,
+      "w": 1240,
+      "h": 3330,
+      "page": "page-2"
+    },
+    {
+      "file": "Motion.dc.html",
+      "title": "Motion, haptics & access",
+      "x": 3360,
+      "y": 0,
+      "w": 1240,
+      "h": 3160,
+      "page": "page-2"
+    }
+  ],
+  "annotations": [
+    {
+      "id": "start-here",
+      "page": "page-1",
+      "x": 0,
+      "y": -300,
+      "w": 880,
+      "text": "CHECKPOINT 1 — your sign-off gate\n\nFour screens in the dark theme (dark is the product), the quick-add tile drawn at real size, and every day-one empty state. The light theme and the full colour / type / motion specs are on page 2 — use the pages menu in the top bar.\n\nNothing gets coded until you say yes to this. Changing a decision here costs minutes; changing it after three sprints of screens costs days."
+    },
+    {
+      "id": "charts-note",
+      "page": "page-1",
+      "x": 940,
+      "y": -300,
+      "w": 440,
+      "text": "Charts is one long scroll — the artboard shows the whole thing at once; on the phone the tab bar floats over it.\n\nThe top card is the one that matters. It answers the only question worth asking: is what I am eating actually working?"
+    },
+    {
+      "id": "questions",
+      "page": "page-1",
+      "x": 1450,
+      "y": -300,
+      "w": 440,
+      "text": "THREE THINGS I NEED FROM YOU\n\n1. Six quick-add tiles, or nine? Six keeps the name at 16.5pt and readable across a gym. Nine covers more of your day but the names shrink.\n\n2. Should a long-press be needed at all, or should tapping a tile a second time within 5s bump it to 2 portions?\n\n3. Weight in kg and bar weight in kg — is lb ever needed, or can I drop the unit switch entirely?"
+    },
+    {
+      "id": "tile-note",
+      "page": "page-1",
+      "x": 0,
+      "y": 1830,
+      "w": 440,
+      "text": "Everything on Today is secondary to this object. Judge it at arm’s length: hold the phone where you would hold it mid-set."
+    },
+    {
+      "id": "empty-note",
+      "page": "page-1",
+      "x": 990,
+      "y": 1830,
+      "w": 440,
+      "text": "Day one is the only day every user sees. No screen here shrugs — each one says what will fill it and what the first tap is."
+    },
+    {
+      "id": "light-note",
+      "page": "page-2",
+      "x": 0,
+      "y": -260,
+      "w": 880,
+      "text": "The light theme. Same layout, same tokens, same code path — both palettes are generated from one OKLCH ramp, so light can never drift away from dark as the app grows."
+    },
+    {
+      "id": "system-note",
+      "page": "page-2",
+      "x": 2000,
+      "y": -260,
+      "w": 880,
+      "text": "Every named token with the one job it is allowed to do, and its measured contrast ratio. These become src/theme/tokens.ts the moment you sign off — not before."
+    }
+  ],
+  "launch": {
+    "view": "canvas",
+    "page": "page-1"
+  }
+}
