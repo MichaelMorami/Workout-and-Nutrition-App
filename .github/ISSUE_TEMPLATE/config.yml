@@ -1,0 +1,5 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Vitals project board / roadmap
+    url: https://github.com/MichaelMorami/Workout-and-Nutrition-App/milestones
+    about: Sprint plan and milestones — check here before filing a new subtask.
