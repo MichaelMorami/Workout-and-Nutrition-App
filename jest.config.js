@@ -25,6 +25,29 @@ const babelTransform = (caller) => [
   { presets: [require.resolve('expo/internal/babel-preset')], babelrc: false, configFile: false, caller },
 ];
 
+/**
+ * Agent worktrees live at `<repo>/.worktrees/<branch>/` — inside `rootDir`. Without this, jest walks
+ * into every other branch's checkout and runs its in-progress tests, so the local gate fails on
+ * `main` with someone else's red suite and blames the wrong person. CI never sees it (a fresh clone
+ * has no `.worktrees/`), which is exactly what makes it expensive to diagnose.
+ *
+ * `modulePathIgnorePatterns` matters as much as `testPathIgnorePatterns`: without it, haste finds
+ * duplicate copies of every module and the resolver picks between branches at random.
+ *
+ * The `<rootDir>/` anchor is load-bearing and the reason this is not simply `/\.worktrees/`. These
+ * patterns are matched against **absolute** paths, and an agent's own checkout *is*
+ * `<repo>/.worktrees/<branch>/` — so the unanchored form matches every file the agent is working
+ * on and jest reports "No tests found" for their entire suite. Anchoring means "a `.worktrees`
+ * directory belonging to *this* checkout", which is nested worktrees only: correct from the main
+ * checkout, and a no-op from inside a worktree, where no such directory exists.
+ *
+ * `.dependency-cruiser.cjs` already excludes `.worktrees`; this brings jest in line.
+ */
+const ignoreWorktrees = {
+  testPathIgnorePatterns: ['/node_modules/', '<rootDir>/\\.worktrees/'],
+  modulePathIgnorePatterns: ['<rootDir>/\\.worktrees/'],
+};
+
 /** Tests that must not touch React Native: the data layer, sync, and the harness itself. */
 const dataTestMatch = [
   '<rootDir>/test/**/*.test.ts',
@@ -37,6 +60,7 @@ const dataTestMatch = [
 module.exports = {
   projects: [
     {
+      ...ignoreWorktrees,
       displayName: { name: 'data', color: 'cyan' },
       preset: 'jest-expo/node',
       testEnvironment: 'node',
@@ -49,6 +73,7 @@ module.exports = {
       restoreMocks: true,
     },
     {
+      ...ignoreWorktrees,
       displayName: { name: 'components', color: 'magenta' },
       preset: 'jest-expo/ios',
       // `test/**/*.test.tsx` is the harness's own smoke test for this project — it is what proves
@@ -71,6 +96,8 @@ module.exports = {
   collectCoverageFrom: [
     'src/**/*.{ts,tsx}',
     'test/**/*.{ts,tsx}',
+    // Other agents' in-progress branches are not this checkout's source. See `ignoreWorktrees`.
+    '!.worktrees/**',
     '!src/**/*.d.ts',
     '!test/**/*.test.{ts,tsx}',
     '!test/**/*.d.ts',
