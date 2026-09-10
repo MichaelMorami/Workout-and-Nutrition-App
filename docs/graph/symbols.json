@@ -1,0 +1,80 @@
+{
+  "generated": "scripts/graph-gen.mjs — do not edit by hand",
+  "moduleCount": 8,
+  "modules": {
+    "app/_layout.tsx": {
+      "exports": [
+        "function default(): import(\"react\").JSX.Element"
+      ],
+      "imports": [
+        "node_modules/expo-router/build/index.d.ts"
+      ],
+      "loc": 10
+    },
+    "app/(tabs)/_layout.tsx": {
+      "exports": [
+        "function default(): import(\"react\").JSX.Element"
+      ],
+      "imports": [
+        "node_modules/expo-router/build/index.d.ts"
+      ],
+      "loc": 16
+    },
+    "app/(tabs)/charts.tsx": {
+      "exports": [
+        "function default(): import(\"react\").JSX.Element"
+      ],
+      "imports": [
+        "node_modules/react-native/types/index.d.ts"
+      ],
+      "loc": 12
+    },
+    "app/(tabs)/index.tsx": {
+      "exports": [
+        "function default(): import(\"react\").JSX.Element"
+      ],
+      "imports": [
+        "node_modules/react-native/types/index.d.ts"
+      ],
+      "loc": 12
+    },
+    "app/(tabs)/settings.tsx": {
+      "exports": [
+        "function default(): import(\"react\").JSX.Element"
+      ],
+      "imports": [
+        "node_modules/react-native/types/index.d.ts"
+      ],
+      "loc": 12
+    },
+    "app/(tabs)/workout.tsx": {
+      "exports": [
+        "function default(): import(\"react\").JSX.Element"
+      ],
+      "imports": [
+        "node_modules/react-native/types/index.d.ts"
+      ],
+      "loc": 12
+    },
+    "app/+html.tsx": {
+      "exports": [
+        "function default({ children }: { children: ReactNode }): import(\"react\").JSX.Element"
+      ],
+      "imports": [
+        "node_modules/@types/react/index.d.ts",
+        "node_modules/expo-router/html.d.ts"
+      ],
+      "loc": 40
+    },
+    "app/+not-found.tsx": {
+      "exports": [
+        "function default(): import(\"react\").JSX.Element"
+      ],
+      "imports": [
+        "node_modules/expo-router/build/index.d.ts",
+        "node_modules/react-native/types/index.d.ts"
+      ],
+      "loc": 17
+    }
+  }
+}

@@ -18,6 +18,7 @@ expo-env.d.ts
 # native builds
 /ios/
 /android/
+.kotlin/
 
 # eas
 .easignore
