@@ -68,12 +68,23 @@ for (const f of files) {
   }
   exports.sort(byText);
 
+  /**
+   * Project imports are recorded by path; everything else by its bare specifier ("react-native",
+   * not the .d.ts the resolver happened to land on).
+   *
+   * That is both more useful — "this imports react-native" is the fact an agent wants — and the
+   * only reproducible option. Resolved node_modules paths are machine-dependent: an agent worktree
+   * symlinks node_modules to the main checkout, so they resolve to "../../node_modules/..." there
+   * and "node_modules/..." in CI, which marked the committed graph stale on every run.
+   */
   const imports = [];
   for (const d of f.getImportDeclarations()) {
     const target = d.getModuleSpecifierSourceFile();
-    const spec = target ? rel(target.getFilePath()) : d.getModuleSpecifierValue();
-    imports.push(spec);
-    if (target) (importedBy[rel(target.getFilePath())] ??= []).push(path);
+    const targetPath = target ? rel(target.getFilePath()) : null;
+    const isProjectFile = targetPath !== null && /^(app|src)\//.test(targetPath);
+
+    imports.push(isProjectFile ? targetPath : d.getModuleSpecifierValue());
+    if (isProjectFile) (importedBy[targetPath] ??= []).push(path);
   }
 
   modules[path] = {
