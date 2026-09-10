@@ -104,6 +104,11 @@ schema and migrations the phone runs. They are milliseconds fast — there is no
 - **History is immutable:** `food_log` stores `kcal`/`protein` directly. Correcting a food must never
   rewrite past logs.
 - **Sync fields:** every table has `id` (uuid), `updated_at` (ms epoch), `deleted` (0/1 tombstone).
+- **Units are canonical:** store weight in **kg**, lengths in **cm**, food in **grams** — always.
+  Never store the number as typed plus a unit tag. And render every weight and length through a
+  formatter from the first screen, even while that formatter only appends `" kg"`. This is what keeps
+  lb/in a one-function change later instead of a migration over every historical row. See
+  `docs/decisions.md`.
 - **Styling:** only tokens from `src/theme/tokens.ts`. No hard-coded colours, spacing or font sizes.
 - **The app never blocks on the network.** Local write first; sync is best-effort and retried.
 
