@@ -1,0 +1,68 @@
+# dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# expo
+.expo/
+dist/
+web-build/
+expo-env.d.ts
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
+*.orig.*
+
+# native builds
+/ios/
+/android/
+
+# eas
+.easignore
+
+# metro
+.metro-health-check*
+
+# testing
+coverage/
+*.lcov
+
+# typescript
+*.tsbuildinfo
+
+# local db / generated
+*.db
+*.db-journal
+*.sqlite
+
+# env & secrets
+.env
+.env.*
+!.env.example
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+
+# editors
+.idea/
+.vscode/*
+!.vscode/settings.json
+!.vscode/extensions.json
+*.swp
+
+# logs
+npm-debug.*
+yarn-debug.*
+yarn-error.*
+*.log
+
+# agent worktrees (created by scripts/setup-worktree.sh)
+.worktrees/
+
+# claude local overrides
+.claude/settings.local.json

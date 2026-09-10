@@ -1,0 +1,105 @@
+# Vitals — agent operating manual
+
+A workout + nutrition tracker for iPhone and Android. Expo (React Native) + SQLite + Supabase.
+Read this before doing anything. It is auto-loaded, so it is never repeated in prompts.
+
+## The three product priorities, in order
+
+1. **Slick look** — the app must feel good to open.
+2. **Minimal taps** — logging a food or a set takes ~1 second. Every added tap needs justification.
+3. **Efficient history** — years of data, instant graphs, nothing ever lost.
+
+When a trade-off appears, resolve it in that order.
+
+## Find things with the graph, not with `cat`
+
+**Do not read whole files to find out what something is.** The repo carries a generated, always-fresh
+map:
+
+| File | Use it for |
+| --- | --- |
+| `docs/graph/symbols.json` | every module's exported symbols **with full type signatures**, plus its imports |
+| `docs/graph/MAP.md` | readable module tree — what each module exports, who depends on it |
+| `docs/graph/deps.svg` | visual dependency graph |
+
+Look up a signature: `jq -r '.modules["src/db/queries/nutrition.ts"].exports[]' docs/graph/symbols.json`
+
+Open a source file only to **edit** it, or when the graph shows you genuinely need the body.
+Otherwise use `grep`, or `sed -n 'START,ENDp'` for a ranged read. Regenerate with `scripts/graph.sh`;
+CI fails if the committed copy is stale.
+
+## Ownership — never write outside your paths
+
+Each agent has **exclusive write access** to its paths and read-only access to everything else. Two
+agents never hold a write claim on the same file. `dependency-cruiser` enforces the import
+boundaries in CI, so a violation is a build failure, not a style note.
+
+| Agent | Writes (exclusive) |
+| --- | --- |
+| `tech-lead` | GitHub issues/labels/milestones/board, `PROGRESS.md`, merges |
+| `design-lead` | `design/**`, `src/theme/tokens.ts` |
+| `db-engineer` | `src/db/**`, `drizzle.config.ts` |
+| `ui-engineer` | `app/**` (not `app/(auth)/**`), `src/components/**` (not `charts/`), `src/hooks/**`, `src/store/**` |
+| `charts-engineer` | `src/components/charts/**` |
+| `sync-engineer` | `src/sync/**`, `supabase/**`, `app/(auth)/**` |
+| `qa-engineer` | `jest.config.js`, `test/**`, `e2e/**` |
+| `release-engineer` | `.github/**`, `scripts/**`, `app.json`, `eas.json`, `package.json` scripts |
+| `code-reviewer` | nothing — reviews only |
+
+Need a change outside your paths? Say so in the PR or issue. Do not reach across.
+**Do not message other agents.** All coordination goes through `tech-lead` and the GitHub issue.
+
+## Use the scripts — never retype a long command
+
+| Script | Does |
+| --- | --- |
+| `scripts/check.sh` | lint + typecheck + test. **The gate. Run before every PR.** |
+| `scripts/new-task.sh <area> <slug>` | issue + branch + worktree in one step |
+| `scripts/setup-worktree.sh <branch>` | worktree with linked `node_modules` |
+| `scripts/pr.sh <issue>` | open PR with `Closes #n`, test output, screenshots |
+| `scripts/merge.sh <pr>` | squash-merge, delete branch, close issue, update `PROGRESS.md` |
+| `scripts/graph.sh` | regenerate the project graph |
+| `scripts/review-graph.sh <pr>` | blast radius of a PR — changed exports + who imports them |
+| `scripts/seed.sh <days>` | realistic demo data |
+| `scripts/demo.sh` | start Expo, print the QR code |
+| `scripts/digest.sh <milestone>` | sprint digest for the client |
+| `scripts/labels.sh` · `scripts/board.sh` | idempotent GitHub setup |
+
+If you run a command twice, it belongs in a script. Add it.
+
+## TDD is mandatory
+
+Per subtask, in this order:
+
+1. **Red** — write failing tests straight from the issue's acceptance criteria. Commit `test: ...`.
+2. **Green** — minimum code to pass. Commit `feat: ...`.
+3. **Refactor** — clean up; `scripts/check.sh` must be green.
+4. `scripts/pr.sh <issue>` — PR body carries the test output.
+
+An issue is done when its acceptance checklist is **fully ticked** and CI is green — not when the
+code exists.
+
+Data-layer tests run in Node against real SQLite via `better-sqlite3`, using the *same* Drizzle
+schema and migrations the phone runs. They are milliseconds fast — there is no excuse to skip them.
+
+## Conventions
+
+- **TypeScript strict.** No `any`, no non-null `!` without a comment saying why.
+- **Commits:** Conventional Commits (`feat:`, `fix:`, `test:`, `chore:`, `docs:`, `refactor:`).
+- **Branches:** `feat/<issue>-<slug>`, `fix/<issue>-<slug>`, `chore/<issue>-<slug>`.
+- **Dates:** every row stores `local_date` (`YYYY-MM-DD`, user's timezone) next to its UTC timestamp.
+  A 23:30 meal must land on the correct day. Never derive a calendar day from a UTC timestamp.
+- **History is immutable:** `food_log` stores `kcal`/`protein` directly. Correcting a food must never
+  rewrite past logs.
+- **Sync fields:** every table has `id` (uuid), `updated_at` (ms epoch), `deleted` (0/1 tombstone).
+- **Styling:** only tokens from `src/theme/tokens.ts`. No hard-coded colours, spacing or font sizes.
+- **The app never blocks on the network.** Local write first; sync is best-effort and retried.
+
+## Stack (pinned majors)
+
+Expo SDK 57 · React Native 0.87 · expo-router 57 · expo-sqlite 57 · Drizzle ORM 0.45 ·
+@supabase/supabase-js 2 · react-native-gifted-charts + react-native-svg 15 · reanimated 4 ·
+zustand 5 · jest 30 + jest-expo 57 + @testing-library/react-native 14 + better-sqlite3 13
+
+Charts must work inside **Expo Go** — that rules out Skia-based chart libraries. Do not add a
+dependency with a native module without raising it in the issue first.
