@@ -15,13 +15,14 @@ step() {
   if "$@"; then ok "$name"; else warn "$name failed"; fail=1; fi
 }
 
-step "lint"      npx eslint . --max-warnings 0
-step "typecheck" npx tsc --noEmit
+step "lint"       npx eslint . --max-warnings 0
+step "typecheck"  npx tsc --noEmit
+step "boundaries" ./scripts/boundaries.sh
 
 if [ "$FAST" = 1 ]; then
-  step "test" npx jest --silent
+  step "test" npx jest --silent --passWithNoTests
 else
-  step "test" npx jest --silent --coverage
+  step "test" npx jest --silent --coverage --passWithNoTests
   say "graph freshness"
   ./scripts/graph.sh --check \
     && ok "graph is current" \

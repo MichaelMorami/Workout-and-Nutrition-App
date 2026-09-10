@@ -2,21 +2,12 @@
   "generated": "scripts/graph-gen.mjs — do not edit by hand",
   "moduleCount": 8,
   "modules": {
-    "app/_layout.tsx": {
-      "exports": [
-        "function default(): import(\"react\").JSX.Element"
-      ],
-      "imports": [
-        "node_modules/expo-router/build/index.d.ts"
-      ],
-      "loc": 10
-    },
     "app/(tabs)/_layout.tsx": {
       "exports": [
         "function default(): import(\"react\").JSX.Element"
       ],
       "imports": [
-        "node_modules/expo-router/build/index.d.ts"
+        "expo-router"
       ],
       "loc": 16
     },
@@ -25,7 +16,7 @@
         "function default(): import(\"react\").JSX.Element"
       ],
       "imports": [
-        "node_modules/react-native/types/index.d.ts"
+        "react-native"
       ],
       "loc": 12
     },
@@ -34,7 +25,7 @@
         "function default(): import(\"react\").JSX.Element"
       ],
       "imports": [
-        "node_modules/react-native/types/index.d.ts"
+        "react-native"
       ],
       "loc": 12
     },
@@ -43,7 +34,7 @@
         "function default(): import(\"react\").JSX.Element"
       ],
       "imports": [
-        "node_modules/react-native/types/index.d.ts"
+        "react-native"
       ],
       "loc": 12
     },
@@ -52,7 +43,7 @@
         "function default(): import(\"react\").JSX.Element"
       ],
       "imports": [
-        "node_modules/react-native/types/index.d.ts"
+        "react-native"
       ],
       "loc": 12
     },
@@ -61,8 +52,8 @@
         "function default({ children }: { children: ReactNode }): import(\"react\").JSX.Element"
       ],
       "imports": [
-        "node_modules/@types/react/index.d.ts",
-        "node_modules/expo-router/html.d.ts"
+        "expo-router/html",
+        "react"
       ],
       "loc": 40
     },
@@ -71,10 +62,19 @@
         "function default(): import(\"react\").JSX.Element"
       ],
       "imports": [
-        "node_modules/expo-router/build/index.d.ts",
-        "node_modules/react-native/types/index.d.ts"
+        "expo-router",
+        "react-native"
       ],
       "loc": 17
+    },
+    "app/_layout.tsx": {
+      "exports": [
+        "function default(): import(\"react\").JSX.Element"
+      ],
+      "imports": [
+        "expo-router"
+      ],
+      "loc": 10
     }
   }
 }

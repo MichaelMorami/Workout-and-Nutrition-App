@@ -15,6 +15,15 @@ const ROOT = resolve(process.argv[2] ?? '.');
 const OUT = resolve(ROOT, 'docs/graph');
 const rel = (p) => relative(ROOT, p).split('\\').join('/');
 
+/**
+ * Sort by UTF-16 code unit, never `localeCompare`. This file's output is a COMMITTED artifact that
+ * CI regenerates and compares byte-for-byte, so the ordering must be identical on every machine.
+ * Locale-aware collation is not: macOS treats `_` and `(` as ignorable punctuation and sorts
+ * `app/_layout.tsx` first, while Linux CI sorts it last. That difference alone marked the graph
+ * "stale" on every single pull request.
+ */
+const byText = (a, b) => (a < b ? -1 : a > b ? 1 : 0);
+
 const project = new Project({ tsConfigFilePath: resolve(ROOT, 'tsconfig.json') });
 const files = project
   .getSourceFiles()
@@ -22,7 +31,7 @@ const files = project
     const p = rel(f.getFilePath());
     return /^(app|src)\//.test(p) && !/\.(test|spec)\.tsx?$/.test(p) && !p.includes('/__');
   })
-  .sort((a, b) => a.getFilePath().localeCompare(b.getFilePath()));
+  .sort((a, b) => byText(rel(a.getFilePath()), rel(b.getFilePath())));
 
 /** One-line, readable type for a symbol — this is what saves an agent from reading the file. */
 function signatureOf(name, decl) {
@@ -57,25 +66,36 @@ for (const f of files) {
     if (sig.length > 400) sig = sig.slice(0, 397) + '...';
     exports.push(sig);
   }
-  exports.sort();
+  exports.sort(byText);
 
+  /**
+   * Project imports are recorded by path; everything else by its bare specifier ("react-native",
+   * not the .d.ts the resolver happened to land on).
+   *
+   * That is both more useful — "this imports react-native" is the fact an agent wants — and the
+   * only reproducible option. Resolved node_modules paths are machine-dependent: an agent worktree
+   * symlinks node_modules to the main checkout, so they resolve to "../../node_modules/..." there
+   * and "node_modules/..." in CI, which marked the committed graph stale on every run.
+   */
   const imports = [];
   for (const d of f.getImportDeclarations()) {
     const target = d.getModuleSpecifierSourceFile();
-    const spec = target ? rel(target.getFilePath()) : d.getModuleSpecifierValue();
-    imports.push(spec);
-    if (target) (importedBy[rel(target.getFilePath())] ??= []).push(path);
+    const targetPath = target ? rel(target.getFilePath()) : null;
+    const isProjectFile = targetPath !== null && /^(app|src)\//.test(targetPath);
+
+    imports.push(isProjectFile ? targetPath : d.getModuleSpecifierValue());
+    if (isProjectFile) (importedBy[targetPath] ??= []).push(path);
   }
 
   modules[path] = {
     exports,
-    imports: [...new Set(imports)].sort(),
+    imports: [...new Set(imports)].sort(byText),
     loc: f.getEndLineNumber(),
   };
 }
 
 for (const [k, v] of Object.entries(importedBy)) {
-  if (modules[k]) modules[k].importedBy = [...new Set(v)].sort();
+  if (modules[k]) modules[k].importedBy = [...new Set(v)].sort(byText);
 }
 
 mkdirSync(OUT, { recursive: true });
@@ -83,7 +103,7 @@ mkdirSync(OUT, { recursive: true });
 const symbols = {
   generated: 'scripts/graph-gen.mjs — do not edit by hand',
   moduleCount: Object.keys(modules).length,
-  modules: Object.fromEntries(Object.entries(modules).sort(([a], [b]) => a.localeCompare(b))),
+  modules: Object.fromEntries(Object.entries(modules).sort(([a], [b]) => byText(a, b))),
 };
 writeFileSync(resolve(OUT, 'symbols.json'), JSON.stringify(symbols, null, 2) + '\n');
 

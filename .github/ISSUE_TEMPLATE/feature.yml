@@ -1,0 +1,64 @@
+name: Feature / subtask
+description: One subtask in the sprint plan — one issue, one branch, one PR.
+title: "[feat] "
+labels: ["type:feat"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Per `CONTRIBUTING.md`: a subtask needs a user story, an acceptance-criteria checklist, and —
+        when another agent will build against this work — the type contract, published up front.
+
+  - type: dropdown
+    id: owning-agent
+    attributes:
+      label: Owning agent
+      description: Who has exclusive write access to the paths this issue touches (see the ownership table in CONTRIBUTING.md).
+      options:
+        - tech-lead
+        - design-lead
+        - db-engineer
+        - ui-engineer
+        - charts-engineer
+        - sync-engineer
+        - qa-engineer
+        - release-engineer
+        - code-reviewer
+    validations:
+      required: true
+
+  - type: textarea
+    id: user-story
+    attributes:
+      label: User story
+      description: Who is this for, and what do they get?
+      placeholder: |
+        As a <user>, I want <goal>, so that <benefit>.
+    validations:
+      required: true
+
+  - type: textarea
+    id: acceptance-criteria
+    attributes:
+      label: Acceptance criteria
+      description: A checklist. The issue is done when every box is ticked *and* CI is green.
+      placeholder: |
+        - [ ] ...
+        - [ ] ...
+        - [ ] A named test covers this behaviour
+      value: |
+        - [ ]
+    validations:
+      required: true
+
+  - type: textarea
+    id: type-contract
+    attributes:
+      label: Type contract
+      description: >
+        If another agent builds against this work in parallel, publish the TypeScript signatures
+        here first (per "Contracts before code" in CONTRIBUTING.md). Leave blank if nothing else
+        depends on this issue.
+      render: typescript
+    validations:
+      required: false

@@ -1,0 +1,56 @@
+name: Bug report
+description: Something in the app or the tooling is broken.
+title: "[bug] "
+labels: ["type:fix"]
+body:
+  - type: dropdown
+    id: owning-agent
+    attributes:
+      label: Owning agent
+      description: Who owns the paths most likely responsible (see the ownership table in CONTRIBUTING.md). Leave as "not sure" if unclear — tech-lead will triage.
+      options:
+        - not sure — needs triage
+        - tech-lead
+        - design-lead
+        - db-engineer
+        - ui-engineer
+        - charts-engineer
+        - sync-engineer
+        - qa-engineer
+        - release-engineer
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. ...
+        2. ...
+        3. ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behaviour
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behaviour
+    validations:
+      required: true
+
+  - type: input
+    id: device-platform
+    attributes:
+      label: Device / platform
+      description: e.g. "iPhone 15 Pro, iOS 18.1, Expo Go 2.31" or "Pixel 8, Android 15, dev build"
+      placeholder: device, OS version, Expo Go vs. dev/standalone build
+    validations:
+      required: true
