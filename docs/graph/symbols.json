@@ -2,15 +2,6 @@
   "generated": "scripts/graph-gen.mjs — do not edit by hand",
   "moduleCount": 8,
   "modules": {
-    "app/_layout.tsx": {
-      "exports": [
-        "function default(): import(\"react\").JSX.Element"
-      ],
-      "imports": [
-        "../../node_modules/expo-router/build/index.d.ts"
-      ],
-      "loc": 10
-    },
     "app/(tabs)/_layout.tsx": {
       "exports": [
         "function default(): import(\"react\").JSX.Element"
@@ -75,6 +66,15 @@
         "../../node_modules/react-native/types/index.d.ts"
       ],
       "loc": 17
+    },
+    "app/_layout.tsx": {
+      "exports": [
+        "function default(): import(\"react\").JSX.Element"
+      ],
+      "imports": [
+        "../../node_modules/expo-router/build/index.d.ts"
+      ],
+      "loc": 10
     }
   }
 }

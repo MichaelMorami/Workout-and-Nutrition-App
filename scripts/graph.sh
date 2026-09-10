@@ -9,14 +9,20 @@ cd "$ROOT"
 [ -d node_modules/ts-morph ] || { warn "ts-morph not installed — skipping graph"; exit 0; }
 
 if [ "${1:-}" = "--check" ]; then
+  # A check must never mutate the working tree: regenerating in place and leaving the result behind
+  # turns a read-only verification into a surprise edit. Stash the committed copy, regenerate,
+  # compare, then always put the committed copy back.
   tmp="$(mktemp -d)"
-  cp -R docs/graph "$tmp/before" 2>/dev/null || mkdir -p "$tmp/before"
+  trap 'rm -rf "$tmp"' EXIT
+  cp -R docs/graph "$tmp/committed" 2>/dev/null || mkdir -p "$tmp/committed"
+
   node scripts/graph-gen.mjs "$ROOT" >/dev/null
-  if diff -rq "$tmp/before" docs/graph >/dev/null 2>&1; then
-    rm -rf "$tmp"; exit 0
-  fi
-  rm -rf "$tmp"
-  exit 1
+  rc=0
+  diff -rq "$tmp/committed" docs/graph >/dev/null 2>&1 || rc=1
+
+  rm -rf docs/graph
+  cp -R "$tmp/committed" docs/graph
+  exit "$rc"
 fi
 
 node scripts/graph-gen.mjs "$ROOT"

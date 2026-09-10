@@ -11,12 +11,6 @@ jq -r '.modules["src/db/queries/nutrition.ts"].exports[]' docs/graph/symbols.jso
 8 modules.
 
 
-## `app/`
-
-### `app/_layout.tsx`  <sub>10 lines</sub>
-
-- `function default(): import("react").JSX.Element`
-
 ## `app/(tabs)/`
 
 ### `app/(tabs)/_layout.tsx`  <sub>16 lines</sub>
@@ -46,5 +40,9 @@ jq -r '.modules["src/db/queries/nutrition.ts"].exports[]' docs/graph/symbols.jso
 - `function default({ children }: { children: ReactNode }): import("react").JSX.Element`
 
 ### `app/+not-found.tsx`  <sub>17 lines</sub>
+
+- `function default(): import("react").JSX.Element`
+
+### `app/_layout.tsx`  <sub>10 lines</sub>
 
 - `function default(): import("react").JSX.Element`

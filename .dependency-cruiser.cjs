@@ -4,7 +4,7 @@
  * src/theme) — rules below match on path, so until those directories appear the rules
  * simply match nothing and pass cleanly.
  *
- * Run locally:   npm run depcruise
+ * Run locally:   npm run boundaries
  * Run in CI:     scripts/check.sh (via the "boundaries" step) / .github/workflows/ci.yml
  *
  * @type {import('dependency-cruiser').IConfiguration}
