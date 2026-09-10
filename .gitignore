@@ -1,5 +1,8 @@
 # dependencies
-node_modules/
+# No trailing slash: agent worktrees get node_modules as a SYMLINK to the main checkout's
+# (see scripts/setup-worktree.sh), and `node_modules/` matches only real directories — so a
+# `git add -A` in a worktree would commit a symlink that is broken for everyone else.
+node_modules
 .pnp
 .pnp.js
 
