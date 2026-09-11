@@ -19,6 +19,7 @@ step "lint"       npx eslint . --max-warnings 0
 step "typecheck"  npx tsc --noEmit
 step "boundaries" ./scripts/boundaries.sh
 step "pr title rule" ./scripts/pr-title.test.sh
+step "worktree node_modules protection" ./scripts/worktree.test.sh
 
 if [ "$FAST" = 1 ]; then
   step "test" npx jest --silent --passWithNoTests
