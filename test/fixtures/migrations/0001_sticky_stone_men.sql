@@ -1,1 +1,0 @@
-ALTER TABLE `foods` ADD `hour_histogram` text;

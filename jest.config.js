@@ -99,10 +99,12 @@ module.exports = {
     // Other agents' in-progress branches are not this checkout's source. See `ignoreWorktrees`.
     '!.worktrees/**',
     '!src/**/*.d.ts',
-    '!test/**/*.test.{ts,tsx}',
     '!test/**/*.d.ts',
-    // drizzle-kit output and jest plumbing — deleted once src/db/schema.ts exists.
-    '!test/fixtures/**',
+    // Test files themselves are never "covered" by another file — collecting them just dilutes the
+    // number with 0%s that mean nothing. `src/db/**/*.test.ts` needs the same exclusion `test/**`
+    // always had, now that db-engineer's tests live there too.
+    '!**/*.test.{ts,tsx}',
+    // jest plumbing — no coverage signal of its own.
     '!test/setup/**',
   ],
   coverageReporters: ['text-summary', 'lcov'],

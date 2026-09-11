@@ -8,7 +8,7 @@
  * two runs of the same test produce byte-identical rows. `test/setup/` resets the counter before
  * each test, so ids restart at 1 in every test and a snapshot stays stable.
  */
-import { localDateOf } from './local-date';
+import { localDateOf, wallClockAt } from './local-date';
 import type {
   BodyMetric,
   Exercise,
@@ -106,10 +106,15 @@ export const makeMealItem: Factory<MealItem> = (overrides = {}) => ({
  */
 export const makeLogEntry: Factory<FoodLogEntry> = (overrides = {}) => {
   const loggedAt = overrides.loggedAt ?? Date.now();
+  // `localDate` and `localMinute` are both derived from `loggedAt` through the process's current
+  // timezone (see `localDateOf` and `wallClockAt` in `./local-date`) — the same zone, by
+  // construction, so the two never disagree about which wall clock the row belongs to.
+  const wallClock = wallClockAt(loggedAt);
   return {
     ...sync('flog', overrides),
     loggedAt,
     localDate: overrides.localDate ?? localDateOf(loggedAt),
+    localMinute: overrides.localMinute ?? wallClock.hour * 60 + wallClock.minute,
     foodId: null,
     qty: 1,
     kcal: 133,
@@ -167,24 +172,37 @@ export const makeSet: Factory<WorkoutSet> = (overrides = {}) => ({
   ...overrides,
 });
 
-export const makeBodyMetric: Factory<BodyMetric> = (overrides = {}) => ({
-  ...sync('body', overrides),
-  localDate: overrides.localDate ?? localDateOf(Date.now()),
-  weight: 82.4,
-  bodyFatPct: 18.5,
-  waist: 84,
-  chest: 102,
-  arm: 36,
-  ...overrides,
-});
+export const makeBodyMetric: Factory<BodyMetric> = (overrides = {}) => {
+  const measuredAt = overrides.measuredAt ?? Date.now();
+  return {
+    ...sync('body', overrides),
+    measuredAt,
+    localDate: overrides.localDate ?? localDateOf(measuredAt),
+    weight: 82.4,
+    bodyFatPct: 18.5,
+    waist: 84,
+    chest: 102,
+    arm: 36,
+    ...overrides,
+  };
+};
+
+/**
+ * The fixed uuid every device writes the singleton `settings` row under (issue #17 contract, §2:
+ * `SETTINGS_ID`) — decision 3 keeps the id a uuid with no exceptions, rather than the literal
+ * `'settings'` the old fixture used.
+ *
+ * `src/db/schema.ts` does not export a `SETTINGS_ID` yet — the domain constants in §2 of the
+ * contract land with the query layer in #18 — so this is the same fixed value, defined once here.
+ * Swap this for `import { SETTINGS_ID } from '@/src/db'` the day that lands.
+ */
+export const SETTINGS_ID = '00000000-0000-4000-8000-736574740000';
 
 export const makeSettings: Factory<Settings> = (overrides = {}) => ({
   ...sync('sett', overrides),
-  id: overrides.id ?? 'settings',
+  id: overrides.id ?? SETTINGS_ID,
   kcalTarget: 2400,
   proteinTarget: 170,
-  weightUnit: 'kg',
-  lengthUnit: 'cm',
   weekStart: 1,
   ...overrides,
 });

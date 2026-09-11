@@ -2,9 +2,8 @@
  * The performance guard for priority #3: "years of data, instant graphs".
  *
  * Every query a chart runs, over 400 days of seeded history, must come back in under 200ms — the
- * threshold above which a screen transition stops feeling instant. These run against the fixture
- * schema today; when `src/db/schema.ts` lands they run against the real one, unchanged, and become
- * the thing that stops a missing index shipping.
+ * threshold above which a screen transition stops feeling instant. These run against the real
+ * schema and the real migrations in `src/db/`, so a missing index cannot ship without this failing.
  *
  * The numbers are printed, not just asserted, so a slow drift is visible in CI output long before
  * it crosses the line.

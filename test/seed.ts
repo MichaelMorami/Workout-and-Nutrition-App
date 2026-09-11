@@ -28,6 +28,7 @@ import { drizzle } from 'drizzle-orm/better-sqlite3';
 import { migrate } from 'drizzle-orm/better-sqlite3/migrator';
 import { SQLiteTable } from 'drizzle-orm/sqlite-core';
 import { makeTestDb, type MakeTestDbOptions, type TestDb, type TestSchema } from './db';
+import { SETTINGS_ID } from './factories';
 import { instantOfLocal, addLocalDays, localDayOfWeek, type LocalDate } from './local-date';
 import { resolveSchemaSource } from './schema-source';
 import type {
@@ -212,6 +213,16 @@ function clock(hours: number): `${string}:${string}` {
 }
 
 /**
+ * `food_log.local_minute`: minutes after local midnight, the same `HH:MM` the row's `logged_at`
+ * was built from via `clock(hours)` and `instantOfLocal` — never re-derived from the timestamp.
+ */
+function localMinuteOf(hours: number): number {
+  const h = Math.floor(hours) % 24;
+  const m = Math.floor((hours - Math.floor(hours)) * 60);
+  return h * 60 + m;
+}
+
+/**
  * Generate the whole history. Pure: no clock, no filesystem, no database.
  */
 export function seedData(options: SeedOptions = {}): SeedData {
@@ -334,6 +345,7 @@ export function seedData(options: SeedOptions = {}): SeedData {
             id: seedId('flog'),
             loggedAt,
             localDate,
+            localMinute: localMinuteOf(hours),
             foodId: row.id,
             qty,
             kcal,
@@ -356,7 +368,8 @@ export function seedData(options: SeedOptions = {}): SeedData {
       // calendar day gets wrong, present in the demo data on purpose.
       if (rng.bool(0.06)) {
         const food = weightedPick(rng, CATALOGUE.filter((c) => c.slots.includes('snack')));
-        const loggedAt = instantOfLocal(localDate, clock(23 + rng.float(0.85, 0.99)), timeZone);
+        const lateHours = 23 + rng.float(0.85, 0.99);
+        const loggedAt = instantOfLocal(localDate, clock(lateHours), timeZone);
         const idx = foodIndex.get(food.name);
         const row = idx === undefined ? undefined : foods[idx];
         const histogram = idx === undefined ? undefined : histograms[idx];
@@ -365,6 +378,7 @@ export function seedData(options: SeedOptions = {}): SeedData {
             id: seedId('flog'),
             loggedAt,
             localDate,
+            localMinute: localMinuteOf(lateHours),
             foodId: row.id,
             qty: 1,
             kcal: food.kcal,
@@ -394,6 +408,7 @@ export function seedData(options: SeedOptions = {}): SeedData {
       const at = instantOfLocal(localDate, clock(rng.float(6.5, 8.5)), timeZone);
       bodyMetrics.push({
         id: seedId('body'),
+        measuredAt: at,
         localDate,
         weight,
         bodyFatPct: round1(11 + (trueWeight - 78) * 0.55 + rng.gauss(0, 0.3)),
@@ -450,21 +465,21 @@ export function seedData(options: SeedOptions = {}): SeedData {
     }
   }
 
-  // Quick-add ranking data, derived from what was actually logged rather than invented.
+  // Quick-add ranking data, derived from what was actually logged rather than invented. The
+  // canonical encoding (issue #17 contract, §1.4) is NULL when a food was never used, never 24
+  // zeros — a short seed can easily leave a food in the catalogue with no log rows at all.
   foods.forEach((food, i) => {
     const histogram = histograms[i];
-    food.hourHistogram = histogram ? JSON.stringify(histogram) : null;
+    food.hourHistogram = food.useCount > 0 && histogram ? JSON.stringify(histogram) : null;
     food.updatedAt = food.lastUsedAt ?? 0;
   });
 
   const settingsUpdatedAt = instantOfLocal(startDate, '07:00', timeZone);
   const settings: Settings[] = [
     {
-      id: 'settings',
+      id: SETTINGS_ID,
       kcalTarget,
       proteinTarget,
-      weightUnit: 'kg',
-      lengthUnit: 'cm',
       weekStart: 1,
       updatedAt: settingsUpdatedAt,
       deleted: 0,
