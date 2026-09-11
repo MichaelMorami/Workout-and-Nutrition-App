@@ -30,7 +30,11 @@ fi
 ok "checks green"
 
 git push -u origin "$BRANCH" --quiet
-TITLE="$(git log -1 --pretty=%s)"
+
+# The PR title is the branch's own work, never the `docs: refresh PROGRESS.md` commit above —
+# see pr_title_for_branch() in lib.sh for the exact rule and scripts/pr-title.test.sh for proof.
+TITLE="$(pr_title_for_branch origin/main "$BRANCH")"
+[ -n "$TITLE" ] || die "every commit on this branch is a PROGRESS.md refresh — nothing to title the PR with. Make a real commit first, or check you branched from an up-to-date origin/main."
 
 BODY="$(cat <<PRBODY
 Closes #$ISSUE
