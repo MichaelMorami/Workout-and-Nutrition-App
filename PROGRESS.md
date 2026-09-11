@@ -34,3 +34,4 @@ screen is coded.
 - 2026-09-11  fix: pr.sh titles PRs after the branch's own work, not the refresh commit  (PR #28 closes #27)
 - 2026-09-11  feat: src/theme/tokens.ts — typed colour, type, space, radius, size, motion and haptics for both themes (#16)  (PR #31 closes #16)
 - 2026-09-11  docs: record the Today status row decisions (#33)  (PR #34 closes #33)
+- 2026-09-11  chore: add expo-crypto for SDK-57-safe UUIDs  (PR #32 closes #29)
