@@ -20,6 +20,7 @@ import {
   makeSettings,
   makeSyncState,
   resetFactories,
+  SETTINGS_ID,
   testId,
   tombstone,
   type Factory,
@@ -115,7 +116,7 @@ describe('factory defaults', () => {
   });
 
   it('give settings the stable singleton id the app expects', () => {
-    expect(makeSettings().id).toBe('settings');
+    expect(makeSettings().id).toBe(SETTINGS_ID);
   });
 });
 

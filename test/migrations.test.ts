@@ -89,8 +89,10 @@ describe('the migrations', () => {
       .prepare('insert into foods (id, name, serving_label, kcal_per_serving, protein_per_serving, updated_at) values (?, ?, ?, ?, ?, ?)')
       .run('food-1', 'Greek yoghurt', '1 pot', 133, 17, 1_700_000_000_000);
     sqlite
-      .prepare('insert into food_log (id, logged_at, local_date, food_id, kcal, protein, slot, updated_at) values (?, ?, ?, ?, ?, ?, ?, ?)')
-      .run('log-1', 1_741_589_700_000, '2025-03-09', 'food-1', 214, 21, 'snack', 1_741_589_700_000);
+      .prepare(
+        'insert into food_log (id, logged_at, local_date, local_minute, food_id, kcal, protein, slot, updated_at) values (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      )
+      .run('log-1', 1_741_589_700_000, '2025-03-09', 1435, 'food-1', 214, 21, 'snack', 1_741_589_700_000);
 
     // They take the update.
     migrate(drizzle(sqlite), { migrationsFolder: folder });
@@ -124,7 +126,7 @@ describe('the migrations', () => {
     migrate(drizzle(sqlite), { migrationsFolder: folder });
     const columns = (sqlite.prepare('pragma table_info("foods")').all() as { name: string }[]).map((c) => c.name);
 
-    expect(columns).toContain('hour_histogram'); // added by the second migration
+    expect(columns).toContain('hour_histogram'); // part of the first migration; the second only adds triggers
     expect(columns).toEqual(expect.arrayContaining(['id', 'updated_at', 'deleted']));
     sqlite.close();
   });
