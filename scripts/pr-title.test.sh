@@ -89,6 +89,51 @@ assert_eq \
   "" \
   "$(cd "$WORK/repo" && pr_title_for_branch origin/main chore/32-refresh-only)"
 
+# Scenario 5: TDD's own shape — a red `test:` commit, then the `feat:` commit that makes it pass,
+# then the refresh commit. TDD is mandatory here (CLAUDE.md), so this is the *common* case, not an
+# edge case: the title must be the `feat:` commit, never the red commit that came before it.
+repo
+git -C "$WORK/repo" checkout --quiet -b feat/33-widget
+commit "test: red for the widget"
+commit "feat: add the widget"
+commit "docs: refresh PROGRESS.md"
+assert_eq \
+  "title skips a leading test: commit in favour of the feat: commit" \
+  "feat: add the widget" \
+  "$(cd "$WORK/repo" && pr_title_for_branch origin/main feat/33-widget)"
+
+# Scenario 6: a test-only branch (e.g. a pure test-harness change) — no commit survives the
+# `test:` filter, so the rule falls back to the oldest non-refresh commit rather than printing
+# nothing for a branch that plainly does have real, describable work on it.
+repo
+git -C "$WORK/repo" checkout --quiet -b test/34-harness
+commit "test: first pass at the harness"
+commit "test: second pass at the harness"
+commit "docs: refresh PROGRESS.md"
+assert_eq \
+  "a test-only branch falls back to its oldest test: commit" \
+  "test: first pass at the harness" \
+  "$(cd "$WORK/repo" && pr_title_for_branch origin/main test/34-harness)"
+
+# Scenario 7: BASE does not exist locally (e.g. `origin/main` was never fetched). This must fail
+# loudly and distinctly — not be swallowed into the same empty output as "only a refresh commit",
+# which would send the caller into a misleading die() about a refresh-only branch.
+repo
+status=0
+if (cd "$WORK/repo" && pr_title_for_branch origin/does-not-exist main >/dev/null 2>&1); then
+  status=0
+else
+  status=$?
+fi
+if [ "$status" -ne 0 ]; then
+  ok "a missing base ref fails distinctly, not as an empty title"
+  pass=$((pass + 1))
+else
+  warn "a missing base ref fails distinctly, not as an empty title"
+  printf '     expected: non-zero exit\n     actual:   0 (git log failure was swallowed)\n'
+  fail=$((fail + 1))
+fi
+
 say "pr-title.test.sh: $pass passed, $fail failed"
 if [ "$fail" -gt 0 ]; then
   die "pr_title_for_branch is titling PRs after the refresh commit — see scripts/lib.sh"
