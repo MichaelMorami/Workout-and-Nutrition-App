@@ -13,18 +13,27 @@ import * as schema from './schema';
 describe('a database from makeTestDb()', () => {
   it('has every table the migrations create', () => {
     const { sqlite } = makeTestDb({ schema });
-    expect(tableNames(sqlite).sort()).toEqual(['body_metrics', 'food_log', 'foods']);
+    expect(tableNames(sqlite).sort()).toEqual([
+      'body_metrics',
+      'food_log',
+      'foods',
+      'meal_items',
+      'meals',
+      'settings',
+    ]);
   });
 
   it('accepts and returns rows built by the factories without any translation', () => {
     // The factories and the schema are written by different people from the same document. This is
-    // the test that fails when they drift apart.
+    // the test that fails when they drift apart. `search_text` is the one column the factory does
+    // not set: it is trigger-maintained (issue #17 contract, §1.5), so the row that comes back
+    // carries it folded from `name` and `brand` and nothing else differs.
     const { db } = makeTestDb({ schema });
     const food = makeFood({ name: 'Skyr', brand: 'Arla', kcalPerServing: 120, proteinPerServing: 20 });
 
     db.insert(schema.foods).values(food).run();
 
-    expect(db.select().from(schema.foods).all()).toEqual([food]);
+    expect(db.select().from(schema.foods).all()).toEqual([{ ...food, searchText: 'skyr arla' }]);
   });
 
   it('starts empty in every test, with no leakage from the test before it', () => {
@@ -67,11 +76,11 @@ describe('a database from makeTestDb()', () => {
     // One weigh-in per calendar day. Two rows for one day would double-count on every chart.
     const { sqlite } = makeTestDb({ schema });
     const insert = sqlite.prepare(
-      'insert into body_metrics (id, local_date, weight, updated_at, deleted) values (?, ?, ?, ?, 0)',
+      'insert into body_metrics (id, measured_at, local_date, weight, updated_at, deleted) values (?, ?, ?, ?, ?, 0)',
     );
-    insert.run('a', '2025-03-09', 88.2, 1);
+    insert.run('a', 1, '2025-03-09', 88.2, 1);
 
-    expect(() => insert.run('b', '2025-03-09', 88.4, 2)).toThrow(/UNIQUE constraint failed/);
+    expect(() => insert.run('b', 2, '2025-03-09', 88.4, 2)).toThrow(/UNIQUE constraint failed/);
   });
 
   it('keeps a tombstoned row in the table rather than deleting it', () => {
@@ -119,7 +128,14 @@ describe('makeTestDb() without generated migrations', () => {
     // The window between `db-engineer` writing a table and running `drizzle-kit generate`. Without
     // this, the red step of a schema change is blocked on a code-generation step.
     const { sqlite } = makeTestDb({ schema, migrationsFolder: null });
-    expect(tableNames(sqlite).sort()).toEqual(['body_metrics', 'food_log', 'foods']);
+    expect(tableNames(sqlite).sort()).toEqual([
+      'body_metrics',
+      'food_log',
+      'foods',
+      'meal_items',
+      'meals',
+      'settings',
+    ]);
   });
 
   it('reproduces the columns, defaults, indexes and foreign keys the migrations produce', () => {
@@ -146,13 +162,13 @@ describe('makeTestDb() without generated migrations', () => {
 
   it('emits DDL for every table in the schema', () => {
     const statements = ddlFromSchema(schema);
-    expect(statements.filter((s) => s.startsWith('CREATE TABLE'))).toHaveLength(3);
+    expect(statements.filter((s) => s.startsWith('CREATE TABLE'))).toHaveLength(6);
     expect(statements.some((s) => s.includes('CREATE UNIQUE INDEX "body_metrics_local_date_idx"'))).toBe(true);
     expect(statements.some((s) => s.includes('DEFAULT 0'))).toBe(true);
   });
 
   it('ignores exports from the schema module that are not tables', () => {
     const statements = ddlFromSchema({ ...schema, notATable: 42, alsoNot: sql`select 1` });
-    expect(statements.filter((s) => s.startsWith('CREATE TABLE'))).toHaveLength(3);
+    expect(statements.filter((s) => s.startsWith('CREATE TABLE'))).toHaveLength(6);
   });
 });

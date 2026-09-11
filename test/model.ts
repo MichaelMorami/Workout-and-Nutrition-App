@@ -59,6 +59,12 @@ export interface MealItem extends SyncFields {
 export interface FoodLogEntry extends SyncFields {
   loggedAt: number;
   localDate: string;
+  /**
+   * Minutes after local midnight (0–1439) at `loggedAt`, in the zone the user was in. Feeds the
+   * hour histogram (§1.3/§1.4 of the issue #17 contract); unrecoverable from `loggedAt` alone once
+   * the user has travelled or a DST change has passed.
+   */
+  localMinute: number;
   foodId: string | null;
   qty: number;
   kcal: number;
@@ -102,6 +108,8 @@ export interface WorkoutSet extends SyncFields {
 }
 
 export interface BodyMetric extends SyncFields {
+  /** UTC instant of the measurement, ms epoch, beside `localDate`. */
+  measuredAt: number;
   localDate: string;
   weight: number;
   bodyFatPct: number | null;
@@ -110,11 +118,10 @@ export interface BodyMetric extends SyncFields {
   arm: number | null;
 }
 
+/** No `weightUnit` / `lengthUnit`: canonical units only (Checkpoint 1 decision 3, docs/decisions.md). */
 export interface Settings extends SyncFields {
   kcalTarget: number;
   proteinTarget: number;
-  weightUnit: WeightUnit;
-  lengthUnit: LengthUnit;
   /** 0 = Sunday, 1 = Monday. */
   weekStart: number;
 }

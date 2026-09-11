@@ -145,10 +145,21 @@ describe('seeded nutrition', () => {
       byFood.set(row.foodId, hours);
     }
     for (const food of YEAR.foods) {
-      expect([food.name, JSON.parse(food.hourHistogram ?? '[]')]).toEqual([
-        food.name,
-        byFood.get(food.id) ?? new Array<number>(24).fill(0),
-      ]);
+      const hours = byFood.get(food.id);
+      // The canonical encoding (issue #17 contract, §1.4): NULL when the food was never logged
+      // directly, exactly the 24-count JSON array otherwise — never 24 zeros.
+      expect([food.name, food.hourHistogram]).toEqual([food.name, hours ? JSON.stringify(hours) : null]);
+    }
+  });
+
+  it('never encodes an unused food’s histogram as 24 zeros', () => {
+    // A short seed is the case that actually exercises this: 400 days uses every catalogue item at
+    // least once, but a 2-day seed leaves most of the catalogue untouched.
+    const short = seedData({ days: 2 });
+    const untouched = short.foods.filter((f) => f.useCount === 0);
+    expect(untouched.length).toBeGreaterThan(0);
+    for (const food of untouched) {
+      expect([food.name, food.hourHistogram]).toEqual([food.name, null]);
     }
   });
 
@@ -326,7 +337,7 @@ describe('the seed CLI', () => {
 
     expect(fs.existsSync(result.path)).toBe(true);
     expect(result.summary['foodLog']).toBeGreaterThan(200);
-    expect(result.label).toContain('fixture');
+    expect(result.label).toBe('src/db/schema.ts');
 
     const sqlite = new Database(result.path, { readonly: true });
     try {

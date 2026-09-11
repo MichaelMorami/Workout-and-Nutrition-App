@@ -34,8 +34,8 @@ export type TestSchema = Record<string, unknown>;
 export interface MakeTestDbOptions<TSchema extends TestSchema> {
   /**
    * The Drizzle schema module. Pass `import * as schema from '@/src/db/schema'` to get a fully
-   * typed handle. Omitted, the harness discovers the app schema at runtime and falls back to the
-   * throwaway fixture in `test/fixtures/` while `src/db/` is still empty.
+   * typed handle. Omitted, the harness discovers `src/db/schema.ts` at runtime instead — see
+   * `resolveSchemaSource()`.
    */
   schema?: TSchema;
   /**

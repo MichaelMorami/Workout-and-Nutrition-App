@@ -9,21 +9,13 @@
  *   const { db } = makeTestDb({ schema });
  *   db.insert(schema.foodLog).values(makeLogEntry({ localDate: '2025-03-09' })).run();
  *
- * Right now it points at the throwaway fixture in `test/fixtures/`, because `src/db/` belongs to
- * `db-engineer` and is empty until Sprint 1.
+ * It points at the real app schema, `src/db/schema.ts` (`db-engineer`'s path), and its generated
+ * migrations under `src/db/migrations/`. `test/schema-source.ts` resolves the same module at
+ * runtime for callers that build `makeTestDb()` with no `schema` argument — this re-export exists
+ * purely so a caller that wants a *typed* handle does not have to reach across the repo to find it.
  *
- * ## Day one of Sprint 1
- *
- * When `src/db/schema.ts` and its generated migrations exist, change the re-export below to:
- *
- *     export * from '../src/db/schema';
- *
- * and delete `test/fixtures/`. Nothing else in `test/**` changes, and every existing test starts
- * running against the real schema and the real migrations.
- *
- * `db-engineer` cannot make that edit — `test/**` is `qa-engineer`'s path — so raise it on the
- * issue and it happens in the same PR. The *untyped* path needs no edit at all:
- * `test/schema-source.ts` discovers `src/db/schema.ts` at runtime and prefers it over the fixture
- * the moment it exists, so `makeTestDb()` with no arguments switches over on its own.
+ * There is no fixture behind this anymore: `test/fixtures/` — the throwaway three-table schema this
+ * pointed at before Sprint 1's real schema landed on issue #17 — has been deleted. Every test in
+ * `test/**` now runs against the same Drizzle schema and the same migrations the phone runs.
  */
-export * from './fixtures/schema';
+export * from '../src/db/schema';
