@@ -49,7 +49,7 @@ jq -r '.modules["src/db/queries/nutrition.ts"].exports[]' docs/graph/symbols.jso
 
 ## `src/theme/`
 
-### `src/theme/tokens.ts`  <sub>1353 lines</sub>
+### `src/theme/tokens.ts`  <sub>1357 lines</sub>
 
 - `const MIN_TEXT_CONTRAST: 4.5`
 - `const contrastPairs: readonly ContrastPair[]`
