@@ -62,3 +62,43 @@ later.
 
 Client's own framing: *"it's not worth the extra hassle if it adds complexity"* — so the option is
 preserved at zero cost rather than either built now or designed out.
+
+---
+
+## Sprint 1 dispatch — finding a food that isn't in the six
+
+Raised by the client on 2026-09-11, before any screen was coded · issues #16, #17, #18, #23, #24
+
+The question: *"Say I had boiled eggs and it's not in the top 6 — how do I find it?"* The approved
+canvas had no answer. A 44 × 44 search button sat in the Today header but opened nothing, and no
+artboard showed a search. Left alone, Checkpoint 2 could only ever log six foods.
+
+### 4. One search bar, under the grid
+
+A full-width **"Search foods"** bar directly under the quick-add grid. The header search button is
+removed — there is one way in.
+
+It sits in the thumb zone, so it works one-handed, and the six tiles keep their size — decision 1 is
+untouched. Rejected: the header button (a stretch to reach one-handed on a large phone) and search as
+the sixth tile (costs a quick-add food every day to save a tap on the rare one).
+
+**How the sheet behaves — the same rules as a tile, so there is nothing new to learn:**
+
+| Situation | Behaviour |
+| --- | --- |
+| Before typing | **Recent**: foods and meals logged in the last 14 days that are not already in the six |
+| Typing | Filters the whole library, meals included; ignores case and accents; word-prefix matches first |
+| Tap a row | Log one serving — haptic, undo toast, sheet closes |
+| Long-press a row | The portion sheet, exact control included |
+| Not in the library | Last row is always **Create "‹query›"**. Save stores the food *and* logs one serving. Undo removes the log but keeps the food |
+
+**Tap budget**, enforced by the tap-count test (#23): a recent food in **2** taps · a known food in
+**2** taps plus a few letters · a brand-new food in **3** taps plus its name and numbers.
+
+No full-text-search index: a `LIKE` over a library of a few hundred foods is instant. Add one only
+with a measurement that says otherwise.
+
+### 5. It ships in Sprint 1
+
+Checkpoint 2 is the client logging their real food for two or three days. Real eating does not stay
+inside six foods, so a checkpoint without search would test the grid and nothing else.
