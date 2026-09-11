@@ -6,7 +6,7 @@
  * migration is a constraint the phone does not have.
  */
 import type Database from 'better-sqlite3';
-import { eq } from 'drizzle-orm';
+import { eq, getTableName } from 'drizzle-orm';
 import { SQLiteTable } from 'drizzle-orm/sqlite-core';
 import { makeTestDb, tableNames } from '../../test/db';
 import { makeBodyMetric, makeFood, makeLogEntry, makeMeal, makeMealItem } from '../../test/factories';
@@ -16,7 +16,9 @@ import { foldSql } from './search-fold';
 /** 23:55 on Sunday 9 March 2025 in America/Los_Angeles — 06:55 UTC on the 10th. */
 const LATE_SNACK_AT = 1_741_589_700_000;
 
-const schemaTables = Object.values(schema).filter((value): value is SQLiteTable => value instanceof SQLiteTable);
+const schemaTables = Object.values(schema as Record<string, unknown>).filter(
+  (value): value is SQLiteTable => value instanceof SQLiteTable,
+);
 
 interface ColumnInfo {
   name: string;
@@ -26,8 +28,9 @@ interface ColumnInfo {
   pk: number;
 }
 
+/** Column metadata, with the declared type lower-cased: SQLite reports it in whatever case it likes. */
 const columnsOf = (sqlite: Database.Database, table: string): ColumnInfo[] =>
-  sqlite.prepare(`pragma table_info("${table}")`).all() as ColumnInfo[];
+  (sqlite.prepare(`pragma table_info("${table}")`).all() as ColumnInfo[]).map((c) => ({ ...c, type: c.type.toLowerCase() }));
 
 /**
  * A minimal valid row for every table, as raw column values. Used where a test is about one
@@ -68,7 +71,7 @@ describe('the tables', () => {
 
   it('are exactly the tables the schema module exports, so neither side has a stray one', () => {
     const { sqlite } = makeTestDb({ schema });
-    const exported = schemaTables.map((t) => (t as unknown as Record<symbol, string>)[Symbol.for('drizzle:Name')]).sort();
+    const exported = schemaTables.map((t) => getTableName(t)).sort();
     expect(exported).toEqual(tableNames(sqlite).sort());
   });
 
