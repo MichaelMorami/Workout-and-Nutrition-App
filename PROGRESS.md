@@ -30,3 +30,4 @@ screen is coded.
 - 2026-09-10  test: in-memory SQLite harness, factories, seeder and domain matchers  (PR #10 closes #3)
 - 2026-09-10  Design canvas: all four screens — CHECKPOINT 1  (PR #13 closes #4)
 - 2026-09-10  docs: record Checkpoint 1 decisions and the canonical-units invariant  (PR #15 closes #14)
+- 2026-09-11  docs: refresh PROGRESS.md  (PR #26 closes #25)
