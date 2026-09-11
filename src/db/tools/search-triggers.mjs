@@ -22,25 +22,9 @@ if (!out) {
   process.exit(2);
 }
 
-const { foldSql, foodSearchSource, mealSearchSource, FOOD_SEARCH_SOURCE, MEAL_SEARCH_SOURCE } = await import(
+const { foldSql, foodSearchSource, mealSearchSource, searchTriggerSql, SEARCH_TRIGGERS } = await import(
   new URL('../search-fold.ts', import.meta.url).href
 );
-
-const TRIGGERS = [
-  ['foods', 'foods_search_text_insert', 'AFTER INSERT', FOOD_SEARCH_SOURCE],
-  ['foods', 'foods_search_text_update', 'AFTER UPDATE OF "name", "brand", "search_text"', FOOD_SEARCH_SOURCE],
-  ['meals', 'meals_search_text_insert', 'AFTER INSERT', MEAL_SEARCH_SOURCE],
-  ['meals', 'meals_search_text_update', 'AFTER UPDATE OF "name", "search_text"', MEAL_SEARCH_SOURCE],
-];
-
-const trigger = ([table, name, event, source]) =>
-  [
-    `CREATE TRIGGER \`${name}\` ${event} ON \`${table}\` FOR EACH ROW`,
-    `WHEN new."search_text" IS NOT ${foldSql(source)}`,
-    `BEGIN`,
-    `  UPDATE \`${table}\` SET "search_text" = ${foldSql(source)} WHERE rowid = new.rowid;`,
-    `END;`,
-  ].join('\n');
 
 const header = `-- Custom migration (drizzle-kit cannot express triggers): keeps foods.search_text and
 -- meals.search_text folded with src/db/search-fold.ts, for every writer — the app, the seeder, sync
@@ -48,12 +32,12 @@ const header = `-- Custom migration (drizzle-kit cannot express triggers): keeps
 --
 -- If a later drizzle-kit migration rebuilds foods or meals (CREATE __new_… / DROP / RENAME), SQLite
 -- drops these triggers with the old table: that migration must recreate them.
--- src/db/migrations.test.ts fails if they are missing or differ from foldSql().
+-- src/db/migrations.test.ts fails if they are missing or differ from searchTriggerSql().
 `;
 
 const statements = [
-  ...(replace ? TRIGGERS.map(([, name]) => `DROP TRIGGER IF EXISTS \`${name}\`;`) : []),
-  ...TRIGGERS.map(trigger),
+  ...(replace ? SEARCH_TRIGGERS.map(({ name }) => `DROP TRIGGER IF EXISTS \`${name}\`;`) : []),
+  ...SEARCH_TRIGGERS.map((trigger) => `${searchTriggerSql(trigger)};`),
   `-- Fold every row that existed before this migration.\nUPDATE \`foods\` SET "search_text" = ${foldSql(foodSearchSource())};`,
   `UPDATE \`meals\` SET "search_text" = ${foldSql(mealSearchSource())};`,
 ];

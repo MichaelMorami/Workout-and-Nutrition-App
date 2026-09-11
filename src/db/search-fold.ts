@@ -64,8 +64,12 @@ const COMBINING_MARKS: readonly string[] = [
   0x0328, // ogonek
 ].map((codePoint) => String.fromCodePoint(codePoint));
 
-/** Punctuation that separates words in food names. Becomes a space, so "semi-skimmed" has a word "skimmed". */
-const WORD_BREAKS = "-/(),.&'";
+/**
+ * Punctuation that separates words in food names. Becomes a space, so "semi-skimmed" has a word "skimmed".
+ * Includes the typographic quotes ‘ ’ (U+2018/U+2019): iOS Smart Punctuation turns a typed ' into ’ by
+ * default, and "Ben & Jerry’s" named on an iPhone must match "jerry's" typed anywhere else.
+ */
+const WORD_BREAKS = "-/(),.&'‘’";
 
 /** Every `[from, to]` replacement, in the order `foldSql` applies them after `lower()`. */
 export const FOLD_PAIRS: readonly (readonly [from: string, to: string])[] = [
@@ -94,3 +98,39 @@ export const mealSearchSource = (row = ''): string => `${row}"name"`;
 /** The sources as the triggers write them. */
 export const FOOD_SEARCH_SOURCE: string = foodSearchSource('new.');
 export const MEAL_SEARCH_SOURCE: string = mealSearchSource('new.');
+
+/** One of the four triggers that keep `search_text` folded. */
+export interface SearchTrigger {
+  readonly table: 'foods' | 'meals';
+  readonly name: string;
+  /** The trigger event, e.g. `AFTER UPDATE OF "name", "search_text"`. */
+  readonly event: string;
+  /** What the trigger folds, written against `new.`. */
+  readonly source: string;
+}
+
+/**
+ * The triggers migration 0001 installs. `search_text` is in every `UPDATE OF` list so a writer that sets
+ * it directly (a sync upsert) is corrected too; the `WHEN` guard stops the trigger re-firing on its own write.
+ */
+export const SEARCH_TRIGGERS: readonly SearchTrigger[] = [
+  { table: 'foods', name: 'foods_search_text_insert', event: 'AFTER INSERT', source: FOOD_SEARCH_SOURCE },
+  { table: 'foods', name: 'foods_search_text_update', event: 'AFTER UPDATE OF "name", "brand", "search_text"', source: FOOD_SEARCH_SOURCE },
+  { table: 'meals', name: 'meals_search_text_insert', event: 'AFTER INSERT', source: MEAL_SEARCH_SOURCE },
+  { table: 'meals', name: 'meals_search_text_update', event: 'AFTER UPDATE OF "name", "search_text"', source: MEAL_SEARCH_SOURCE },
+];
+
+/**
+ * A trigger's `CREATE TRIGGER … END`, byte for byte as SQLite stores it in `sqlite_master.sql` (no
+ * trailing `;`). `src/db/tools/search-triggers.mjs` writes the migration from this, and
+ * `src/db/migrations.test.ts` compares the installed triggers against it.
+ */
+export function searchTriggerSql({ table, name, event, source }: SearchTrigger): string {
+  return [
+    `CREATE TRIGGER \`${name}\` ${event} ON \`${table}\` FOR EACH ROW`,
+    `WHEN new."search_text" IS NOT ${foldSql(source)}`,
+    `BEGIN`,
+    `  UPDATE \`${table}\` SET "search_text" = ${foldSql(source)} WHERE rowid = new.rowid;`,
+    `END`,
+  ].join('\n');
+}
