@@ -365,7 +365,24 @@ describe('search_text', () => {
     ["M&M's", 'm m s'],
     ['Ben & Jerry’s', 'ben   jerry s'], // U+2019: iOS Smart Punctuation turns ' into ’ by default
     ['‘Nduja', ' nduja'], // U+2018
+    ['Coca–Cola', 'coca cola'], // U+2013 en dash
+    ['Coca—Cola', 'coca cola'], // U+2014 em dash
+    ['"Lite" yogurt', ' lite  yogurt'],
+    ['“Lite” yogurt', ' lite  yogurt'], // U+201C/U+201D: Smart Punctuation again
   ];
+
+  it.each([
+    [['Coca-Cola', 'Coca–Cola', 'Coca—Cola'], ['coca', 'cola']],
+    [['Lite yogurt', '"Lite" yogurt', '“Lite” yogurt'], ['lite', 'yogurt']],
+  ])('folds every spelling of %j to the same search words', (spellings, words) => {
+    // A search splits the query on whitespace (§3), so words are what has to agree, not spaces.
+    const { sqlite } = makeTestDb({ schema });
+    spellings.forEach((name, i) => insertRaw(sqlite, 'foods', { ...validRow('foods', `f${i}`), name }));
+
+    expect(spellings.map((_, i) => searchTextOf(sqlite, 'foods', `f${i}`).split(/\s+/).filter(Boolean))).toEqual(
+      spellings.map(() => words),
+    );
+  });
 
   it.each([
     ['typed on an iPhone (’), searched with a straight apostrophe', 'Ben & Jerry’s', "jerry's"],
