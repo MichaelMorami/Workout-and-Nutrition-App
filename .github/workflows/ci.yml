@@ -36,6 +36,9 @@ jobs:
       - name: Ownership boundaries (dependency-cruiser)
         run: ./scripts/boundaries.sh
 
+      - name: PR title rule (scripts/pr-title.test.sh)
+        run: ./scripts/pr-title.test.sh
+
       - name: Test (with coverage)
         run: npx jest --silent --coverage --passWithNoTests
 
