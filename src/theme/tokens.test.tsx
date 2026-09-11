@@ -1,3 +1,7 @@
+/* istanbul ignore file -- this is a test, not source. jest.config.js `collectCoverageFrom` includes
+   src/**\/*.{ts,tsx} but only excludes tests under test/**, so a colocated test is counted as uncovered
+   source (0/112 lines) and fails the global threshold. Raised for qa-engineer on #16. tokens.ts itself
+   is still measured, and is at 100%. */
 /**
  * The token contract, as tests that can fail.
  *
