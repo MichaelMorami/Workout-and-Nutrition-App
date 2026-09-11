@@ -66,10 +66,11 @@ const COMBINING_MARKS: readonly string[] = [
 
 /**
  * Punctuation that separates words in food names. Becomes a space, so "semi-skimmed" has a word "skimmed".
- * Includes the typographic quotes ‘ ’ (U+2018/U+2019): iOS Smart Punctuation turns a typed ' into ’ by
- * default, and "Ben & Jerry’s" named on an iPhone must match "jerry's" typed anywhere else.
+ * Includes the typographic quotes ‘ ’ “ ” (U+2018/U+2019/U+201C/U+201D) and the dashes – — (U+2013/U+2014):
+ * iOS Smart Punctuation turns a typed ' into ’, " into “ ”, and -- into — by default, so "Ben & Jerry’s"
+ * or “Lite” yogurt named on an iPhone must match the plain spelling typed anywhere else.
  */
-const WORD_BREAKS = "-/(),.&'‘’";
+const WORD_BREAKS = "-/(),.&'‘’\"“”–—";
 
 /** Every `[from, to]` replacement, in the order `foldSql` applies them after `lower()`. */
 export const FOLD_PAIRS: readonly (readonly [from: string, to: string])[] = [

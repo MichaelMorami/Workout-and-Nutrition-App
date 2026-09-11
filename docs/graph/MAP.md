@@ -105,7 +105,7 @@ _no exports_
 
 <sub>used by: `src/db/client.ts`, `src/db/db.ts`</sub>
 
-### `src/db/search-fold.ts`  <sub>137 lines</sub>
+### `src/db/search-fold.ts`  <sub>138 lines</sub>
 
 - `const FOLD_PAIRS: readonly (readonly [from: string, to: string])[]`
 - `const FOOD_SEARCH_SOURCE: string`

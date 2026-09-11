@@ -172,7 +172,7 @@
         "interface SearchTrigger"
       ],
       "imports": [],
-      "loc": 137
+      "loc": 138
     },
     "src/theme/tokens.ts": {
       "exports": [
