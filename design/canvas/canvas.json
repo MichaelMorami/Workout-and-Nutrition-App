@@ -43,25 +43,61 @@
       "x": 1500,
       "y": 0,
       "w": 390,
-      "h": 1560,
+      "h": 1440,
+      "page": "page-1"
+    },
+    {
+      "file": "Search.dc.html",
+      "title": "Search — recent (row just logged)",
+      "x": 2000,
+      "y": 0,
+      "w": 390,
+      "h": 844,
+      "page": "page-1"
+    },
+    {
+      "file": "SearchTyped.dc.html",
+      "title": "Search — typed (row pressed)",
+      "x": 2500,
+      "y": 0,
+      "w": 390,
+      "h": 844,
+      "page": "page-1"
+    },
+    {
+      "file": "CreateFood.dc.html",
+      "title": "Add food — from Create",
+      "x": 3000,
+      "y": 0,
+      "w": 390,
+      "h": 844,
       "page": "page-1"
     },
     {
       "file": "QuickAdd.dc.html",
-      "title": "Quick-add tile — real size",
+      "title": "Quick add — tile, bar & rows",
       "x": 0,
       "y": 1990,
-      "w": 860,
-      "h": 800,
+      "w": 1060,
+      "h": 1540,
+      "page": "page-1"
+    },
+    {
+      "file": "Portion.dc.html",
+      "title": "Portions & undo",
+      "x": 1180,
+      "y": 1990,
+      "w": 1330,
+      "h": 1620,
       "page": "page-1"
     },
     {
       "file": "Empty.dc.html",
       "title": "Empty states",
-      "x": 990,
+      "x": 2630,
       "y": 1990,
-      "w": 1742,
-      "h": 1100,
+      "w": 2166,
+      "h": 1150,
       "page": "page-1"
     },
     {
@@ -97,25 +133,43 @@
       "x": 1500,
       "y": 0,
       "w": 390,
-      "h": 1560,
+      "h": 1440,
+      "page": "page-2"
+    },
+    {
+      "file": "SearchLight.dc.html",
+      "title": "Search — recent, light",
+      "x": 2000,
+      "y": 0,
+      "w": 390,
+      "h": 844,
+      "page": "page-2"
+    },
+    {
+      "file": "SearchTypedLight.dc.html",
+      "title": "Search — typed, light",
+      "x": 2500,
+      "y": 0,
+      "w": 390,
+      "h": 844,
       "page": "page-2"
     },
     {
       "file": "Specimen.dc.html",
-      "title": "Colour & type specimen",
-      "x": 2000,
+      "title": "Colour, type & components",
+      "x": 3000,
       "y": 0,
       "w": 1240,
-      "h": 3330,
+      "h": 6560,
       "page": "page-2"
     },
     {
       "file": "Motion.dc.html",
-      "title": "Motion, haptics & access",
-      "x": 3360,
+      "title": "Motion, gestures, haptics & access",
+      "x": 4360,
       "y": 0,
       "w": 1240,
-      "h": 3160,
+      "h": 5000,
       "page": "page-2"
     }
   ],
@@ -126,7 +180,7 @@
       "x": 0,
       "y": -300,
       "w": 880,
-      "text": "CHECKPOINT 1 — your sign-off gate\n\nFour screens in the dark theme (dark is the product), the quick-add tile drawn at real size, and every day-one empty state. The light theme and the full colour / type / motion specs are on page 2 — use the pages menu in the top bar.\n\nNothing gets coded until you say yes to this. Changing a decision here costs minutes; changing it after three sprints of screens costs days."
+      "text": "CHECKPOINT 1 — SIGNED OFF, NOW REVISED (issue #16)\n\nWhat changed since you signed off:\n• Search: a full-width “Search foods” bar under the grid replaces the header button. Search sheets, Create, and the add-food form are on this page (right).\n• Portions: presets plus an Exact slider for any amount. Double-tap adds a portion. See “Portions & undo” below.\n• Undo no longer disappears after 4 seconds — it stays until your next action.\n• Settings: the unit switch is gone. kg and cm.\n\nThe light theme and the full colour / type / motion specs are on page 2. They are now generated from the code’s own token file."
     },
     {
       "id": "charts-note",
@@ -142,7 +196,23 @@
       "x": 1450,
       "y": -300,
       "w": 440,
-      "text": "THREE THINGS I NEED FROM YOU\n\n1. Six quick-add tiles, or nine? Six keeps the name at 16.5pt and readable across a gym. Nine covers more of your day but the names shrink.\n\n2. Should a long-press be needed at all, or should tapping a tile a second time within 5s bump it to 2 portions?\n\n3. Weight in kg and bar weight in kg — is lb ever needed, or can I drop the unit switch entirely?"
+      "text": "YOUR THREE ANSWERS (Checkpoint 1)\n\n1. Six tiles, not nine — names stay at 16.5 pt.\n2. All three portion mechanisms: tap, long-press sheet with an Exact control, and a second tap to add a portion.\n3. kg and cm only — the unit switch is removed."
+    },
+    {
+      "id": "search-note",
+      "page": "page-1",
+      "x": 2000,
+      "y": -300,
+      "w": 880,
+      "text": "LOGGING ANY FOOD — e.g. boiled eggs\n\nTap “Search foods” under the grid. With nothing typed you see Recent: foods and meals from the last 14 days that are not already in your six. Type a few letters and results appear, saved meals labelled. The last row is always Create “what you typed”.\n\nRecent food: 2 taps. Known food: 2 taps + a few letters. New food: 3 taps + name and numbers.\n\nRows behave exactly like tiles: tap logs one serving, long-press opens the portion sheet."
+    },
+    {
+      "id": "checkpoint-2",
+      "page": "page-1",
+      "x": 3000,
+      "y": -300,
+      "w": 440,
+      "text": "FOR CHECKPOINT 2 — please try on a real bench\n\n• Undo stays until your next action, up to 3 minutes. Right length? Should scrolling dismiss it?\n• A second tap within 5 s merges into one “×2” entry. Does 5 s feel right?\n• Long-press at 220 ms: quick enough, or does it fire by accident?"
     },
     {
       "id": "tile-note",
@@ -153,12 +223,20 @@
       "text": "Everything on Today is secondary to this object. Judge it at arm’s length: hold the phone where you would hold it mid-set."
     },
     {
+      "id": "portion-note",
+      "page": "page-1",
+      "x": 1180,
+      "y": 1830,
+      "w": 560,
+      "text": "Presets are normalised; real consumption is not. Exact is the answer to “I had about 185 g” — and undo is designed for a phone lying on a bench."
+    },
+    {
       "id": "empty-note",
       "page": "page-1",
-      "x": 990,
+      "x": 2630,
       "y": 1830,
-      "w": 440,
-      "text": "Day one is the only day every user sees. No screen here shrugs — each one says what will fill it and what the first tap is."
+      "w": 560,
+      "text": "Day one is the only day every user sees. No screen here shrugs — each one says what will fill it and what the first tap is. Today leads straight to search, and search to Create."
     },
     {
       "id": "light-note",
@@ -166,15 +244,15 @@
       "x": 0,
       "y": -260,
       "w": 880,
-      "text": "The light theme. Same layout, same tokens, same code path — both palettes are generated from one OKLCH ramp, so light can never drift away from dark as the app grows."
+      "text": "The light theme. Same layout, same tokens, same code path — both palettes live side by side in src/theme/tokens.ts with identical keys, enforced by a test, so light can never drift away from dark as the app grows."
     },
     {
       "id": "system-note",
       "page": "page-2",
-      "x": 2000,
+      "x": 3000,
       "y": -260,
       "w": 880,
-      "text": "Every named token with the one job it is allowed to do, and its measured contrast ratio. These become src/theme/tokens.ts the moment you sign off — not before."
+      "text": "Every named token with the one job it is allowed to do, and its measured contrast. This board is generated from src/theme/tokens.ts — the spec and the code are the same file."
     }
   ],
   "launch": {

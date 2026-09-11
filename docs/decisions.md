@@ -102,3 +102,44 @@ with a measurement that says otherwise.
 
 Checkpoint 2 is the client logging their real food for two or three days. Real eating does not stay
 inside six foods, so a checkpoint without search would test the grid and nothing else.
+
+---
+
+## Sprint 1 dispatch — the Today status row
+
+Decided by the client on 2026-09-11 · issues #17 (contract amendment), #18, #20
+
+The row under the grid used to show a last weight and a routine name, with no defined behaviour.
+The client specified what each half is for.
+
+### 6. Weight: today's weight and the weekly change in its 7-day average; tap opens Charts
+
+- **The big number** is the latest weigh-in, the number the scale showed.
+- **The change** is this week's 7-day average minus last week's.
+  - Windows: `[today − 6, today]` against `[today − 13, today − 7]`, by `local_date`.
+  - The average is over the weigh-ins actually present, with no interpolation.
+- **Tapping the chip** switches to the Charts tab, where the full trend lives. There is no intermediate screen.
+
+**Why the average and not yesterday's number:** day-to-day weight swings with water and salt, often by more
+than a week of real change. A delta between two single weigh-ins mostly reports noise. The weekly
+change of a 7-day average is the signal, the same reason the Charts tab smooths the trend line.
+
+**Sprint 1:** the chip ships now. It reads `body_metrics`, and shows an honest empty state until there
+are weigh-ins.
+
+### 7. Workout: today's expected or completed workout, and play starts it
+
+- **The chip shows** the workout expected today, or the one already done.
+- **Play** drops straight into the running session, with last session's numbers pre-filled. From
+  Today to logging the first set is one tap. That is priority #2 applied to training.
+
+**Sprint 3:** the chip ships with sessions and routines. Until then the row shows the weight chip only;
+nothing on screen looks tappable and does nothing.
+
+**Open question for Sprint 3 planning:** what "expected" means.
+- **Rotation:** the next routine after the last one completed, e.g. Push → Pull → Legs, whatever the
+  weekday.
+- **Fixed weekday schedule:** Monday is Push, and so on.
+
+This is a data-model decision (routines need an order, or a weekday), so it is put to the client
+before the workout schema is designed.
