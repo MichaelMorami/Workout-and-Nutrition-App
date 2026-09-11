@@ -363,7 +363,21 @@ describe('search_text', () => {
     ['Créme', 'creme'], // decomposed: e + combining acute, as some keyboards type it
     ['Semi-skimmed (1.7%)', 'semi skimmed  1 7% '], // punctuation becomes a word break, not nothing
     ["M&M's", 'm m s'],
+    ['Ben & Jerry’s', 'ben   jerry s'], // U+2019: iOS Smart Punctuation turns ' into ’ by default
+    ['‘Nduja', ' nduja'], // U+2018
   ];
+
+  it.each([
+    ['typed on an iPhone (’), searched with a straight apostrophe', 'Ben & Jerry’s', "jerry's"],
+    ['typed with a straight apostrophe, searched on an iPhone (’)', "Ben & Jerry's", 'jerry’s'],
+  ])('matches a food %s', (_, name, query) => {
+    const { sqlite } = makeTestDb({ schema });
+    insertRaw(sqlite, 'foods', { ...validRow('foods', 'a'), name });
+    const hits = sqlite.prepare(`select id from foods where search_text like '%' || ${foldSql('?')} || '%'`).all(query);
+
+    expect(searchTextOf(sqlite, 'foods', 'a')).toBe('ben   jerry s');
+    expect(hits).toEqual([{ id: 'a' }]);
+  });
 
   it.each(CORPUS)('folds %j to %j', (input, folded) => {
     const { sqlite } = makeTestDb({ schema });

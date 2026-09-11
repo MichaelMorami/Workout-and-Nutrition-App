@@ -25,7 +25,7 @@ import { migrate as migrateOnPhone } from 'drizzle-orm/expo-sqlite/migrator';
 import { appliedMigrations, ddlFromSchema, tableNames } from '../../test/db';
 import bundle from './migrations/bundle';
 import * as schema from './schema';
-import { foldSql, FOOD_SEARCH_SOURCE, MEAL_SEARCH_SOURCE } from './search-fold';
+import { foldSql, SEARCH_TRIGGERS, searchTriggerSql } from './search-fold';
 
 const FOLDER = path.join(__dirname, 'migrations');
 
@@ -208,9 +208,14 @@ describe('the migrations', () => {
       'meals.meals_search_text_insert',
       'meals.meals_search_text_update',
     ]);
-    for (const trigger of triggers) {
-      const source = trigger.tbl_name === 'foods' ? FOOD_SEARCH_SOURCE : MEAL_SEARCH_SOURCE;
-      expect([trigger.name, trigger.sql.includes(foldSql(source))]).toEqual([trigger.name, true]);
+    // The whole trigger, not a substring: a hand edit to the event, the WHEN guard or the SET clause
+    // of 0001 fails here. Regenerate with src/db/tools/search-triggers.mjs instead of editing it.
+    expect(triggers.map((t) => [t.name, t.tbl_name, t.sql])).toEqual(
+      SEARCH_TRIGGERS.map((t) => [t.name, t.table, searchTriggerSql(t)]),
+    );
+    // And the renderer folds in both places that matter: the WHEN guard and the SET.
+    for (const trigger of SEARCH_TRIGGERS) {
+      expect([trigger.name, searchTriggerSql(trigger).split(foldSql(trigger.source)).length - 1]).toEqual([trigger.name, 2]);
     }
     sqlite.close();
   });
