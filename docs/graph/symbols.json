@@ -1,6 +1,6 @@
 {
   "generated": "scripts/graph-gen.mjs — do not edit by hand",
-  "moduleCount": 8,
+  "moduleCount": 14,
   "modules": {
     "app/(tabs)/_layout.tsx": {
       "exports": [
@@ -75,6 +75,101 @@
         "expo-router"
       ],
       "loc": 10
+    },
+    "src/db/client.ts": {
+      "exports": [
+        "const DATABASE_NAME: \"vitals.db\"",
+        "function migrateVitalsDb({ db, sqlite }: VitalsConnection): Promise<void>",
+        "function openVitalsDb(name: string = DATABASE_NAME): VitalsConnection",
+        "interface VitalsConnection"
+      ],
+      "imports": [
+        "drizzle-orm/expo-sqlite",
+        "drizzle-orm/expo-sqlite/migrator",
+        "expo-sqlite",
+        "src/db/db.ts",
+        "src/db/migrations/bundle.ts",
+        "src/db/schema.ts"
+      ],
+      "loc": 56
+    },
+    "src/db/db.ts": {
+      "exports": [
+        "type VitalsDb = BaseSQLiteDatabase<'sync', unknown, VitalsSchema>",
+        "type VitalsSchema = typeof schema"
+      ],
+      "imports": [
+        "drizzle-orm/sqlite-core",
+        "src/db/schema.ts"
+      ],
+      "loc": 14,
+      "importedBy": [
+        "src/db/client.ts"
+      ]
+    },
+    "src/db/migrations/bundle.ts": {
+      "exports": [
+        "const default: { journal: { version: string; dialect: string; entries: { idx: number; version: string; when: number; tag: string; breakpoints: boolean; }[]; }; migrations: { m0000: string; m0001: string; }; }"
+      ],
+      "imports": [
+        "src/db/migrations/meta/_journal.json"
+      ],
+      "loc": 20,
+      "importedBy": [
+        "src/db/client.ts"
+      ]
+    },
+    "src/db/migrations/meta/_journal.json": {
+      "exports": [],
+      "imports": [],
+      "loc": 20,
+      "importedBy": [
+        "src/db/migrations/bundle.ts"
+      ]
+    },
+    "src/db/schema.ts": {
+      "exports": [
+        "const bodyMetrics: import(\"drizzle-orm/sqlite-core\").SQLiteTableWithColumns<{ name: \"body_metrics\"; schema: undefined; columns: { measuredAt: import(\"drizzle-orm/sqlite-core\").SQLiteColumn<{ name: \"measured_at\"; tableName: \"body_metrics\"; dataType: \"number\"; columnType: \"SQLiteInteger\"; data: number; driverParam: number; notNull: true; hasDefault: false; isPrimaryKey: false; isAutoincrement: fa...",
+        "const foodLog: import(\"drizzle-orm/sqlite-core\").SQLiteTableWithColumns<{ name: \"food_log\"; schema: undefined; columns: { loggedAt: import(\"drizzle-orm/sqlite-core\").SQLiteColumn<{ name: \"logged_at\"; tableName: \"food_log\"; dataType: \"number\"; columnType: \"SQLiteInteger\"; data: number; driverParam: number; notNull: true; hasDefault: false; isPrimaryKey: false; isAutoincrement: false; hasRuntimeD...",
+        "const foods: import(\"drizzle-orm/sqlite-core\").SQLiteTableWithColumns<{ name: \"foods\"; schema: undefined; columns: { useCount: import(\"drizzle-orm/sqlite-core\").SQLiteColumn<{ name: \"use_count\"; tableName: \"foods\"; dataType: \"number\"; columnType: \"SQLiteInteger\"; data: number; driverParam: number; notNull: true; hasDefault: true; isPrimaryKey: false; isAutoincrement: false; hasRuntimeDefault: f...",
+        "const mealItems: import(\"drizzle-orm/sqlite-core\").SQLiteTableWithColumns<{ name: \"meal_items\"; schema: undefined; columns: { mealId: import(\"drizzle-orm/sqlite-core\").SQLiteColumn<{ name: \"meal_id\"; tableName: \"meal_items\"; dataType: \"string\"; columnType: \"SQLiteText\"; data: string; driverParam: string; notNull: true; hasDefault: false; isPrimaryKey: false; isAutoincrement: false; hasRuntimeDe...",
+        "const meals: import(\"drizzle-orm/sqlite-core\").SQLiteTableWithColumns<{ name: \"meals\"; schema: undefined; columns: { useCount: import(\"drizzle-orm/sqlite-core\").SQLiteColumn<{ name: \"use_count\"; tableName: \"meals\"; dataType: \"number\"; columnType: \"SQLiteInteger\"; data: number; driverParam: number; notNull: true; hasDefault: true; isPrimaryKey: false; isAutoincrement: false; hasRuntimeDefault: f...",
+        "const settings: import(\"drizzle-orm/sqlite-core\").SQLiteTableWithColumns<{ name: \"settings\"; schema: undefined; columns: { kcalTarget: import(\"drizzle-orm/sqlite-core\").SQLiteColumn<{ name: \"kcal_target\"; tableName: \"settings\"; dataType: \"number\"; columnType: \"SQLiteReal\"; data: number; driverParam: number; notNull: true; hasDefault: false; isPrimaryKey: false; isAutoincrement: false; hasRuntim...",
+        "type BodyMetricRow = typeof bodyMetrics.$inferSelect",
+        "type FoodLogRow = typeof foodLog.$inferSelect",
+        "type FoodRow = typeof foods.$inferSelect",
+        "type MealItemRow = typeof mealItems.$inferSelect",
+        "type MealRow = typeof meals.$inferSelect",
+        "type MealSlot = 'breakfast' | 'lunch' | 'dinner' | 'snack'",
+        "type NewBodyMetricRow = typeof bodyMetrics.$inferInsert",
+        "type NewFoodLogRow = typeof foodLog.$inferInsert",
+        "type NewFoodRow = typeof foods.$inferInsert",
+        "type NewMealItemRow = typeof mealItems.$inferInsert",
+        "type NewMealRow = typeof meals.$inferInsert",
+        "type NewSettingsRow = typeof settings.$inferInsert",
+        "type SettingsRow = typeof settings.$inferSelect"
+      ],
+      "imports": [
+        "drizzle-orm",
+        "drizzle-orm/sqlite-core"
+      ],
+      "loc": 221,
+      "importedBy": [
+        "src/db/client.ts",
+        "src/db/db.ts"
+      ]
+    },
+    "src/db/search-fold.ts": {
+      "exports": [
+        "const FOLD_PAIRS: readonly (readonly [from: string, to: string])[]",
+        "const FOOD_SEARCH_SOURCE: string",
+        "const MEAL_SEARCH_SOURCE: string",
+        "const foodSearchSource: (row?: string) => string",
+        "const mealSearchSource: (row?: string) => string",
+        "function foldSql(expr: string): string"
+      ],
+      "imports": [],
+      "loc": 97
     }
   }
 }
