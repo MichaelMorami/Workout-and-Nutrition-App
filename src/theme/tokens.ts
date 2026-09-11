@@ -412,6 +412,8 @@ function withComponents(c: BaseColors) {
       stepBorder: c.line.hairline,
       /** A preset step's label. */
       stepText: c.text.primary,
+      /** The calories printed under a preset step's label, so you know before you tap. */
+      stepMetaText: c.text.tertiary,
       /** The step matching the food's usual serving. */
       stepSelectedBg: c.data.kcal,
       /** That step while pressed. */
@@ -799,7 +801,7 @@ export const contrastPairs: readonly ContrastPair[] = [
 
   // portion sheet, slider, segmented
   ...measure(['portionSheet.titleText', 'portionSheet.metaText', 'portionSheet.readoutText', 'portionSheet.kcalText', 'portionSheet.proteinText', 'portionSheet.unitText'], ['portionSheet.bg']),
-  ...measure(['portionSheet.stepText'], ['portionSheet.stepBg'], ['portionSheet.stepBgPress']),
+  ...measure(['portionSheet.stepText', 'portionSheet.stepMetaText'], ['portionSheet.stepBg'], ['portionSheet.stepBgPress']),
   ...measure(['portionSheet.stepSelectedText'], ['portionSheet.stepSelectedBg'], ['portionSheet.stepSelectedBgPress']),
   ...measure(['portionSheet.logButtonText'], ['portionSheet.logButtonBg'], ['portionSheet.logButtonBgPress']),
   ...measure(['slider.detentIcon', 'slider.detentText', 'slider.rangeText'], ['portionSheet.bg']),
@@ -1101,10 +1103,12 @@ export const size = {
   },
 
   portionSheet: {
-    /** Preset step width (½ 1 1½ 2 3). */
+    /** Minimum preset step width (the five steps share the row: ½ 1 1½ 2 3). */
     stepWidth: 56,
-    /** Preset step touch height. */
-    stepHit: 48,
+    /** Preset step height: its label plus its calories. */
+    stepHeight: 56,
+    /** Preset step touch height — the whole step. */
+    stepHit: 56,
     /** The Presets / Exact switch, and the unit segments, touch height (painted at 36). */
     segmentHit: 44,
     /** Painted segment height. */
