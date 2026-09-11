@@ -31,3 +31,5 @@ screen is coded.
 - 2026-09-10  Design canvas: all four screens — CHECKPOINT 1  (PR #13 closes #4)
 - 2026-09-10  docs: record Checkpoint 1 decisions and the canonical-units invariant  (PR #15 closes #14)
 - 2026-09-11  docs: record the search-and-log decisions  (PR #26 closes #25)
+- 2026-09-11  fix: pr.sh titles PRs after the branch's own work, not the refresh commit  (PR #28 closes #27)
+- 2026-09-11  feat: src/theme/tokens.ts — typed colour, type, space, radius, size, motion and haptics for both themes (#16)  (PR #31 closes #16)
