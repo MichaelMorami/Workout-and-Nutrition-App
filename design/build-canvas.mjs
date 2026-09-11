@@ -833,7 +833,7 @@ function boardHead(title, sub) {
 }
 function screenFrame(inner, caption, sub) {
   return `<div style="${s({ display: 'flex', flexDirection: 'column', gap: '12px', width: W + 'px', flex: 'none' })}">
-  <div style="${s({ display: 'flex', flexDirection: 'column', gap: '4px', paddingLeft: '2px', minHeight: '38px' })}">
+  <div style="${s({ display: 'flex', flexDirection: 'column', gap: '4px', paddingLeft: '2px', minHeight: '52px' })}">
     <div style="${t('micro', { color: BOARD_T1, fontSize: '11px' })}">${caption}</div>
     <div style="${t('label', { color: BOARD_T3, textWrap: 'pretty' })}">${sub}</div>
   </div>
@@ -923,7 +923,7 @@ function portionBoard() {
   const T = DARK;
   const toastData = { title: 'Skyr Pot  ×2', meta: '240 kcal · 40 g protein' };
   const col = (frame, head, items) => `<div style="${s({ display: 'flex', flexDirection: 'column', gap: '18px', width: W + 'px', flex: 'none' })}">${frame}${head ? `<div style="${t('title', { fontSize: '16px', color: BOARD_T1, marginTop: '4px' })}">${head}</div>` : ''}${stack(items, 10)}</div>`;
-  return `<div style="${s({ width: '1330px', minHeight: '1600px', background: BOARD, padding: '40px', fontFamily: FONT, color: BOARD_T1 })}">
+  return `<div style="${s({ width: '1330px', minHeight: '1620px', background: BOARD, padding: '40px', fontFamily: FONT, color: BOARD_T1 })}">
 ${boardHead('Portions &amp; undo', 'Tap is still the whole interaction for most foods. When the amount is not one serving, long-press gives normalised presets — and Exact, because real consumption is not normalised. Undo is the only safety net in an app with no save button, so it is designed for a phone lying on a bench.')}
 <div style="${s({ display: 'flex', gap: '40px', alignItems: 'flex-start' })}">
 ${col(screenFrame(portionPhone(T, 'Presets'), `Long-press · presets`, `Hold ${interaction.longPressMs} ms on a tile or a search row. Tap a step and it logs.`), 'Presets', [
@@ -1329,9 +1329,9 @@ const canvas = {
     { file: 'Search.dc.html',      title: 'Search — recent (row just logged)', x: 2000, y: 0, w: 390, h: 844, page: 'page-1' },
     { file: 'SearchTyped.dc.html', title: 'Search — typed (row pressed)',      x: 2500, y: 0, w: 390, h: 844, page: 'page-1' },
     { file: 'CreateFood.dc.html',  title: 'Add food — from Create',   x: 3000, y: 0, w: 390, h: 844,  page: 'page-1' },
-    { file: 'QuickAdd.dc.html',    title: 'Quick add — tile, bar & rows', x: 0, y: 1990, w: 1060, h: 1480, page: 'page-1' },
-    { file: 'Portion.dc.html',     title: 'Portions & undo',          x: 1180, y: 1990, w: 1330, h: 1760, page: 'page-1' },
-    { file: 'Empty.dc.html',       title: 'Empty states',             x: 2630, y: 1990, w: 2166, h: 1110, page: 'page-1' },
+    { file: 'QuickAdd.dc.html',    title: 'Quick add — tile, bar & rows', x: 0, y: 1990, w: 1060, h: 1540, page: 'page-1' },
+    { file: 'Portion.dc.html',     title: 'Portions & undo',          x: 1180, y: 1990, w: 1330, h: 1620, page: 'page-1' },
+    { file: 'Empty.dc.html',       title: 'Empty states',             x: 2630, y: 1990, w: 2166, h: 1150, page: 'page-1' },
 
     { file: 'TodayLight.dc.html',       title: 'Today — light',            x: 0,    y: 0, w: 390, h: 844,  page: 'page-2' },
     { file: 'WorkoutLight.dc.html',     title: 'Workout — light',          x: 500,  y: 0, w: 390, h: 844,  page: 'page-2' },
@@ -1339,8 +1339,8 @@ const canvas = {
     { file: 'SettingsLight.dc.html',    title: 'Settings — light',         x: 1500, y: 0, w: 390, h: SETTINGS_H, page: 'page-2' },
     { file: 'SearchLight.dc.html',      title: 'Search — recent, light',   x: 2000, y: 0, w: 390, h: 844,  page: 'page-2' },
     { file: 'SearchTypedLight.dc.html', title: 'Search — typed, light',    x: 2500, y: 0, w: 390, h: 844,  page: 'page-2' },
-    { file: 'Specimen.dc.html',         title: 'Colour, type & components', x: 3000, y: 0, w: 1240, h: 6200, page: 'page-2' },
-    { file: 'Motion.dc.html',           title: 'Motion, gestures, haptics & access', x: 4360, y: 0, w: 1240, h: 5200, page: 'page-2' },
+    { file: 'Specimen.dc.html',         title: 'Colour, type & components', x: 3000, y: 0, w: 1240, h: 6560, page: 'page-2' },
+    { file: 'Motion.dc.html',           title: 'Motion, gestures, haptics & access', x: 4360, y: 0, w: 1240, h: 5000, page: 'page-2' },
   ],
   annotations: [
     { id: 'start-here', page: 'page-1', x: 0, y: -300, w: 880, text: 'CHECKPOINT 1 — SIGNED OFF, NOW REVISED (issue #16)\n\nWhat changed since you signed off:\n• Search: a full-width “Search foods” bar under the grid replaces the header button. Search sheets, Create, and the add-food form are on this page (right).\n• Portions: presets plus an Exact slider for any amount. Double-tap adds a portion. See “Portions & undo” below.\n• Undo no longer disappears after 4 seconds — it stays until your next action.\n• Settings: the unit switch is gone. kg and cm.\n\nThe light theme and the full colour / type / motion specs are on page 2. They are now generated from the code’s own token file.' },
