@@ -40,3 +40,4 @@ screen is coded.
 - 2026-09-12  docs: list the two self-test scripts in the CLAUDE.md scripts table  (PR #49 closes #48)
 - 2026-09-12  feat: nutrition queries, usage cache, local-time and settings read — issue #35 (green)  (PR #51 closes #35)
 - 2026-09-12  feat: ProgressArc — animated calorie and protein rings (#19)  (PR #50 closes #19)
+- 2026-09-12  feat: weight/length formatters — kg/cm today, one seam for later (#39)  (PR #53 closes #39)
