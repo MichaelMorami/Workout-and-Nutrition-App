@@ -48,7 +48,10 @@ const MS_PER_DAY = 86_400_000;
  * every used row ranked above every unused one: the smallest possible score from one use,
  * `log1p(1) * USE_WEIGHT`, is strictly positive.
  */
-function rankingScore(useCount: number, lastUsedAt: number | null, hourHistogram: string | null, hour: number, at: number): number {
+/** Exported for reuse by `./search` (issue #37): `searchFoods`'s secondary sort is "the quick-add
+ * score at `at`" (issue #17 contract §3), which must be this exact function or the two could rank
+ * the same row differently. */
+export function rankingScore(useCount: number, lastUsedAt: number | null, hourHistogram: string | null, hour: number, at: number): number {
   if (useCount === 0) return 0;
 
   const hist = parseHourHistogram(hourHistogram);
@@ -78,7 +81,9 @@ interface MealAggregate {
  * whose food is not tombstoned. Archived foods still count — archived only hides a *food* from the
  * grid, search and recents, and does not stop it appearing inside a meal (contract, #36 section).
  */
-function liveMealAggregates(db: VitalsDb): Map<string, MealAggregate> {
+/** Exported for reuse by `./search` (issue #37): `searchFoods` and `recentFoods` both need the same
+ * live-item aggregate `quickAddCandidates` uses, so a meal's kcal/protein/itemCount agree everywhere. */
+export function liveMealAggregates(db: VitalsDb): Map<string, MealAggregate> {
   const rows = db
     .select({
       mealId: mealItems.mealId,
@@ -236,8 +241,10 @@ export function dayLog(db: VitalsDb, localDate: LocalDate): DayLogEntry[] {
 // Amounts — shared by logFood and updateLogEntry.
 // ---------------------------------------------------------------------------------------------
 
-/** `qty` (servings) and canonical `grams` for an `Amount` against one serving's `servingGrams`. */
-function resolveAmount(amount: Amount, servingGrams: number | null): { qty: number; grams: number | null } {
+/** `qty` (servings) and canonical `grams` for an `Amount` against one serving's `servingGrams`.
+ * Exported for reuse by `./search`'s `createFoodAndLog` (issue #37), which resolves an amount
+ * against a food it is inserting in the same transaction. */
+export function resolveAmount(amount: Amount, servingGrams: number | null): { qty: number; grams: number | null } {
   if ('grams' in amount) {
     if (amount.grams <= 0) throw new VitalsDbError('invalid_input', 'grams must be > 0');
     if (servingGrams === null) {

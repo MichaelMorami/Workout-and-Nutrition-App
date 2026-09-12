@@ -17,8 +17,10 @@ import type { FoodInput, MealDetail, MealItemInput, MealSummary } from '../types
 // ---------------------------------------------------------------------------------------------
 
 /** Mirrors the schema's CHECK constraints, so a bad value throws `VitalsDbError` here rather than a
- * raw driver exception at the CHECK (issue #17 contract §0: every function throws `VitalsDbError`). */
-function validateFoodInput(input: FoodInput): void {
+ * raw driver exception at the CHECK (issue #17 contract §0: every function throws `VitalsDbError`).
+ * Exported for reuse by `./search`'s `createFoodAndLog` (issue #37), which inserts a food the same
+ * way `createFood` does. */
+export function validateFoodInput(input: FoodInput): void {
   if (input.name.trim().length === 0) throw new VitalsDbError('invalid_input', 'name must not be empty');
   if (input.servingLabel.trim().length === 0) throw new VitalsDbError('invalid_input', 'servingLabel must not be empty');
   if (input.servingGrams != null && input.servingGrams <= 0) {
