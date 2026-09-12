@@ -1,10 +1,9 @@
 /**
  * Where the harness gets its schema and migrations from.
  *
- * `src/db/**` is `db-engineer`'s path and does not exist yet, so this resolves at *runtime*:
- * the moment `src/db/schema.ts` and its generated migrations land, every existing test in the repo
- * starts running against the real schema with no edit to `test/**` — which matters, because
- * `db-engineer` cannot write to `test/**`.
+ * `src/db/**` is `db-engineer`'s path. This resolves it at *runtime* by candidate path rather than
+ * a static import, so `test/**` never needs an edit when the schema moves or grows — which matters,
+ * because `db-engineer` cannot write to `test/**`.
  *
  * For type safety, pass the schema explicitly instead — that is the intended day-to-day usage:
  *
@@ -23,16 +22,11 @@ const SCHEMA_CANDIDATES = ['src/db/schema.ts', 'src/db/schema/index.ts', 'src/db
 /** Candidate drizzle-kit output folders, most specific first. */
 const MIGRATION_CANDIDATES = ['src/db/migrations', 'src/db/drizzle', 'drizzle'];
 
-const FIXTURE_SCHEMA = 'test/fixtures/schema.ts';
-const FIXTURE_MIGRATIONS = 'test/fixtures/migrations';
-
 export interface SchemaSource {
   /** The drizzle table objects, keyed by export name. */
   schema: Record<string, unknown>;
   /** drizzle-kit output folder containing `meta/_journal.json`, or `undefined` if none exists yet. */
   migrationsFolder: string | undefined;
-  /** `true` while the app schema does not exist and the throwaway fixture is standing in. */
-  isFixture: boolean;
   /** Human-readable source, for error messages and the timing report. */
   label: string;
 }
@@ -66,22 +60,16 @@ export function resolveSchemaSource(): SchemaSource {
   if (cached) return cached;
 
   const realSchemaPath = firstExisting(SCHEMA_CANDIDATES);
-  if (realSchemaPath) {
-    const migrations = firstExisting(MIGRATION_CANDIDATES);
-    cached = {
-      schema: loadModule(realSchemaPath),
-      migrationsFolder: migrations && hasJournal(migrations) ? migrations : undefined,
-      isFixture: false,
-      label: path.relative(REPO_ROOT, realSchemaPath),
-    };
-    return cached;
+  if (!realSchemaPath) {
+    throw new Error(
+      `no schema found under any of: ${SCHEMA_CANDIDATES.join(', ')} — has src/db/schema.ts landed?`,
+    );
   }
-
+  const migrations = firstExisting(MIGRATION_CANDIDATES);
   cached = {
-    schema: loadModule(path.join(REPO_ROOT, FIXTURE_SCHEMA)),
-    migrationsFolder: path.join(REPO_ROOT, FIXTURE_MIGRATIONS),
-    isFixture: true,
-    label: `${FIXTURE_SCHEMA} (fixture — the app schema does not exist yet)`,
+    schema: loadModule(realSchemaPath),
+    migrationsFolder: migrations && hasJournal(migrations) ? migrations : undefined,
+    label: path.relative(REPO_ROOT, realSchemaPath),
   };
   return cached;
 }
@@ -93,6 +81,6 @@ export function resetSchemaSource(): void {
 
 /** The drizzle-kit output folder for a given schema module path, if one exists. */
 export function findMigrationsFolder(): string | undefined {
-  const folder = firstExisting(MIGRATION_CANDIDATES) ?? path.join(REPO_ROOT, FIXTURE_MIGRATIONS);
-  return hasJournal(folder) ? folder : undefined;
+  const folder = firstExisting(MIGRATION_CANDIDATES);
+  return folder && hasJournal(folder) ? folder : undefined;
 }
