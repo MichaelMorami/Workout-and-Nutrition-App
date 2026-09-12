@@ -1,33 +1,128 @@
 /**
- * Smoke test for the Today screen: it renders inside the app's real providers, in the theme's
- * canvas colour, and mounts the quick-add grid (issue #40) — not a placeholder.
+ * The Today screen (issue #41 composes #40's quick-add grid with the date header, the two rings
+ * and the weight chip): it renders inside the app's real providers, in the theme's canvas colour,
+ * with every section mounted — not a placeholder — and a tile tap moves the rings without a
+ * second database read.
  */
-import { render, screen } from '@testing-library/react-native';
+import { fireEvent, render, screen, within } from '@testing-library/react-native';
 import { DbProvider } from '../../src/components/db/DbProvider';
 import { ThemeContext } from '../../src/components/theme/theme-context';
-import { quickAddCandidates } from '../../src/db';
+import {
+  getSettings,
+  logFood,
+  quickAddCandidates,
+  todayTotals,
+  weightSummary,
+  type FoodCandidate,
+  type LogReceipt,
+} from '../../src/db';
 import { themes } from '../../src/theme/tokens';
 import TodayScreen from './index';
 
-jest.mock('react-native-reanimated', () => jest.requireActual('../../src/components/quick-add/test-support/reanimated-mock'));
+jest.mock('react-native-reanimated', () => jest.requireActual('../../src/components/today/test-support/reanimated-mock'));
+jest.mock('expo-router', () => ({ useRouter: () => ({ push: jest.fn() }) }));
 jest.mock('../../src/db', () => ({
   ...jest.requireActual<typeof import('../../src/db')>('../../src/db'),
   quickAddCandidates: jest.fn().mockReturnValue([]),
+  getSettings: jest.fn(),
+  todayTotals: jest.fn(),
+  weightSummary: jest.fn(),
+  logFood: jest.fn(),
 }));
 
+const mockGetSettings = jest.mocked(getSettings);
+const mockTodayTotals = jest.mocked(todayTotals);
+const mockWeightSummary = jest.mocked(weightSummary);
+const mockLogFood = jest.mocked(logFood);
+
+const yoghurt: FoodCandidate = {
+  kind: 'food',
+  id: 'food-1',
+  name: 'Greek yoghurt',
+  brand: null,
+  servingLabel: '1 pot',
+  servingGrams: 170,
+  kcal: 120,
+  protein: 20,
+  useCount: 4,
+  lastUsedAt: null,
+};
+
+const receipt: LogReceipt = {
+  target: { kind: 'food', id: 'food-1' },
+  entries: [
+    {
+      id: 'log-1',
+      updatedAt: 0,
+      deleted: 0,
+      loggedAt: 0,
+      localDate: '2025-03-10',
+      localMinute: 415,
+      foodId: 'food-1',
+      mealId: null,
+      qty: 1,
+      grams: null,
+      kcal: 120,
+      protein: 20,
+      slot: 'breakfast',
+    },
+  ],
+  portions: 1,
+  undo: { kind: 'unlog', logIds: ['log-1'] },
+};
+
+beforeEach(() => {
+  mockGetSettings.mockReturnValue({ kcalTarget: 2400, proteinTarget: 180, weekStart: 1, isDefault: false });
+  mockTodayTotals.mockReturnValue({
+    localDate: '2025-03-10',
+    kcal: 1240,
+    protein: 96,
+    kcalTarget: 2400,
+    proteinTarget: 180,
+    entryCount: 3,
+  });
+  mockWeightSummary.mockReturnValue({ latest: null, avg7: null, avg7PrevWeek: null, weeklyDelta: null });
+});
+
+const renderScreen = () =>
+  render(
+    <DbProvider db={{} as never}>
+      <ThemeContext.Provider value={themes.dark}>
+        <TodayScreen />
+      </ThemeContext.Provider>
+    </DbProvider>,
+  );
+
 describe('TodayScreen', () => {
-  it('renders the quick-add grid on the theme canvas, not the old placeholder', async () => {
-    await render(
-      <DbProvider db={{} as never}>
-        <ThemeContext.Provider value={themes.dark}>
-          <TodayScreen />
-        </ThemeContext.Provider>
-      </DbProvider>,
-    );
+  it('mounts the date header, both rings, the quick-add grid and the weight chip — no placeholder', async () => {
+    await renderScreen();
 
     expect(screen.getByTestId('today-screen')).toBeTruthy();
+    expect(screen.getByTestId('today-header')).toBeTruthy();
+    expect(screen.getByTestId('today-header-kcal-arc')).toBeTruthy();
+    expect(screen.getByTestId('today-header-protein-arc')).toBeTruthy();
     expect(screen.getByTestId('quick-add-grid')).toBeTruthy();
-    expect(screen.queryByText('Today')).toBeNull();
-    expect(jest.mocked(quickAddCandidates)).toHaveBeenCalled();
+    expect(screen.getByTestId('weight-chip')).toBeTruthy();
+    // No workout chip, no placeholder for it (issue #41's acceptance criteria).
+    expect(screen.queryByTestId('workout-chip')).toBeNull();
+  });
+
+  it('feeds the rings from todayTotals against the getSettings targets', async () => {
+    await renderScreen();
+    const ring = within(screen.getByTestId('today-header-kcal-arc'));
+    expect(ring.getByTestId('arc-value').props.children).toBe('1,240');
+    expect(ring.getByTestId('arc-target-text').props.children).toBe('of 2,400');
+  });
+
+  it('a quick-add tap moves the kcal ring immediately, with no second database read', async () => {
+    jest.mocked(quickAddCandidates).mockReturnValue([yoghurt]);
+    mockLogFood.mockReturnValue(receipt);
+    await renderScreen();
+
+    await fireEvent.press(screen.getByTestId('quick-add-grid-tile-food-1'));
+
+    const ring = within(screen.getByTestId('today-header-kcal-arc'));
+    expect(ring.getByTestId('arc-value').props.children).toBe('1,360');
+    expect(mockTodayTotals).toHaveBeenCalledTimes(1);
   });
 });
