@@ -31,6 +31,14 @@ const AUCKLAND = 'Pacific/Auckland';
  * instant to hang a `local_date` assertion on, distinct from any raw epoch-ms offset from 1970. */
 const AT_2025_03_09 = Date.parse('2025-03-09T19:00:00.000Z');
 
+/** An `hour_histogram` with `count` uses at exactly `hour` and nothing elsewhere — for pinning the
+ * hour-affinity term of the ranking score in isolation from use_count and recency. */
+function histogramAt(hour: number, count: number): string {
+  const hist = Array.from({ length: 24 }, () => 0);
+  hist[hour] = count;
+  return JSON.stringify(hist);
+}
+
 function setup() {
   const { db, sqlite } = makeTestDb({ schema });
   return { db, sqlite };
@@ -253,6 +261,62 @@ describe('quickAddCandidates', () => {
       servingLabel: '170 g pot',
       servingGrams: 170,
     } satisfies Partial<FoodCandidate>);
+  });
+
+  it('hour affinity beats raw use count: a rarely-used food logged at this hour outranks a heavily-used one logged at a different hour', () => {
+    const { db } = setup();
+    const at = Date.parse('2025-03-09T16:00:00.000Z'); // 08:00 America/Los_Angeles
+    // A: used 20 times, always at hour 3 — nothing like the query hour (8).
+    const heavyWrongHour = makeFood({
+      name: 'Heavy, wrong hour',
+      useCount: 20,
+      lastUsedAt: at,
+      hourHistogram: histogramAt(3, 20),
+    });
+    // B: used only 3 times, always at hour 8 — exactly the query hour.
+    const lightRightHour = makeFood({
+      name: 'Light, right hour',
+      useCount: 3,
+      lastUsedAt: at,
+      hourHistogram: histogramAt(8, 3),
+    });
+    db.insert(schema.foods).values([heavyWrongHour, lightRightHour]).run();
+
+    const result = quickAddCandidates(db, { at, timeZone: LA });
+    expect(result.map((c) => c.name)).toEqual(['Light, right hour', 'Heavy, wrong hour']);
+  });
+
+  it('the ranking hour is local: the same instant ranks differently in two timezones with different local hours', () => {
+    const { db } = setup();
+    const at = Date.parse('2025-03-09T20:00:00.000Z');
+    // 13:00 in America/Los_Angeles, 09:00 in Pacific/Auckland at this instant — far enough apart
+    // that neither food's histogram (hour ± 1) bleeds into the other's peak.
+    const laHour = 13;
+    const aucklandHour = 9;
+
+    const laPeak = makeFood({ name: 'LA peak', useCount: 5, lastUsedAt: at, hourHistogram: histogramAt(laHour, 5) });
+    const aucklandPeak = makeFood({ name: 'Auckland peak', useCount: 5, lastUsedAt: at, hourHistogram: histogramAt(aucklandHour, 5) });
+    db.insert(schema.foods).values([laPeak, aucklandPeak]).run();
+
+    const inLA = quickAddCandidates(db, { at, timeZone: LA });
+    expect(inLA[0]?.name).toBe('LA peak');
+
+    const inAuckland = quickAddCandidates(db, { at, timeZone: AUCKLAND });
+    expect(inAuckland[0]?.name).toBe('Auckland peak');
+  });
+
+  it('recency orders equal use counts: the more recently used of two equally-used, never-matching-hour foods ranks first', () => {
+    const { db } = setup();
+    const at = Date.parse('2025-03-09T16:00:00.000Z');
+    // No histogram on either (hour term is 0 for both). Names are chosen so that a fallback to the
+    // name/id tie-break — which is what a zeroed-out recency term would produce — picks the *other*
+    // food, so this test can only pass because recency actually orders them.
+    const recent = makeFood({ name: 'Z recently used', useCount: 4, lastUsedAt: at, hourHistogram: null });
+    const stale = makeFood({ name: 'A staler use', useCount: 4, lastUsedAt: at - 30 * 86_400_000, hourHistogram: null });
+    db.insert(schema.foods).values([stale, recent]).run();
+
+    const result = quickAddCandidates(db, { at, timeZone: LA });
+    expect(result.map((c) => c.name)).toEqual(['Z recently used', 'A staler use']);
   });
 });
 
@@ -559,6 +623,22 @@ describe('logFood', () => {
     const row = db.select().from(schema.foods).where(eq(schema.foods.id, food.id)).get();
     expect(row?.updatedAt).toBe(42);
   });
+
+  it('stores the local wall clock, not the UTC one: 23:55 America/Los_Angeles is local_minute 1435, hour bucket 23', () => {
+    const { db } = setup();
+    const food = makeFood();
+    db.insert(schema.foods).values(food).run();
+    // 2025-03-10T06:55:00Z is 2025-03-09 23:55 in America/Los_Angeles (UTC hour 6, minute 55 —
+    // a UTC-derived local_minute would wrongly be 415, not 1435).
+    const at = Date.parse('2025-03-10T06:55:00.000Z');
+
+    const receipt = logFood(db, { at, timeZone: LA, foodId: food.id });
+
+    expect(receipt.entries[0]?.localMinute).toBe(23 * 60 + 55);
+    const row = db.select().from(schema.foods).where(eq(schema.foods.id, food.id)).get();
+    const histogram = JSON.parse(row?.hourHistogram ?? 'null') as number[];
+    expect(histogram[23]).toBe(1);
+  });
 });
 
 // -------------------------------------------------------------------------------------------
@@ -700,6 +780,25 @@ describe('logMeal', () => {
     const foodRow = db.select().from(schema.foods).where(eq(schema.foods.id, food.id)).get();
     expect(mealRow?.useCount).toBe(1);
     expect(foodRow?.useCount).toBe(0);
+  });
+
+  it('stores the local wall clock, not the UTC one: 23:55 America/Los_Angeles is local_minute 1435, hour bucket 23', () => {
+    const { db } = setup();
+    const meal = makeMeal();
+    const food = makeFood();
+    db.insert(schema.foods).values(food).run();
+    db.insert(schema.meals).values(meal).run();
+    db.insert(schema.mealItems).values(makeMealItem({ mealId: meal.id, foodId: food.id })).run();
+    // 2025-03-10T06:55:00Z is 2025-03-09 23:55 in America/Los_Angeles (UTC hour 6, minute 55 —
+    // a UTC-derived local_minute would wrongly be 415, not 1435).
+    const at = Date.parse('2025-03-10T06:55:00.000Z');
+
+    const receipt = logMeal(db, { at, timeZone: LA, mealId: meal.id });
+
+    expect(receipt.entries[0]?.localMinute).toBe(23 * 60 + 55);
+    const mealRow = db.select().from(schema.meals).where(eq(schema.meals.id, meal.id)).get();
+    const histogram = JSON.parse(mealRow?.hourHistogram ?? 'null') as number[];
+    expect(histogram[23]).toBe(1);
   });
 });
 
