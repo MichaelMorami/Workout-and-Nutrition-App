@@ -2,8 +2,8 @@
  * The public surface of `src/db`. Every consumer — `ui-engineer`, `charts-engineer`,
  * `sync-engineer` — imports from `@/src/db`, never from a file inside it (issue #17 contract).
  *
- * Grows as sibling issues land: #36 (catalogue, meals, settings writes, weightSummary) and #37
- * (search, recents, create-and-log) add their own exports here without touching #35's.
+ * #36 (catalogue, meals, settings writes, weightSummary) landed below without touching #35's
+ * exports. #37 (search, recents, create-and-log) adds its own exports here in turn.
  */
 
 // Schema: tables and row types.
@@ -33,16 +33,22 @@ export type {
   DayLogEntry,
   DayTotals,
   FoodCandidate,
+  FoodInput,
   LogAmount,
   LogReceipt,
   MealCandidate,
+  MealDetail,
+  MealItemInput,
+  MealSummary,
   SettingsInput,
   SettingsView,
   UndoToken,
+  WeighIn,
+  WeightSummary,
 } from './types';
 
-// Settings (read side — #35). `updateSettings` lands with #36.
-export { DEFAULT_SETTINGS, getSettings, SETTINGS_ID } from './queries/settings';
+// Settings: read side (#35) and the singleton upsert (#36).
+export { DEFAULT_SETTINGS, getSettings, SETTINGS_ID, updateSettings } from './queries/settings';
 
 // Nutrition: read side, logging, portions, undo (#35).
 export {
@@ -56,3 +62,19 @@ export {
   undo,
   updateLogEntry,
 } from './queries/nutrition';
+
+// Catalogue and meals — createFood/updateFood/setFoodArchived/getFood/listFoods and
+// createMeal/listMeals/getMeal (#36).
+export {
+  createFood,
+  createMeal,
+  getFood,
+  getMeal,
+  listFoods,
+  listMeals,
+  setFoodArchived,
+  updateFood,
+} from './queries/catalog';
+
+// The Today weight chip (#36).
+export { weightSummary } from './queries/weight';

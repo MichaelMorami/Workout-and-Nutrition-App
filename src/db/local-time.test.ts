@@ -4,7 +4,7 @@
  * 00:05, a DST boundary — and pinned against an independently-computed instant, never against this
  * module's own output.
  */
-import { inferSlot, localDateOf, localStamp } from './local-time';
+import { addLocalDays, inferSlot, localDateOf, localStamp } from './local-time';
 import type { MealSlot } from './schema';
 
 const LA = 'America/Los_Angeles';
@@ -73,5 +73,27 @@ describe('inferSlot', () => {
     [1439, 'snack'],
   ])('localMinute %d infers %s', (localMinute, slot) => {
     expect(inferSlot(localMinute)).toBe(slot);
+  });
+});
+
+describe('addLocalDays', () => {
+  it('adds days within a month', () => {
+    expect(addLocalDays('2025-03-09', 1)).toBe('2025-03-10');
+  });
+
+  it('subtracts days across a month boundary', () => {
+    expect(addLocalDays('2025-03-01', -1)).toBe('2025-02-28');
+  });
+
+  it('crosses a year boundary', () => {
+    expect(addLocalDays('2025-01-01', -1)).toBe('2024-12-31');
+  });
+
+  it('crosses a leap-year February', () => {
+    expect(addLocalDays('2024-02-28', 1)).toBe('2024-02-29');
+  });
+
+  it('zero days is the identity', () => {
+    expect(addLocalDays('2025-03-09', 0)).toBe('2025-03-09');
   });
 });

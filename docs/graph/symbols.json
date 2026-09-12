@@ -1,6 +1,6 @@
 {
   "generated": "scripts/graph-gen.mjs — do not edit by hand",
-  "moduleCount": 43,
+  "moduleCount": 45,
   "modules": {
     "app/(tabs)/_layout.tsx": {
       "exports": [
@@ -362,8 +362,10 @@
       "loc": 14,
       "importedBy": [
         "src/db/client.ts",
+        "src/db/queries/catalog.ts",
         "src/db/queries/nutrition.ts",
         "src/db/queries/settings.ts",
+        "src/db/queries/weight.ts",
         "src/db/usage.ts"
       ]
     },
@@ -375,7 +377,9 @@
       "imports": [],
       "loc": 22,
       "importedBy": [
-        "src/db/queries/nutrition.ts"
+        "src/db/queries/catalog.ts",
+        "src/db/queries/nutrition.ts",
+        "src/db/queries/settings.ts"
       ]
     },
     "src/db/ids.ts": {
@@ -387,6 +391,7 @@
       ],
       "loc": 14,
       "importedBy": [
+        "src/db/queries/catalog.ts",
         "src/db/queries/nutrition.ts"
       ]
     },
@@ -402,27 +407,43 @@
         "const meals: import(\"drizzle-orm/sqlite-core\").SQLiteTableWithColumns<{ name: \"meals\"; schema: undefined; columns: { useCount: import(\"drizzle-orm/sqlite-core\").SQLiteColumn<{ name: \"use_count\"; tableName: \"meals\"; dataType: \"number\"; columnType: \"SQLiteInteger\"; data: number; driverParam: number; notNull: true; hasDefault: true; isPrimaryKey: false; isAutoincrement: false; hasRuntimeDefault: f...",
         "const settings: import(\"drizzle-orm/sqlite-core\").SQLiteTableWithColumns<{ name: \"settings\"; schema: undefined; columns: { kcalTarget: import(\"drizzle-orm/sqlite-core\").SQLiteColumn<{ name: \"kcal_target\"; tableName: \"settings\"; dataType: \"number\"; columnType: \"SQLiteReal\"; data: number; driverParam: number; notNull: true; hasDefault: false; isPrimaryKey: false; isAutoincrement: false; hasRuntim...",
         "function addPortion(db: VitalsDb, opts: Stamp & { receipt: LogReceipt }): LogReceipt",
+        "function createFood(db: VitalsDb, opts: Stamp & { food: FoodInput }): FoodRow",
+        "function createMeal(db: VitalsDb, opts: Stamp & { name: string; items: readonly MealItemInput[] }): MealDetail",
         "function dayLog(db: VitalsDb, localDate: LocalDate): DayLogEntry[]",
+        "function getFood(db: VitalsDb, id: string): FoodRow | null",
+        "function getMeal(db: VitalsDb, id: string): MealDetail | null",
         "function getSettings(db: VitalsDb): SettingsView",
         "function inferSlot(localMinute: number): MealSlot",
+        "function listFoods(db: VitalsDb, opts: { includeArchived?: boolean } = {}): FoodRow[]",
+        "function listMeals(db: VitalsDb): MealSummary[]",
         "function localDateOf(at: number, timeZone: string): LocalDate",
         "function localStamp(at: number, timeZone: string): { localDate: LocalDate; localMinute: number }",
         "function logFood(db: VitalsDb, opts: When & { foodId: string; amount?: Amount; slot?: MealSlot }): LogReceipt",
         "function logMeal(db: VitalsDb, opts: When & { mealId: string; portions?: number; slot?: MealSlot }): LogReceipt",
         "function parseHourHistogram(text: string | null): HourHistogram",
         "function quickAddCandidates(db: VitalsDb, opts: When & { limit?: number }): Candidate[]",
+        "function setFoodArchived(db: VitalsDb, opts: Stamp & { id: string; archived: boolean }): FoodRow",
         "function softDeleteLogEntries(db: VitalsDb, opts: Stamp & { ids: readonly string[] }): { undo: UndoToken }",
         "function todayTotals(db: VitalsDb, localDate: LocalDate): DayTotals",
         "function undo(db: VitalsDb, opts: Stamp & { token: UndoToken }): void",
+        "function updateFood(db: VitalsDb, opts: Stamp & { id: string; patch: Partial<FoodInput> }): FoodRow",
         "function updateLogEntry(db: VitalsDb, opts: Stamp & { id: string; amount?: Amount; slot?: MealSlot }): { entry: FoodLogRow; undo: UndoToken }",
+        "function updateSettings(db: VitalsDb, opts: Stamp & Partial<SettingsInput>): SettingsView",
+        "function weightSummary(db: VitalsDb, localDate: LocalDate): WeightSummary",
         "interface DayLogEntry",
         "interface DayTotals",
         "interface FoodCandidate",
+        "interface FoodInput",
         "interface LogReceipt",
         "interface MealCandidate",
+        "interface MealDetail",
+        "interface MealItemInput",
+        "interface MealSummary",
         "interface SettingsInput",
         "interface SettingsView",
         "interface Stamp",
+        "interface WeighIn",
+        "interface WeightSummary",
         "interface When",
         "type Amount = { servings: number } | { grams: number }",
         "type BodyMetricRow = typeof bodyMetrics.$inferSelect",
@@ -449,7 +470,7 @@
         "type VitalsSchema = typeof schema"
       ],
       "imports": [],
-      "loc": 59,
+      "loc": 81,
       "importedBy": [
         "src/components/db/DbProvider.tsx",
         "src/components/db/db-context.ts",
@@ -461,6 +482,7 @@
     },
     "src/db/local-time.ts": {
       "exports": [
+        "function addLocalDays(localDate: LocalDate, days: number): LocalDate",
         "function inferSlot(localMinute: number): MealSlot",
         "function localDateOf(at: number, timeZone: string): LocalDate",
         "function localStamp(at: number, timeZone: string): { localDate: LocalDate; localMinute: number }",
@@ -471,9 +493,13 @@
       "imports": [
         "src/db/schema.ts"
       ],
-      "loc": 100,
+      "loc": 115,
       "importedBy": [
-        "src/db/queries/nutrition.ts"
+        "src/db/queries/catalog.ts",
+        "src/db/queries/nutrition.ts",
+        "src/db/queries/settings.ts",
+        "src/db/queries/weight.ts",
+        "src/db/types.ts"
       ]
     },
     "src/db/migrations/bundle.ts": {
@@ -495,6 +521,28 @@
       "importedBy": [
         "src/db/migrations/bundle.ts"
       ]
+    },
+    "src/db/queries/catalog.ts": {
+      "exports": [
+        "function createFood(db: VitalsDb, opts: Stamp & { food: FoodInput }): FoodRow",
+        "function createMeal(db: VitalsDb, opts: Stamp & { name: string; items: readonly MealItemInput[] }): MealDetail",
+        "function getFood(db: VitalsDb, id: string): FoodRow | null",
+        "function getMeal(db: VitalsDb, id: string): MealDetail | null",
+        "function listFoods(db: VitalsDb, opts: { includeArchived?: boolean } = {}): FoodRow[]",
+        "function listMeals(db: VitalsDb): MealSummary[]",
+        "function setFoodArchived(db: VitalsDb, opts: Stamp & { id: string; archived: boolean }): FoodRow",
+        "function updateFood(db: VitalsDb, opts: Stamp & { id: string; patch: Partial<FoodInput> }): FoodRow"
+      ],
+      "imports": [
+        "drizzle-orm",
+        "src/db/db.ts",
+        "src/db/errors.ts",
+        "src/db/ids.ts",
+        "src/db/local-time.ts",
+        "src/db/schema.ts",
+        "src/db/types.ts"
+      ],
+      "loc": 239
     },
     "src/db/queries/nutrition.ts": {
       "exports": [
@@ -525,18 +573,34 @@
       "exports": [
         "const DEFAULT_SETTINGS: SettingsInput",
         "const SETTINGS_ID: \"00000000-0000-4000-8000-736574740000\"",
-        "function getSettings(db: VitalsDb): SettingsView"
+        "function getSettings(db: VitalsDb): SettingsView",
+        "function updateSettings(db: VitalsDb, opts: Stamp & Partial<SettingsInput>): SettingsView"
       ],
       "imports": [
         "drizzle-orm",
         "src/db/db.ts",
+        "src/db/errors.ts",
+        "src/db/local-time.ts",
         "src/db/schema.ts",
         "src/db/types.ts"
       ],
-      "loc": 39,
+      "loc": 82,
       "importedBy": [
         "src/db/queries/nutrition.ts"
       ]
+    },
+    "src/db/queries/weight.ts": {
+      "exports": [
+        "function weightSummary(db: VitalsDb, localDate: LocalDate): WeightSummary"
+      ],
+      "imports": [
+        "drizzle-orm",
+        "src/db/db.ts",
+        "src/db/local-time.ts",
+        "src/db/schema.ts",
+        "src/db/types.ts"
+      ],
+      "loc": 51
     },
     "src/db/schema.ts": {
       "exports": [
@@ -569,8 +633,10 @@
         "src/db/client.ts",
         "src/db/db.ts",
         "src/db/local-time.ts",
+        "src/db/queries/catalog.ts",
         "src/db/queries/nutrition.ts",
         "src/db/queries/settings.ts",
+        "src/db/queries/weight.ts",
         "src/db/types.ts",
         "src/db/usage.ts"
       ]
@@ -595,10 +661,16 @@
         "interface DayLogEntry",
         "interface DayTotals",
         "interface FoodCandidate",
+        "interface FoodInput",
         "interface LogReceipt",
         "interface MealCandidate",
+        "interface MealDetail",
+        "interface MealItemInput",
+        "interface MealSummary",
         "interface SettingsInput",
         "interface SettingsView",
+        "interface WeighIn",
+        "interface WeightSummary",
         "type Amount = { servings: number } | { grams: number }",
         "type Candidate = FoodCandidate | MealCandidate",
         "type CandidateRef = Pick<Candidate, 'kind' | 'id'>",
@@ -607,12 +679,15 @@
         "type UndoToken = | { kind: 'unlog'; logIds: readonly string[] } // undoes logFood / logMeal / createFoodAndLog\n  | { kind: 'restore'; logIds: readonly string[] } // undoes softDeleteLogEntries\n  | { kind: 'revert'; previous: readonly LogAmount[] }"
       ],
       "imports": [
+        "src/db/local-time.ts",
         "src/db/schema.ts"
       ],
-      "loc": 87,
+      "loc": 140,
       "importedBy": [
+        "src/db/queries/catalog.ts",
         "src/db/queries/nutrition.ts",
-        "src/db/queries/settings.ts"
+        "src/db/queries/settings.ts",
+        "src/db/queries/weight.ts"
       ]
     },
     "src/db/usage.ts": {
