@@ -1,6 +1,6 @@
 {
   "generated": "scripts/graph-gen.mjs — do not edit by hand",
-  "moduleCount": 39,
+  "moduleCount": 45,
   "modules": {
     "app/(tabs)/_layout.tsx": {
       "exports": [
@@ -26,12 +26,16 @@
     },
     "app/(tabs)/index.tsx": {
       "exports": [
-        "function default(): import(\"react\").JSX.Element"
+        "function default(): React.JSX.Element"
       ],
       "imports": [
-        "react-native"
+        "react",
+        "react-native",
+        "src/components/quick-add/index.ts",
+        "src/hooks/useTheme.ts",
+        "src/theme/tokens.ts"
       ],
-      "loc": 12
+      "loc": 44
     },
     "app/(tabs)/settings.tsx": {
       "exports": [
@@ -216,6 +220,73 @@
       ],
       "imports": [],
       "loc": 10
+    },
+    "src/components/quick-add/QuickAddGrid.tsx": {
+      "exports": [
+        "function QuickAddGrid({ onLogged, locale, testID = 'quick-add-grid' }: QuickAddGridProps): import(\"react\").JSX.Element",
+        "type QuickAddGridProps = {\n  /** Called after a tap's write lands, with the receipt (`kcal`/`protein` logged, for #41's arcs\n   * and any other listener). Never called for a tap that failed to write. */\n  readonly onLogged?: (receipt: LogReceipt) => void;\n  /** Formatting locale, forwarded to every tile and the \"Ranked for\" hour. Defaults to the device's. */\n  readonly locale?: string;\n  readon..."
+      ],
+      "imports": [
+        "react",
+        "react-native",
+        "src/components/quick-add/QuickAddTile.tsx",
+        "src/db/index.ts",
+        "src/hooks/deviceWhen.ts",
+        "src/hooks/useDb.ts",
+        "src/hooks/useTheme.ts",
+        "src/theme/tokens.ts"
+      ],
+      "loc": 172
+    },
+    "src/components/quick-add/QuickAddTile.tsx": {
+      "exports": [
+        "function QuickAddTile({ candidate, onLog, theme, locale, testID = 'quick-add-tile' }: QuickAddTileProps): import(\"react\").JSX.Element",
+        "type QuickAddTileProps = {\n  /** The food or meal this tile logs. */\n  readonly candidate: Candidate;\n  /** Called the instant the tile is tapped, once per tap outside the logged hold. Whatever it does\n   * (the actual `logFood` / `logMeal` write) is this component's caller's job, not this one's. */\n  readonly onLog: (candidate: Candidate) => void;\n  readonly theme: Theme;\n  /** Formatting loca..."
+      ],
+      "imports": [
+        "react",
+        "react-native",
+        "react-native-reanimated",
+        "src/db/index.ts",
+        "src/hooks/useHapticFeedback.ts",
+        "src/theme/tokens.ts"
+      ],
+      "loc": 213,
+      "importedBy": [
+        "src/components/quick-add/QuickAddGrid.tsx"
+      ]
+    },
+    "src/components/quick-add/index.ts": {
+      "exports": [
+        "function QuickAddGrid({ onLogged, locale, testID = 'quick-add-grid' }: QuickAddGridProps): import(\"react\").JSX.Element",
+        "function QuickAddTile({ candidate, onLog, theme, locale, testID = 'quick-add-tile' }: QuickAddTileProps): import(\"react\").JSX.Element",
+        "type QuickAddGridProps = {\n  /** Called after a tap's write lands, with the receipt (`kcal`/`protein` logged, for #41's arcs\n   * and any other listener). Never called for a tap that failed to write. */\n  readonly onLogged?: (receipt: LogReceipt) => void;\n  /** Formatting locale, forwarded to every tile and the \"Ranked for\" hour. Defaults to the device's. */\n  readonly locale?: string;\n  readon...",
+        "type QuickAddTileProps = {\n  /** The food or meal this tile logs. */\n  readonly candidate: Candidate;\n  /** Called the instant the tile is tapped, once per tap outside the logged hold. Whatever it does\n   * (the actual `logFood` / `logMeal` write) is this component's caller's job, not this one's. */\n  readonly onLog: (candidate: Candidate) => void;\n  readonly theme: Theme;\n  /** Formatting loca..."
+      ],
+      "imports": [],
+      "loc": 3,
+      "importedBy": [
+        "app/(tabs)/index.tsx"
+      ]
+    },
+    "src/components/quick-add/test-support/reanimated-mock.tsx": {
+      "exports": [
+        "const Easing: { bezier: (x1: number, y1: number, x2: number, y2: number) => MockEasing; }",
+        "const default: { View: typeof AnimatedView; }",
+        "const useAnimatedStyle: <T>(updater: () => T) => T",
+        "const useReducedMotion: () => boolean",
+        "function __resetAnimations(): void",
+        "function __setReducedMotion(value: boolean): void",
+        "function useSharedValue(initial: T): SharedValue<T>",
+        "function withTiming(toValue: T, _config?: TimingConfig): T",
+        "type MockEasing = { readonly factory: () => (t: number) => number; readonly points: readonly number[] }",
+        "type TimingConfig = { readonly duration?: number; readonly easing?: MockEasing }"
+      ],
+      "imports": [
+        "react",
+        "react-native"
+      ],
+      "loc": 79
     },
     "src/components/theme/ThemeProvider.tsx": {
       "exports": [
@@ -403,6 +474,9 @@
       "importedBy": [
         "src/components/db/DbProvider.tsx",
         "src/components/db/db-context.ts",
+        "src/components/quick-add/QuickAddGrid.tsx",
+        "src/components/quick-add/QuickAddTile.tsx",
+        "src/hooks/deviceWhen.ts",
         "src/hooks/useDb.ts"
       ]
     },
@@ -633,6 +707,18 @@
         "src/db/queries/nutrition.ts"
       ]
     },
+    "src/hooks/deviceWhen.ts": {
+      "exports": [
+        "function deviceWhen(): When"
+      ],
+      "imports": [
+        "src/db/index.ts"
+      ],
+      "loc": 12,
+      "importedBy": [
+        "src/components/quick-add/QuickAddGrid.tsx"
+      ]
+    },
     "src/hooks/useDb.ts": {
       "exports": [
         "function useDb(): VitalsDb"
@@ -642,7 +728,24 @@
         "src/components/db/db-context.ts",
         "src/db/index.ts"
       ],
-      "loc": 15
+      "loc": 15,
+      "importedBy": [
+        "src/components/quick-add/QuickAddGrid.tsx"
+      ]
+    },
+    "src/hooks/useHapticFeedback.ts": {
+      "exports": [
+        "function useHapticFeedback(): (haptic: Haptic) => void"
+      ],
+      "imports": [
+        "expo-haptics",
+        "react",
+        "src/theme/tokens.ts"
+      ],
+      "loc": 49,
+      "importedBy": [
+        "src/components/quick-add/QuickAddTile.tsx"
+      ]
     },
     "src/hooks/useTheme.ts": {
       "exports": [
@@ -656,7 +759,9 @@
       "loc": 14,
       "importedBy": [
         "app/(tabs)/_layout.tsx",
-        "app/_layout.tsx"
+        "app/(tabs)/index.tsx",
+        "app/_layout.tsx",
+        "src/components/quick-add/QuickAddGrid.tsx"
       ]
     },
     "src/store/theme-preference.ts": {
@@ -712,11 +817,15 @@
       "loc": 1357,
       "importedBy": [
         "app/(tabs)/_layout.tsx",
+        "app/(tabs)/index.tsx",
         "app/_layout.tsx",
         "src/components/charts/ProgressArc.tsx",
+        "src/components/quick-add/QuickAddGrid.tsx",
+        "src/components/quick-add/QuickAddTile.tsx",
         "src/components/theme/ThemeProvider.tsx",
         "src/components/theme/font-assets.ts",
         "src/components/theme/theme-context.ts",
+        "src/hooks/useHapticFeedback.ts",
         "src/hooks/useTheme.ts",
         "src/store/theme-preference.ts"
       ]
