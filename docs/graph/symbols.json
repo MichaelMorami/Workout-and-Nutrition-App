@@ -1,6 +1,6 @@
 {
   "generated": "scripts/graph-gen.mjs — do not edit by hand",
-  "moduleCount": 15,
+  "moduleCount": 19,
   "modules": {
     "app/(tabs)/_layout.tsx": {
       "exports": [
@@ -75,6 +75,86 @@
         "expo-router"
       ],
       "loc": 10
+    },
+    "src/components/charts/ProgressArc.tsx": {
+      "exports": [
+        "function ProgressArc({\n  metric,\n  value,\n  target,\n  theme,\n  locale,\n  diameter = size.arc.diameter,\n  stroke = size.arc.stroke,\n  testID = 'progress-arc',\n}: ProgressArcProps): import(\"react\").JSX.Element",
+        "type ProgressArcProps = {\n  /** Which ring this is. Decides colour, unit and wording — never mix them. */\n  readonly metric: ArcMetric;\n  /** Today's total, in kcal or grams of protein. */\n  readonly value: number;\n  /** The target for the day. `0` renders an honest empty ring rather than dividing by zero. */\n  readonly target: number;\n  /** The resolved theme: `themes[resolveThemeName(preferen..."
+      ],
+      "imports": [
+        "react",
+        "react-native",
+        "react-native-reanimated",
+        "react-native-svg",
+        "src/components/charts/arc-math.ts",
+        "src/theme/tokens.ts"
+      ],
+      "loc": 262
+    },
+    "src/components/charts/arc-math.ts": {
+      "exports": [
+        "function arcCaption({ metric, value, target, locale }: ArcCaptionInput): string",
+        "function arcModel({ metric, value, target, diameter, stroke, locale, tickLength = 0 }: ArcModelInput): ArcModel",
+        "function arcStatus(value: number, target: number): ArcStatus",
+        "function dashOffset(circumference: number, fraction: number): number",
+        "function firstLapFraction(value: number, target: number): number",
+        "function overLapFraction(value: number, target: number): number",
+        "function progressRatio(value: number, target: number): number",
+        "function ringGeometry(diameter: number, stroke: number): RingGeometry",
+        "function targetTickLine(geometry: RingGeometry, length: number): TickLine",
+        "type ArcCaptionInput = {\n  readonly metric: ArcMetric;\n  readonly value: number;\n  readonly target: number;\n  /** Defaults to the device locale. */\n  readonly locale?: string;\n}",
+        "type ArcMetric = 'kcal' | 'protein'",
+        "type ArcModel = {\n  readonly metric: ArcMetric;\n  /** Value and target as drawn and spoken — rounded, so shape and words always agree. */\n  readonly value: number;\n  readonly target: number;\n  readonly status: ArcStatus;\n  /** `true` once past target: muted first lap, bright second lap, knockout and tick. */\n  readonly isOver: boolean;\n  readonly geometry: RingGeometry;\n  /** Progress in laps, ...",
+        "type ArcModelInput = {\n  readonly metric: ArcMetric;\n  readonly value: number;\n  readonly target: number;\n  readonly diameter: number;\n  readonly stroke: number;\n  /** Defaults to the device locale. */\n  readonly locale?: string;\n  /** Length of the target tick, points. `0` (the default) still yields a well-formed, zero-length line. */\n  readonly tickLength?: number;\n}",
+        "type ArcStatus = 'noTarget' | 'under' | 'met' | 'over'",
+        "type RingGeometry = {\n  /** The box the ring is drawn in, points. */\n  readonly diameter: number;\n  /** Stroke thickness, points. */\n  readonly stroke: number;\n  /** Centre of the box, on both axes. */\n  readonly center: number;\n  /** Radius of the stroke's centre line. */\n  readonly radius: number;\n  /** Length of one full lap — the dash pattern and every offset are in these units. */\n  readon...",
+        "type TickLine = {\n  readonly x1: number;\n  readonly y1: number;\n  readonly x2: number;\n  readonly y2: number;\n}"
+      ],
+      "imports": [],
+      "loc": 224,
+      "importedBy": [
+        "src/components/charts/ProgressArc.tsx"
+      ]
+    },
+    "src/components/charts/index.ts": {
+      "exports": [
+        "function ProgressArc({\n  metric,\n  value,\n  target,\n  theme,\n  locale,\n  diameter = size.arc.diameter,\n  stroke = size.arc.stroke,\n  testID = 'progress-arc',\n}: ProgressArcProps): import(\"react\").JSX.Element",
+        "function arcCaption({ metric, value, target, locale }: ArcCaptionInput): string",
+        "function arcModel({ metric, value, target, diameter, stroke, locale, tickLength = 0 }: ArcModelInput): ArcModel",
+        "function arcStatus(value: number, target: number): ArcStatus",
+        "function dashOffset(circumference: number, fraction: number): number",
+        "function firstLapFraction(value: number, target: number): number",
+        "function overLapFraction(value: number, target: number): number",
+        "function progressRatio(value: number, target: number): number",
+        "function ringGeometry(diameter: number, stroke: number): RingGeometry",
+        "function targetTickLine(geometry: RingGeometry, length: number): TickLine",
+        "type ArcCaptionInput = {\n  readonly metric: ArcMetric;\n  readonly value: number;\n  readonly target: number;\n  /** Defaults to the device locale. */\n  readonly locale?: string;\n}",
+        "type ArcMetric = 'kcal' | 'protein'",
+        "type ArcModel = {\n  readonly metric: ArcMetric;\n  /** Value and target as drawn and spoken — rounded, so shape and words always agree. */\n  readonly value: number;\n  readonly target: number;\n  readonly status: ArcStatus;\n  /** `true` once past target: muted first lap, bright second lap, knockout and tick. */\n  readonly isOver: boolean;\n  readonly geometry: RingGeometry;\n  /** Progress in laps, ...",
+        "type ArcModelInput = {\n  readonly metric: ArcMetric;\n  readonly value: number;\n  readonly target: number;\n  readonly diameter: number;\n  readonly stroke: number;\n  /** Defaults to the device locale. */\n  readonly locale?: string;\n  /** Length of the target tick, points. `0` (the default) still yields a well-formed, zero-length line. */\n  readonly tickLength?: number;\n}",
+        "type ArcStatus = 'noTarget' | 'under' | 'met' | 'over'",
+        "type ProgressArcProps = {\n  /** Which ring this is. Decides colour, unit and wording — never mix them. */\n  readonly metric: ArcMetric;\n  /** Today's total, in kcal or grams of protein. */\n  readonly value: number;\n  /** The target for the day. `0` renders an honest empty ring rather than dividing by zero. */\n  readonly target: number;\n  /** The resolved theme: `themes[resolveThemeName(preferen...",
+        "type RingGeometry = {\n  /** The box the ring is drawn in, points. */\n  readonly diameter: number;\n  /** Stroke thickness, points. */\n  readonly stroke: number;\n  /** Centre of the box, on both axes. */\n  readonly center: number;\n  /** Radius of the stroke's centre line. */\n  readonly radius: number;\n  /** Length of one full lap — the dash pattern and every offset are in these units. */\n  readon...",
+        "type TickLine = {\n  readonly x1: number;\n  readonly y1: number;\n  readonly x2: number;\n  readonly y2: number;\n}"
+      ],
+      "imports": [],
+      "loc": 26
+    },
+    "src/components/charts/test-support/reanimated-mock.tsx": {
+      "exports": [
+        "const Easing: { bezier: (x1: number, y1: number, x2: number, y2: number) => { factory: () => (t: number) => number; points: number[]; }; }",
+        "const default: { createAnimatedComponent: typeof createAnimatedComponent; }",
+        "const useAnimatedProps: <T>(updater: () => T) => T",
+        "const useReducedMotion: () => boolean",
+        "const useSharedValue: <T>(initial: T) => SharedValue<T>",
+        "const withTiming: <T>(toValue: T) => T",
+        "function __setReducedMotion(value: boolean): void",
+        "function createAnimatedComponent(Component: ComponentType<P>): (props: WithAnimatedProps<P>) => import(\"react\").ReactElement<P, string | import(\"react\").JSXElementConstructor<any>>"
+      ],
+      "imports": [
+        "react"
+      ],
+      "loc": 58
     },
     "src/db/client.ts": {
       "exports": [
@@ -211,7 +291,10 @@
         "type TypeStyle = {\n  readonly fontFamily: FontFamily;\n  readonly fontSize: number;\n  readonly lineHeight: number;\n  readonly letterSpacing: number;\n  readonly textTransform?: 'uppercase';\n  readonly fontVariant?: readonly ['tabular-nums'];\n}"
       ],
       "imports": [],
-      "loc": 1357
+      "loc": 1357,
+      "importedBy": [
+        "src/components/charts/ProgressArc.tsx"
+      ]
     }
   }
 }
