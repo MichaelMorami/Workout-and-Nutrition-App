@@ -86,6 +86,21 @@ export function localDateOf(at: number, timeZone: string): LocalDate {
 }
 
 /**
+ * Calendar arithmetic on the `local_date` string itself, never on a timestamp — a day count is a
+ * property of the calendar, not of any particular timezone's offset, so this needs no `timeZone`
+ * argument and no DST correction. Used to build the `local_date` windows `weightSummary` (issue #17
+ * contract amendment) and `recentFoods` (issue #17 contract §3, #24) filter on.
+ */
+export function addLocalDays(localDate: LocalDate, days: number): LocalDate {
+  const [y, m, d] = localDate.split('-').map(Number);
+  if (y === undefined || m === undefined || d === undefined || Number.isNaN(y)) {
+    throw new Error(`not a YYYY-MM-DD local date: ${localDate}`);
+  }
+  const shifted = new Date(Date.UTC(y, m - 1, d + days));
+  return `${shifted.getUTCFullYear()}-${pad(shifted.getUTCMonth() + 1)}-${pad(shifted.getUTCDate())}`;
+}
+
+/**
  * The meal slot a log gets when the caller doesn't name one, from the local wall clock
  * (issue #17 contract §1.6): 04:00–10:59 breakfast · 11:00–14:59 lunch · 15:00–17:29 snack ·
  * 17:30–21:59 dinner · otherwise snack.
