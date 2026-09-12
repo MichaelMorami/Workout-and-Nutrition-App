@@ -56,7 +56,9 @@ Need a change outside your paths? Say so in the PR or issue. Do not reach across
 | `scripts/check.sh` | lint + typecheck + test. **The gate. Run before every PR.** |
 | `scripts/new-task.sh <area> <slug>` | issue + branch + worktree in one step |
 | `scripts/setup-worktree.sh <branch>` | worktree with linked `node_modules` |
+| `scripts/worktree.test.sh` | tests the worktree install guard and the `node_modules` re-link (run by `check.sh`) |
 | `scripts/pr.sh <issue>` | open PR with `Closes #n`, test output, screenshots |
+| `scripts/pr-title.test.sh` | tests the PR-title rule (run by `check.sh`) |
 | `scripts/merge.sh <pr>` | squash-merge, delete branch, close issue, refresh `PROGRESS.md` |
 | `scripts/progress.sh` | regenerate `PROGRESS.md` from GitHub (it is derived, never hand-edited) |
 | `scripts/boundaries.sh` | dependency-cruiser ownership-boundary check |
