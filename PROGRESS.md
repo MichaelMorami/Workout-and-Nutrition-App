@@ -44,3 +44,4 @@ screen is coded.
 - 2026-09-12  feat: catalogue CRUD, meals, updateSettings, weightSummary — issue #36 (green)  (PR #55 closes #36)
 - 2026-09-12  feat: deviceWhen — the When every write and every "today" read needs  (PR #56 closes #40)
 - 2026-09-12  feat: searchFoods, recentFoods, createFoodAndLog (green) — issue #37  (PR #57 closes #37)
+- 2026-09-12  feat: date header, arcs and weight chip for Today (issue #41)  (PR #58 closes #41)
