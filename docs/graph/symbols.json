@@ -89,7 +89,7 @@
         "src/components/charts/arc-math.ts",
         "src/theme/tokens.ts"
       ],
-      "loc": 262
+      "loc": 297
     },
     "src/components/charts/arc-math.ts": {
       "exports": [
@@ -142,19 +142,24 @@
     },
     "src/components/charts/test-support/reanimated-mock.tsx": {
       "exports": [
-        "const Easing: { bezier: (x1: number, y1: number, x2: number, y2: number) => { factory: () => (t: number) => number; points: number[]; }; }",
+        "const Easing: { bezier: (x1: number, y1: number, x2: number, y2: number) => MockEasing; }",
         "const default: { createAnimatedComponent: typeof createAnimatedComponent; }",
+        "const timings: RecordedTiming[]",
         "const useAnimatedProps: <T>(updater: () => T) => T",
         "const useReducedMotion: () => boolean",
-        "const useSharedValue: <T>(initial: T) => SharedValue<T>",
-        "const withTiming: <T>(toValue: T) => T",
+        "function __resetAnimations(): void",
         "function __setReducedMotion(value: boolean): void",
-        "function createAnimatedComponent(Component: ComponentType<P>): (props: WithAnimatedProps<P>) => import(\"react\").ReactElement<P, string | import(\"react\").JSXElementConstructor<any>>"
+        "function createAnimatedComponent(Component: ComponentType<P>): (props: WithAnimatedProps<P>) => import(\"react\").ReactElement<P, string | import(\"react\").JSXElementConstructor<any>>",
+        "function useSharedValue(initial: T): SharedValue<T>",
+        "function withTiming(toValue: T, config?: TimingConfig): T",
+        "type MockEasing = {\n  readonly factory: () => (t: number) => number;\n  readonly points: readonly number[];\n}",
+        "type RecordedTiming = {\n  readonly toValue: unknown;\n  readonly config?: TimingConfig;\n}",
+        "type TimingConfig = {\n  readonly duration?: number;\n  readonly easing?: MockEasing;\n}"
       ],
       "imports": [
         "react"
       ],
-      "loc": 58
+      "loc": 118
     },
     "src/db/client.ts": {
       "exports": [

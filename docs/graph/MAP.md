@@ -49,7 +49,7 @@ jq -r '.modules["src/db/queries/nutrition.ts"].exports[]' docs/graph/symbols.jso
 
 ## `src/components/charts/`
 
-### `src/components/charts/ProgressArc.tsx`  <sub>262 lines</sub>
+### `src/components/charts/ProgressArc.tsx`  <sub>297 lines</sub>
 
 - `function ProgressArc({
   metric,
@@ -210,16 +210,30 @@ jq -r '.modules["src/db/queries/nutrition.ts"].exports[]' docs/graph/symbols.jso
 
 ## `src/components/charts/test-support/`
 
-### `src/components/charts/test-support/reanimated-mock.tsx`  <sub>58 lines</sub>
+### `src/components/charts/test-support/reanimated-mock.tsx`  <sub>118 lines</sub>
 
-- `const Easing: { bezier: (x1: number, y1: number, x2: number, y2: number) => { factory: () => (t: number) => number; points: number[]; }; }`
+- `const Easing: { bezier: (x1: number, y1: number, x2: number, y2: number) => MockEasing; }`
 - `const default: { createAnimatedComponent: typeof createAnimatedComponent; }`
+- `const timings: RecordedTiming[]`
 - `const useAnimatedProps: <T>(updater: () => T) => T`
 - `const useReducedMotion: () => boolean`
-- `const useSharedValue: <T>(initial: T) => SharedValue<T>`
-- `const withTiming: <T>(toValue: T) => T`
+- `function __resetAnimations(): void`
 - `function __setReducedMotion(value: boolean): void`
 - `function createAnimatedComponent(Component: ComponentType<P>): (props: WithAnimatedProps<P>) => import("react").ReactElement<P, string | import("react").JSXElementConstructor<any>>`
+- `function useSharedValue(initial: T): SharedValue<T>`
+- `function withTiming(toValue: T, config?: TimingConfig): T`
+- `type MockEasing = {
+  readonly factory: () => (t: number) => number;
+  readonly points: readonly number[];
+}`
+- `type RecordedTiming = {
+  readonly toValue: unknown;
+  readonly config?: TimingConfig;
+}`
+- `type TimingConfig = {
+  readonly duration?: number;
+  readonly easing?: MockEasing;
+}`
 
 ## `src/db/`
 

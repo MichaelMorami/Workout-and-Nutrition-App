@@ -23,12 +23,20 @@
  * REDUCE MOTION. The ring jumps to its final length (`motion.events.arcSweep.reduced` is `instant`).
  * Nothing is animation-only, so the value stays fully legible with no motion at all.
  *
+ * THE BLOOM IS A BLUR. `glow.ringRadius` is a *blur radius* — the design canvas draws it as
+ * `drop-shadow(0 0 ${ringRadius}px)` — so it is spent here on an `<FeGaussianBlur>` under the lap,
+ * never on a wider stroke. A widened translucent stroke has hard edges and no falloff: on dark it
+ * reads as a second ring rather than a glow. CSS defines a drop-shadow blur radius as a Gaussian of
+ * HALF that radius, which is where `ringRadius / 2` comes from — the same token then lands on the
+ * same bloom here as on the canvas. Filters are native in `react-native-svg` 15 on both platforms,
+ * so this stays Expo-Go-safe.
+ *
  * The maths lives in `arc-math.ts` and is unit-tested there without rendering. The two worklets below
  * are the ONLY duplication of it — kept to inline arithmetic so they can run on the UI thread — and
  * `ProgressArc.test.tsx` asserts the rendered offsets against the same hand-computed fixtures, so the
  * two cannot drift apart unnoticed.
  */
-import { useEffect } from 'react';
+import { useEffect, useId } from 'react';
 import { StyleSheet, Text, View, type TextStyle } from 'react-native';
 import Animated, {
   Easing,
@@ -37,7 +45,7 @@ import Animated, {
   useSharedValue,
   withTiming,
 } from 'react-native-reanimated';
-import Svg, { Circle, G, Line } from 'react-native-svg';
+import Svg, { Circle, Defs, FeGaussianBlur, Filter, G, Line } from 'react-native-svg';
 import { motion, size, space, type, type Theme, type TypeStyle } from '../../theme/tokens';
 import { arcModel, type ArcMetric } from './arc-math';
 
@@ -103,6 +111,12 @@ export function ProgressArc({
   const colors = metricColors(theme, metric);
   const reducedMotion = useReducedMotion();
 
+  // A filter id is global to the SVG document and Today mounts the kcal and protein rings side by
+  // side, so a hard-coded id would have one arc's bloom silently take the other's. `useId()` is per
+  // instance; React 19 wraps it in «…», which is not a legal XML name character, hence the strip.
+  const glowFilterId = `arc-glow-${useId().replace(/[^a-zA-Z0-9]/g, '')}`;
+  const hasGlow = theme.glow.ringOpacity > 0;
+
   // Progress in laps: 0.52 is half a ring, 1.075 is 7.5% into a second lap.
   const laps = useSharedValue(model.ratio);
 
@@ -153,17 +167,38 @@ export function ProgressArc({
     >
       <View style={{ width: diameter, height: diameter }}>
         <Svg width={diameter} height={diameter} viewBox={`0 0 ${diameter} ${diameter}`}>
+          {hasGlow ? (
+            <Defs>
+              {/*
+                The region is the whole viewBox in user space. The default (-10% … 120% of the
+                bounding box) would clip the falloff tighter than the SVG viewport already does,
+                which puts a visible straight edge across the bloom.
+              */}
+              <Filter
+                id={glowFilterId}
+                x={0}
+                y={0}
+                width={diameter}
+                height={diameter}
+                filterUnits="userSpaceOnUse"
+              >
+                <FeGaussianBlur in="SourceGraphic" stdDeviation={theme.glow.ringRadius / 2} />
+              </Filter>
+            </Defs>
+          ) : null}
+
           {/* -90° puts zero at 12 o'clock, so the ring fills clockwise from the top. */}
           <G rotation={-90} originX={center} originY={center}>
-            {theme.glow.ringOpacity > 0 ? (
+            {hasGlow ? (
               <AnimatedCircle
                 testID="arc-glow"
                 {...ring}
                 stroke={colors.lap}
-                strokeWidth={stroke + theme.glow.ringRadius}
+                strokeWidth={stroke}
                 strokeLinecap="round"
                 strokeDasharray={lapDash}
                 opacity={theme.glow.ringOpacity}
+                filter={`url(#${glowFilterId})`}
                 animatedProps={activeLapProps}
               />
             ) : null}
