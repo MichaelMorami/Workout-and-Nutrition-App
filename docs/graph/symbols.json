@@ -1,15 +1,19 @@
 {
   "generated": "scripts/graph-gen.mjs — do not edit by hand",
-  "moduleCount": 27,
+  "moduleCount": 37,
   "modules": {
     "app/(tabs)/_layout.tsx": {
       "exports": [
-        "function default(): import(\"react\").JSX.Element"
+        "function default(): React.JSX.Element",
+        "function sharedTabBarOptions(color: ColorTokens): { readonly headerShown: false; readonly tabBarStyle: { readonly backgroundColor: string; readonly borderTopColor: string; readonly height: 58; }; readonly tabBarInactiveTintColor: string; readonly tabBarLabelStyle: { readonly fontFamily: \"Archivo-Medium\"; readonly fontSize: 10; readonly letterSpacing: 0.1; }; }"
       ],
       "imports": [
-        "expo-router"
+        "expo-router",
+        "react",
+        "src/hooks/useTheme.ts",
+        "src/theme/tokens.ts"
       ],
-      "loc": 16
+      "loc": 47
     },
     "app/(tabs)/charts.tsx": {
       "exports": [
@@ -69,12 +73,22 @@
     },
     "app/_layout.tsx": {
       "exports": [
-        "function default(): import(\"react\").JSX.Element"
+        "function AppShell({ children }: { children: React.ReactNode }): React.JSX.Element",
+        "function default(): React.JSX.Element"
       ],
       "imports": [
-        "expo-router"
+        "expo-font",
+        "expo-router",
+        "react",
+        "react-native",
+        "src/components/db/DbProvider.tsx",
+        "src/components/theme/ThemeProvider.tsx",
+        "src/components/theme/font-assets.ts",
+        "src/db/client.ts",
+        "src/hooks/useTheme.ts",
+        "src/theme/tokens.ts"
       ],
-      "loc": 10
+      "loc": 80
     },
     "src/components/charts/ProgressArc.tsx": {
       "exports": [
@@ -161,6 +175,90 @@
       ],
       "loc": 118
     },
+    "src/components/db/DbProvider.tsx": {
+      "exports": [
+        "function DbProvider({ db, children }: { db: VitalsDb; children: React.ReactNode }): React.JSX.Element"
+      ],
+      "imports": [
+        "react",
+        "src/components/db/db-context.ts",
+        "src/db/index.ts"
+      ],
+      "loc": 13,
+      "importedBy": [
+        "app/_layout.tsx"
+      ]
+    },
+    "src/components/db/db-context.ts": {
+      "exports": [
+        "const DbContext: import(\"react\").Context<VitalsDb | null>"
+      ],
+      "imports": [
+        "react",
+        "src/db/index.ts"
+      ],
+      "loc": 8,
+      "importedBy": [
+        "src/components/db/DbProvider.tsx",
+        "src/hooks/useDb.ts"
+      ]
+    },
+    "src/components/format/length.ts": {
+      "exports": [
+        "function formatLengthCm(cm: number): string"
+      ],
+      "imports": [],
+      "loc": 10
+    },
+    "src/components/format/weight.ts": {
+      "exports": [
+        "function formatWeightKg(kg: number): string"
+      ],
+      "imports": [],
+      "loc": 10
+    },
+    "src/components/theme/ThemeProvider.tsx": {
+      "exports": [
+        "function ThemeProvider({ children }: { children: React.ReactNode }): React.JSX.Element"
+      ],
+      "imports": [
+        "react",
+        "react-native",
+        "src/components/theme/theme-context.ts",
+        "src/store/theme-preference.ts",
+        "src/theme/tokens.ts"
+      ],
+      "loc": 19,
+      "importedBy": [
+        "app/_layout.tsx"
+      ]
+    },
+    "src/components/theme/font-assets.ts": {
+      "exports": [
+        "const fontAssetMap: Record<\"Archivo-DisplayXl\" | \"Archivo-Book\" | \"Archivo-Medium\" | \"Archivo-SemiBold\" | \"Archivo-Bold\" | \"Archivo-Title\" | \"Archivo-Numeric\" | \"Archivo-Display\", number>"
+      ],
+      "imports": [
+        "src/theme/tokens.ts"
+      ],
+      "loc": 24,
+      "importedBy": [
+        "app/_layout.tsx"
+      ]
+    },
+    "src/components/theme/theme-context.ts": {
+      "exports": [
+        "const ThemeContext: import(\"react\").Context<Theme | null>"
+      ],
+      "imports": [
+        "react",
+        "src/theme/tokens.ts"
+      ],
+      "loc": 7,
+      "importedBy": [
+        "src/components/theme/ThemeProvider.tsx",
+        "src/hooks/useTheme.ts"
+      ]
+    },
     "src/db/client.ts": {
       "exports": [
         "const DATABASE_NAME: \"vitals.db\"",
@@ -176,7 +274,10 @@
         "src/db/migrations/bundle.ts",
         "src/db/schema.ts"
       ],
-      "loc": 56
+      "loc": 56,
+      "importedBy": [
+        "app/_layout.tsx"
+      ]
     },
     "src/db/db.ts": {
       "exports": [
@@ -277,7 +378,12 @@
         "type VitalsSchema = typeof schema"
       ],
       "imports": [],
-      "loc": 59
+      "loc": 59,
+      "importedBy": [
+        "src/components/db/DbProvider.tsx",
+        "src/components/db/db-context.ts",
+        "src/hooks/useDb.ts"
+      ]
     },
     "src/db/local-time.ts": {
       "exports": [
@@ -452,6 +558,45 @@
         "src/db/queries/nutrition.ts"
       ]
     },
+    "src/hooks/useDb.ts": {
+      "exports": [
+        "function useDb(): VitalsDb"
+      ],
+      "imports": [
+        "react",
+        "src/components/db/db-context.ts",
+        "src/db/index.ts"
+      ],
+      "loc": 15
+    },
+    "src/hooks/useTheme.ts": {
+      "exports": [
+        "function useTheme(): Theme"
+      ],
+      "imports": [
+        "react",
+        "src/components/theme/theme-context.ts",
+        "src/theme/tokens.ts"
+      ],
+      "loc": 14,
+      "importedBy": [
+        "app/(tabs)/_layout.tsx",
+        "app/_layout.tsx"
+      ]
+    },
+    "src/store/theme-preference.ts": {
+      "exports": [
+        "const useThemePreferenceStore: import(\"zustand\").UseBoundStore<import(\"zustand\").StoreApi<ThemePreferenceState>>"
+      ],
+      "imports": [
+        "src/theme/tokens.ts",
+        "zustand"
+      ],
+      "loc": 19,
+      "importedBy": [
+        "src/components/theme/ThemeProvider.tsx"
+      ]
+    },
     "src/theme/tokens.ts": {
       "exports": [
         "const MIN_TEXT_CONTRAST: 4.5",
@@ -491,7 +636,14 @@
       "imports": [],
       "loc": 1357,
       "importedBy": [
-        "src/components/charts/ProgressArc.tsx"
+        "app/(tabs)/_layout.tsx",
+        "app/_layout.tsx",
+        "src/components/charts/ProgressArc.tsx",
+        "src/components/theme/ThemeProvider.tsx",
+        "src/components/theme/font-assets.ts",
+        "src/components/theme/theme-context.ts",
+        "src/hooks/useTheme.ts",
+        "src/store/theme-preference.ts"
       ]
     }
   }
