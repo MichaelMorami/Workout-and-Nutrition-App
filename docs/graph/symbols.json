@@ -1,6 +1,6 @@
 {
   "generated": "scripts/graph-gen.mjs — do not edit by hand",
-  "moduleCount": 19,
+  "moduleCount": 27,
   "modules": {
     "app/(tabs)/_layout.tsx": {
       "exports": [
@@ -189,7 +189,111 @@
       ],
       "loc": 14,
       "importedBy": [
-        "src/db/client.ts"
+        "src/db/client.ts",
+        "src/db/queries/nutrition.ts",
+        "src/db/queries/settings.ts",
+        "src/db/usage.ts"
+      ]
+    },
+    "src/db/errors.ts": {
+      "exports": [
+        "class VitalsDbError",
+        "type VitalsDbErrorCode = 'not_found' | 'invalid_input' | 'empty_meal'"
+      ],
+      "imports": [],
+      "loc": 22,
+      "importedBy": [
+        "src/db/queries/nutrition.ts"
+      ]
+    },
+    "src/db/ids.ts": {
+      "exports": [
+        "function newId(): string"
+      ],
+      "imports": [
+        "expo-crypto"
+      ],
+      "loc": 14,
+      "importedBy": [
+        "src/db/queries/nutrition.ts"
+      ]
+    },
+    "src/db/index.ts": {
+      "exports": [
+        "class VitalsDbError",
+        "const DEFAULT_SETTINGS: SettingsInput",
+        "const SETTINGS_ID: \"00000000-0000-4000-8000-736574740000\"",
+        "const bodyMetrics: import(\"drizzle-orm/sqlite-core\").SQLiteTableWithColumns<{ name: \"body_metrics\"; schema: undefined; columns: { measuredAt: import(\"drizzle-orm/sqlite-core\").SQLiteColumn<{ name: \"measured_at\"; tableName: \"body_metrics\"; dataType: \"number\"; columnType: \"SQLiteInteger\"; data: number; driverParam: number; notNull: true; hasDefault: false; isPrimaryKey: false; isAutoincrement: fa...",
+        "const foodLog: import(\"drizzle-orm/sqlite-core\").SQLiteTableWithColumns<{ name: \"food_log\"; schema: undefined; columns: { loggedAt: import(\"drizzle-orm/sqlite-core\").SQLiteColumn<{ name: \"logged_at\"; tableName: \"food_log\"; dataType: \"number\"; columnType: \"SQLiteInteger\"; data: number; driverParam: number; notNull: true; hasDefault: false; isPrimaryKey: false; isAutoincrement: false; hasRuntimeD...",
+        "const foods: import(\"drizzle-orm/sqlite-core\").SQLiteTableWithColumns<{ name: \"foods\"; schema: undefined; columns: { useCount: import(\"drizzle-orm/sqlite-core\").SQLiteColumn<{ name: \"use_count\"; tableName: \"foods\"; dataType: \"number\"; columnType: \"SQLiteInteger\"; data: number; driverParam: number; notNull: true; hasDefault: true; isPrimaryKey: false; isAutoincrement: false; hasRuntimeDefault: f...",
+        "const mealItems: import(\"drizzle-orm/sqlite-core\").SQLiteTableWithColumns<{ name: \"meal_items\"; schema: undefined; columns: { mealId: import(\"drizzle-orm/sqlite-core\").SQLiteColumn<{ name: \"meal_id\"; tableName: \"meal_items\"; dataType: \"string\"; columnType: \"SQLiteText\"; data: string; driverParam: string; notNull: true; hasDefault: false; isPrimaryKey: false; isAutoincrement: false; hasRuntimeDe...",
+        "const meals: import(\"drizzle-orm/sqlite-core\").SQLiteTableWithColumns<{ name: \"meals\"; schema: undefined; columns: { useCount: import(\"drizzle-orm/sqlite-core\").SQLiteColumn<{ name: \"use_count\"; tableName: \"meals\"; dataType: \"number\"; columnType: \"SQLiteInteger\"; data: number; driverParam: number; notNull: true; hasDefault: true; isPrimaryKey: false; isAutoincrement: false; hasRuntimeDefault: f...",
+        "const settings: import(\"drizzle-orm/sqlite-core\").SQLiteTableWithColumns<{ name: \"settings\"; schema: undefined; columns: { kcalTarget: import(\"drizzle-orm/sqlite-core\").SQLiteColumn<{ name: \"kcal_target\"; tableName: \"settings\"; dataType: \"number\"; columnType: \"SQLiteReal\"; data: number; driverParam: number; notNull: true; hasDefault: false; isPrimaryKey: false; isAutoincrement: false; hasRuntim...",
+        "function addPortion(db: VitalsDb, opts: Stamp & { receipt: LogReceipt }): LogReceipt",
+        "function dayLog(db: VitalsDb, localDate: LocalDate): DayLogEntry[]",
+        "function getSettings(db: VitalsDb): SettingsView",
+        "function inferSlot(localMinute: number): MealSlot",
+        "function localDateOf(at: number, timeZone: string): LocalDate",
+        "function localStamp(at: number, timeZone: string): { localDate: LocalDate; localMinute: number }",
+        "function logFood(db: VitalsDb, opts: When & { foodId: string; amount?: Amount; slot?: MealSlot }): LogReceipt",
+        "function logMeal(db: VitalsDb, opts: When & { mealId: string; portions?: number; slot?: MealSlot }): LogReceipt",
+        "function parseHourHistogram(text: string | null): HourHistogram",
+        "function quickAddCandidates(db: VitalsDb, opts: When & { limit?: number }): Candidate[]",
+        "function softDeleteLogEntries(db: VitalsDb, opts: Stamp & { ids: readonly string[] }): { undo: UndoToken }",
+        "function todayTotals(db: VitalsDb, localDate: LocalDate): DayTotals",
+        "function undo(db: VitalsDb, opts: Stamp & { token: UndoToken }): void",
+        "function updateLogEntry(db: VitalsDb, opts: Stamp & { id: string; amount?: Amount; slot?: MealSlot }): { entry: FoodLogRow; undo: UndoToken }",
+        "interface DayLogEntry",
+        "interface DayTotals",
+        "interface FoodCandidate",
+        "interface LogReceipt",
+        "interface MealCandidate",
+        "interface SettingsInput",
+        "interface SettingsView",
+        "interface Stamp",
+        "interface When",
+        "type Amount = { servings: number } | { grams: number }",
+        "type BodyMetricRow = typeof bodyMetrics.$inferSelect",
+        "type Candidate = FoodCandidate | MealCandidate",
+        "type CandidateRef = Pick<Candidate, 'kind' | 'id'>",
+        "type FoodLogRow = typeof foodLog.$inferSelect",
+        "type FoodRow = typeof foods.$inferSelect",
+        "type HourHistogram = readonly number[]",
+        "type LocalDate = string",
+        "type LogAmount = Pick<FoodLogRow, 'id' | 'qty' | 'grams' | 'kcal' | 'protein' | 'slot'>",
+        "type MealItemRow = typeof mealItems.$inferSelect",
+        "type MealRow = typeof meals.$inferSelect",
+        "type MealSlot = 'breakfast' | 'lunch' | 'dinner' | 'snack'",
+        "type NewBodyMetricRow = typeof bodyMetrics.$inferInsert",
+        "type NewFoodLogRow = typeof foodLog.$inferInsert",
+        "type NewFoodRow = typeof foods.$inferInsert",
+        "type NewMealItemRow = typeof mealItems.$inferInsert",
+        "type NewMealRow = typeof meals.$inferInsert",
+        "type NewSettingsRow = typeof settings.$inferInsert",
+        "type SettingsRow = typeof settings.$inferSelect",
+        "type UndoToken = | { kind: 'unlog'; logIds: readonly string[] } // undoes logFood / logMeal / createFoodAndLog\n  | { kind: 'restore'; logIds: readonly string[] } // undoes softDeleteLogEntries\n  | { kind: 'revert'; previous: readonly LogAmount[] }",
+        "type VitalsDb = BaseSQLiteDatabase<'sync', unknown, VitalsSchema>",
+        "type VitalsDbErrorCode = 'not_found' | 'invalid_input' | 'empty_meal'",
+        "type VitalsSchema = typeof schema"
+      ],
+      "imports": [],
+      "loc": 59
+    },
+    "src/db/local-time.ts": {
+      "exports": [
+        "function inferSlot(localMinute: number): MealSlot",
+        "function localDateOf(at: number, timeZone: string): LocalDate",
+        "function localStamp(at: number, timeZone: string): { localDate: LocalDate; localMinute: number }",
+        "interface Stamp",
+        "interface When",
+        "type LocalDate = string"
+      ],
+      "imports": [
+        "src/db/schema.ts"
+      ],
+      "loc": 100,
+      "importedBy": [
+        "src/db/queries/nutrition.ts"
       ]
     },
     "src/db/migrations/bundle.ts": {
@@ -210,6 +314,48 @@
       "loc": 20,
       "importedBy": [
         "src/db/migrations/bundle.ts"
+      ]
+    },
+    "src/db/queries/nutrition.ts": {
+      "exports": [
+        "function addPortion(db: VitalsDb, opts: Stamp & { receipt: LogReceipt }): LogReceipt",
+        "function dayLog(db: VitalsDb, localDate: LocalDate): DayLogEntry[]",
+        "function logFood(db: VitalsDb, opts: When & { foodId: string; amount?: Amount; slot?: MealSlot }): LogReceipt",
+        "function logMeal(db: VitalsDb, opts: When & { mealId: string; portions?: number; slot?: MealSlot }): LogReceipt",
+        "function quickAddCandidates(db: VitalsDb, opts: When & { limit?: number }): Candidate[]",
+        "function softDeleteLogEntries(db: VitalsDb, opts: Stamp & { ids: readonly string[] }): { undo: UndoToken }",
+        "function todayTotals(db: VitalsDb, localDate: LocalDate): DayTotals",
+        "function undo(db: VitalsDb, opts: Stamp & { token: UndoToken }): void",
+        "function updateLogEntry(db: VitalsDb, opts: Stamp & { id: string; amount?: Amount; slot?: MealSlot }): { entry: FoodLogRow; undo: UndoToken }"
+      ],
+      "imports": [
+        "drizzle-orm",
+        "src/db/db.ts",
+        "src/db/errors.ts",
+        "src/db/ids.ts",
+        "src/db/local-time.ts",
+        "src/db/queries/settings.ts",
+        "src/db/schema.ts",
+        "src/db/types.ts",
+        "src/db/usage.ts"
+      ],
+      "loc": 510
+    },
+    "src/db/queries/settings.ts": {
+      "exports": [
+        "const DEFAULT_SETTINGS: SettingsInput",
+        "const SETTINGS_ID: \"00000000-0000-4000-8000-736574740000\"",
+        "function getSettings(db: VitalsDb): SettingsView"
+      ],
+      "imports": [
+        "drizzle-orm",
+        "src/db/db.ts",
+        "src/db/schema.ts",
+        "src/db/types.ts"
+      ],
+      "loc": 39,
+      "importedBy": [
+        "src/db/queries/nutrition.ts"
       ]
     },
     "src/db/schema.ts": {
@@ -241,7 +387,12 @@
       "loc": 221,
       "importedBy": [
         "src/db/client.ts",
-        "src/db/db.ts"
+        "src/db/db.ts",
+        "src/db/local-time.ts",
+        "src/db/queries/nutrition.ts",
+        "src/db/queries/settings.ts",
+        "src/db/types.ts",
+        "src/db/usage.ts"
       ]
     },
     "src/db/search-fold.ts": {
@@ -258,6 +409,48 @@
       ],
       "imports": [],
       "loc": 138
+    },
+    "src/db/types.ts": {
+      "exports": [
+        "interface DayLogEntry",
+        "interface DayTotals",
+        "interface FoodCandidate",
+        "interface LogReceipt",
+        "interface MealCandidate",
+        "interface SettingsInput",
+        "interface SettingsView",
+        "type Amount = { servings: number } | { grams: number }",
+        "type Candidate = FoodCandidate | MealCandidate",
+        "type CandidateRef = Pick<Candidate, 'kind' | 'id'>",
+        "type LogAmount = Pick<FoodLogRow, 'id' | 'qty' | 'grams' | 'kcal' | 'protein' | 'slot'>",
+        "type MealSlot = 'breakfast' | 'lunch' | 'dinner' | 'snack'",
+        "type UndoToken = | { kind: 'unlog'; logIds: readonly string[] } // undoes logFood / logMeal / createFoodAndLog\n  | { kind: 'restore'; logIds: readonly string[] } // undoes softDeleteLogEntries\n  | { kind: 'revert'; previous: readonly LogAmount[] }"
+      ],
+      "imports": [
+        "src/db/schema.ts"
+      ],
+      "loc": 87,
+      "importedBy": [
+        "src/db/queries/nutrition.ts",
+        "src/db/queries/settings.ts"
+      ]
+    },
+    "src/db/usage.ts": {
+      "exports": [
+        "function parseHourHistogram(text: string | null): HourHistogram",
+        "function recomputeFoodUsage(db: VitalsDb, foodId: string): void",
+        "function recomputeMealUsage(db: VitalsDb, mealId: string): void",
+        "type HourHistogram = readonly number[]"
+      ],
+      "imports": [
+        "drizzle-orm",
+        "src/db/db.ts",
+        "src/db/schema.ts"
+      ],
+      "loc": 94,
+      "importedBy": [
+        "src/db/queries/nutrition.ts"
+      ]
     },
     "src/theme/tokens.ts": {
       "exports": [
