@@ -1,6 +1,6 @@
 {
   "generated": "scripts/graph-gen.mjs — do not edit by hand",
-  "moduleCount": 39,
+  "moduleCount": 40,
   "modules": {
     "app/(tabs)/_layout.tsx": {
       "exports": [
@@ -293,6 +293,7 @@
         "src/db/client.ts",
         "src/db/queries/catalog.ts",
         "src/db/queries/nutrition.ts",
+        "src/db/queries/search.ts",
         "src/db/queries/settings.ts",
         "src/db/queries/weight.ts",
         "src/db/usage.ts"
@@ -321,7 +322,8 @@
       "loc": 14,
       "importedBy": [
         "src/db/queries/catalog.ts",
-        "src/db/queries/nutrition.ts"
+        "src/db/queries/nutrition.ts",
+        "src/db/queries/search.ts"
       ]
     },
     "src/db/index.ts": {
@@ -337,6 +339,7 @@
         "const settings: import(\"drizzle-orm/sqlite-core\").SQLiteTableWithColumns<{ name: \"settings\"; schema: undefined; columns: { kcalTarget: import(\"drizzle-orm/sqlite-core\").SQLiteColumn<{ name: \"kcal_target\"; tableName: \"settings\"; dataType: \"number\"; columnType: \"SQLiteReal\"; data: number; driverParam: number; notNull: true; hasDefault: false; isPrimaryKey: false; isAutoincrement: false; hasRuntim...",
         "function addPortion(db: VitalsDb, opts: Stamp & { receipt: LogReceipt }): LogReceipt",
         "function createFood(db: VitalsDb, opts: Stamp & { food: FoodInput }): FoodRow",
+        "function createFoodAndLog(db: VitalsDb, opts: When & { food: FoodInput; amount?: Amount; slot?: MealSlot }): { food: FoodRow; receipt: LogReceipt }",
         "function createMeal(db: VitalsDb, opts: Stamp & { name: string; items: readonly MealItemInput[] }): MealDetail",
         "function dayLog(db: VitalsDb, localDate: LocalDate): DayLogEntry[]",
         "function getFood(db: VitalsDb, id: string): FoodRow | null",
@@ -351,6 +354,8 @@
         "function logMeal(db: VitalsDb, opts: When & { mealId: string; portions?: number; slot?: MealSlot }): LogReceipt",
         "function parseHourHistogram(text: string | null): HourHistogram",
         "function quickAddCandidates(db: VitalsDb, opts: When & { limit?: number }): Candidate[]",
+        "function recentFoods(db: VitalsDb, opts: When & { days: number; excludeIds?: readonly string[]; limit?: number }): Candidate[]",
+        "function searchFoods(db: VitalsDb, opts: When & { query: string; limit?: number }): Candidate[]",
         "function setFoodArchived(db: VitalsDb, opts: Stamp & { id: string; archived: boolean }): FoodRow",
         "function softDeleteLogEntries(db: VitalsDb, opts: Stamp & { ids: readonly string[] }): { undo: UndoToken }",
         "function todayTotals(db: VitalsDb, localDate: LocalDate): DayTotals",
@@ -399,7 +404,7 @@
         "type VitalsSchema = typeof schema"
       ],
       "imports": [],
-      "loc": 81,
+      "loc": 84,
       "importedBy": [
         "src/components/db/DbProvider.tsx",
         "src/components/db/db-context.ts",
@@ -423,6 +428,7 @@
       "importedBy": [
         "src/db/queries/catalog.ts",
         "src/db/queries/nutrition.ts",
+        "src/db/queries/search.ts",
         "src/db/queries/settings.ts",
         "src/db/queries/weight.ts",
         "src/db/types.ts"
@@ -457,7 +463,8 @@
         "function listFoods(db: VitalsDb, opts: { includeArchived?: boolean } = {}): FoodRow[]",
         "function listMeals(db: VitalsDb): MealSummary[]",
         "function setFoodArchived(db: VitalsDb, opts: Stamp & { id: string; archived: boolean }): FoodRow",
-        "function updateFood(db: VitalsDb, opts: Stamp & { id: string; patch: Partial<FoodInput> }): FoodRow"
+        "function updateFood(db: VitalsDb, opts: Stamp & { id: string; patch: Partial<FoodInput> }): FoodRow",
+        "function validateFoodInput(input: FoodInput): void"
       ],
       "imports": [
         "drizzle-orm",
@@ -468,15 +475,21 @@
         "src/db/schema.ts",
         "src/db/types.ts"
       ],
-      "loc": 239
+      "loc": 241,
+      "importedBy": [
+        "src/db/queries/search.ts"
+      ]
     },
     "src/db/queries/nutrition.ts": {
       "exports": [
         "function addPortion(db: VitalsDb, opts: Stamp & { receipt: LogReceipt }): LogReceipt",
         "function dayLog(db: VitalsDb, localDate: LocalDate): DayLogEntry[]",
+        "function liveMealAggregates(db: VitalsDb): Map<string, MealAggregate>",
         "function logFood(db: VitalsDb, opts: When & { foodId: string; amount?: Amount; slot?: MealSlot }): LogReceipt",
         "function logMeal(db: VitalsDb, opts: When & { mealId: string; portions?: number; slot?: MealSlot }): LogReceipt",
         "function quickAddCandidates(db: VitalsDb, opts: When & { limit?: number }): Candidate[]",
+        "function rankingScore(useCount: number, lastUsedAt: number | null, hourHistogram: string | null, hour: number, at: number): number",
+        "function resolveAmount(amount: Amount, servingGrams: number | null): { qty: number; grams: number | null }",
         "function softDeleteLogEntries(db: VitalsDb, opts: Stamp & { ids: readonly string[] }): { undo: UndoToken }",
         "function todayTotals(db: VitalsDb, localDate: LocalDate): DayTotals",
         "function undo(db: VitalsDb, opts: Stamp & { token: UndoToken }): void",
@@ -493,7 +506,30 @@
         "src/db/types.ts",
         "src/db/usage.ts"
       ],
-      "loc": 510
+      "loc": 517,
+      "importedBy": [
+        "src/db/queries/search.ts"
+      ]
+    },
+    "src/db/queries/search.ts": {
+      "exports": [
+        "function createFoodAndLog(db: VitalsDb, opts: When & { food: FoodInput; amount?: Amount; slot?: MealSlot }): { food: FoodRow; receipt: LogReceipt }",
+        "function recentFoods(db: VitalsDb, opts: When & { days: number; excludeIds?: readonly string[]; limit?: number }): Candidate[]",
+        "function searchFoods(db: VitalsDb, opts: When & { query: string; limit?: number }): Candidate[]"
+      ],
+      "imports": [
+        "drizzle-orm",
+        "src/db/db.ts",
+        "src/db/ids.ts",
+        "src/db/local-time.ts",
+        "src/db/queries/catalog.ts",
+        "src/db/queries/nutrition.ts",
+        "src/db/schema.ts",
+        "src/db/search-fold.ts",
+        "src/db/types.ts",
+        "src/db/usage.ts"
+      ],
+      "loc": 309
     },
     "src/db/queries/settings.ts": {
       "exports": [
@@ -561,6 +597,7 @@
         "src/db/local-time.ts",
         "src/db/queries/catalog.ts",
         "src/db/queries/nutrition.ts",
+        "src/db/queries/search.ts",
         "src/db/queries/settings.ts",
         "src/db/queries/weight.ts",
         "src/db/types.ts",
@@ -576,11 +613,17 @@
         "const foodSearchSource: (row?: string) => string",
         "const mealSearchSource: (row?: string) => string",
         "function foldSql(expr: string): string",
+        "function foldSqlValue(value: string): SQL",
         "function searchTriggerSql({ table, name, event, source }: SearchTrigger): string",
         "interface SearchTrigger"
       ],
-      "imports": [],
-      "loc": 138
+      "imports": [
+        "drizzle-orm"
+      ],
+      "loc": 160,
+      "importedBy": [
+        "src/db/queries/search.ts"
+      ]
     },
     "src/db/types.ts": {
       "exports": [
@@ -612,6 +655,7 @@
       "importedBy": [
         "src/db/queries/catalog.ts",
         "src/db/queries/nutrition.ts",
+        "src/db/queries/search.ts",
         "src/db/queries/settings.ts",
         "src/db/queries/weight.ts"
       ]
@@ -630,7 +674,8 @@
       ],
       "loc": 94,
       "importedBy": [
-        "src/db/queries/nutrition.ts"
+        "src/db/queries/nutrition.ts",
+        "src/db/queries/search.ts"
       ]
     },
     "src/hooks/useDb.ts": {
