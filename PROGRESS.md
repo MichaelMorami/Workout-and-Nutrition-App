@@ -35,3 +35,5 @@ screen is coded.
 - 2026-09-11  feat: src/theme/tokens.ts — typed colour, type, space, radius, size, motion and haptics for both themes (#16)  (PR #31 closes #16)
 - 2026-09-11  docs: record the Today status row decisions (#33)  (PR #34 closes #33)
 - 2026-09-11  chore: add expo-crypto for SDK-57-safe UUIDs  (PR #32 closes #29)
+- 2026-09-11  feat: nutrition schema, migrations and on-device migration bundle (#17)  (PR #30 closes #17)
+- 2026-09-11  feat: guard worktree installs and repair the node_modules symlink (#38)  (PR #47 closes #38)
