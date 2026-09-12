@@ -78,3 +78,6 @@ export {
 
 // The Today weight chip (#36).
 export { weightSummary } from './queries/weight';
+
+// Search, recents and create-and-log (#37).
+export { createFoodAndLog, recentFoods, searchFoods } from './queries/search';

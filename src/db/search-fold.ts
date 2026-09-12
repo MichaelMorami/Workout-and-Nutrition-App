@@ -16,6 +16,7 @@
  * is not covered. The table stays inside Latin-1 Supplement and Latin Extended-A (plus ȘșȚțƠơƯư) to
  * keep the nested `replace()` depth around 200, well under SQLite's default expression depth of 1000.
  */
+import { sql, type SQL } from 'drizzle-orm';
 
 /** Base letters and every precomposed letter that folds to them — upper and lower case alike. */
 const LETTERS: readonly (readonly [to: string, from: string])[] = [
@@ -88,6 +89,27 @@ const literal = (value: string): string => `'${value.replace(/'/g, "''")}'`;
  */
 export function foldSql(expr: string): string {
   return FOLD_PAIRS.reduce((inner, [from, to]) => `replace(${inner}, ${literal(from)}, ${literal(to)})`, `lower(${expr})`);
+}
+
+/**
+ * A marker no real search query can contain — used only at module-load time to find where
+ * `foldSql` spliced its `expr` argument into the generated string, so `foldSqlValue` can rebuild
+ * that exact expression around a real bound parameter instead of a string literal.
+ */
+const QUERY_MARKER = ' FOLD_QUERY ';
+
+/**
+ * `foldSql`, as a drizzle `SQL` fragment with `value` bound as a real query parameter rather than
+ * inlined as a string literal — what `searchFoods` (issue #17 §3, #24) folds the user's typed
+ * query through. Built by splicing `value` into the *exact same* string `foldSql` produces for the
+ * triggers, so a stored `search_text` and a typed query can never be folded differently (§1.5:
+ * "the query string goes through the same SQL expression").
+ */
+export function foldSqlValue(value: string): SQL {
+  const expr = foldSql(QUERY_MARKER);
+  const i = expr.indexOf(QUERY_MARKER);
+  if (i < 0) throw new Error('unreachable: foldSql did not splice its expr argument in verbatim');
+  return sql`${sql.raw(expr.slice(0, i))}${value}${sql.raw(expr.slice(i + QUERY_MARKER.length))}`;
 }
 
 /** What a food's `search_text` folds: its name, then its brand when it has one. `row` is `new.` in a trigger. */
