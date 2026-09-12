@@ -5,14 +5,16 @@
  * never on a hard-coded hex, which would pass while the ring rendered the wrong colour.
  *
  * Animations resolve to their end state in tests (see `test-support/reanimated-mock`), so what is
- * asserted here is the geometry the ring settles on.
+ * asserted here is the geometry the ring settles on — plus, in `the sweep is really animated`, the
+ * animation the component actually started, which is the part a resolve-immediately mock would
+ * otherwise let you delete without a single test going red.
  */
 import { processColor } from 'react-native';
 import { render, screen } from '@testing-library/react-native';
 import type { ComponentProps } from 'react';
-import { size, themes, type ThemeName } from '../../theme/tokens';
+import { motion, size, themes, type ThemeName } from '../../theme/tokens';
 import { ProgressArc } from './ProgressArc';
-import { __setReducedMotion } from './test-support/reanimated-mock';
+import { __resetAnimations, __setReducedMotion, timings } from './test-support/reanimated-mock';
 
 // Hoisted above the imports by `babel-plugin-jest-hoist`, which is why the factory may not close
 // over the import above and reaches for the module itself. See `test-support/reanimated-mock`.
@@ -36,19 +38,33 @@ const svgColor = (token: string) => ({ type: 0, payload: processColor(token) });
  */
 const dashOffsetOf = (testID: string): number => screen.getByTestId(testID).props.strokeDashoffset ?? 0;
 
-afterEach(() => __setReducedMotion(false));
+afterEach(() => __resetAnimations());
 
+const arc = (props: Partial<ComponentProps<typeof ProgressArc>> = {}, themeName: ThemeName = 'dark') => (
+  <ProgressArc
+    metric="kcal"
+    value={1240}
+    target={2400}
+    theme={themes[themeName]}
+    locale="en-GB"
+    {...props}
+  />
+);
+
+/**
+ * `render` is ASYNCHRONOUS in RNTL 14 (`render(): Promise<RenderResult>`), and so are `rerender`
+ * and `unmount`. Dropping the `await` does not just look untidy — `screen` is never populated and
+ * every query in the test fails with "`render` function has not been called".
+ */
 const renderArc = (props: Partial<ComponentProps<typeof ProgressArc>> = {}, themeName: ThemeName = 'dark') =>
-  render(
-    <ProgressArc
-      metric="kcal"
-      value={1240}
-      target={2400}
-      theme={themes[themeName]}
-      locale="en-GB"
-      {...props}
-    />,
-  );
+  render(arc(props, themeName));
+
+/**
+ * Host nodes of a native SVG type. `react-native-svg`'s `<Filter>` and `<FeGaussianBlur>` forward
+ * only their own SVG attributes to the native view — a `testID` is dropped — so the filter layer
+ * has to be found by type rather than by test id.
+ */
+const nativeNodes = (nativeType: string) => screen.container.queryAll((node) => node.type === nativeType);
 
 describe('the four states the ring must get right', () => {
   it('zero: draws the track and nothing else', async () => {
@@ -147,7 +163,99 @@ describe('both themes', () => {
   });
 });
 
+describe('the bloom is a real blur, not a fat stroke', () => {
+  it('dark: blurs a normal-width lap at the token radius', async () => {
+    await renderArc({ value: 1240 }, 'dark');
+    const glow = screen.getByTestId('arc-glow');
+
+    // The bloom must not be a wider stroke: at 10 pt over a 10 pt ring that is a hard-edged band,
+    // a second ring rather than a glow. Same width as the lap, blurred.
+    expect(glow.props.strokeWidth).toBe(size.arc.stroke);
+    expect(glow.props.opacity).toBe(themes.dark.glow.ringOpacity);
+
+    // `glow.ringRadius` is a CSS blur radius — `design/build-canvas.mjs` draws it as
+    // `drop-shadow(0 0 Npx)` — and CSS defines that as a Gaussian of standard deviation N/2. Using
+    // the token as anything else (a stroke width, a raw stdDeviation) draws a different bloom from
+    // the canvas the design was signed off on. The native node splits it per axis.
+    const blurs = nativeNodes('RNSVGFeGaussianBlur');
+    expect(blurs).toHaveLength(1);
+    expect(blurs[0]?.props.stdDeviationX).toBe(themes.dark.glow.ringRadius / 2);
+    expect(blurs[0]?.props.stdDeviationY).toBe(themes.dark.glow.ringRadius / 2);
+  });
+
+  it('dark: the lap points at the filter it defines, over the whole viewBox', async () => {
+    await renderArc({ value: 1240 }, 'dark');
+
+    const filters = nativeNodes('RNSVGFilter');
+    expect(filters).toHaveLength(1);
+    // The falloff must not be clipped tighter than the viewport, or the bloom gets a straight edge.
+    expect(filters[0]?.props).toMatchObject({
+      x: 0,
+      y: 0,
+      width: size.arc.diameter,
+      height: size.arc.diameter,
+      filterUnits: 'userSpaceOnUse',
+    });
+
+    // `react-native-svg` stores `url(#x)` as the bare id `x` on the native node, under `name`.
+    expect(screen.getByTestId('arc-glow').props.filter).toBe(filters[0]?.props.name);
+  });
+
+  it('two arcs on one screen never share a filter id', async () => {
+    // Today mounts kcal and protein side by side. A filter id is global to the SVG document, so a
+    // hard-coded one would have the protein bloom silently take the calorie ring's blur.
+    await render(
+      <>
+        {arc({ metric: 'kcal', value: 1240, target: 2400 })}
+        {arc({ metric: 'protein', value: 96, target: 180 })}
+      </>,
+    );
+
+    const [kcalFilter, proteinFilter] = nativeNodes('RNSVGFilter').map((node) => node.props.name);
+    expect(kcalFilter).toBeTruthy();
+    expect(kcalFilter).not.toBe(proteinFilter);
+
+    const [kcalGlow, proteinGlow] = screen.getAllByTestId('arc-glow').map((node) => node.props.filter);
+    expect(kcalGlow).toBe(kcalFilter);
+    expect(proteinGlow).toBe(proteinFilter);
+  });
+
+  it('light: defines no filter at all — a bloom on white reads as a smudge', async () => {
+    await renderArc({ value: 1240 }, 'light');
+    expect(nativeNodes('RNSVGFilter')).toEqual([]);
+    expect(nativeNodes('RNSVGFeGaussianBlur')).toEqual([]);
+  });
+});
+
+describe('the sweep is really animated', () => {
+  it('starts one timing to the new ratio, on the arcSweep token', async () => {
+    await renderArc({ value: 1240 });
+
+    expect(timings).toHaveLength(1);
+    expect(timings[0]?.toValue).toBeCloseTo(1240 / 2400, 6);
+    expect(timings[0]?.config?.duration).toBe(motion.events.arcSweep.duration);
+    expect(timings[0]?.config?.easing?.points).toEqual([...motion.easing.standard]);
+  });
+
+  it('retargets to the new total when a log lands, rather than queueing a second sweep', async () => {
+    const view = await renderArc({ value: 1240 });
+    await view.rerender(arc({ value: 2000 }));
+
+    expect(timings).toHaveLength(2);
+    expect(timings[1]?.toValue).toBeCloseTo(2000 / 2400, 6);
+    // And the driver — not the render pass — is what moved the ring: 2π·54 · (1 − 2000/2400).
+    expect(dashOffsetOf('arc-first-lap')).toBeCloseTo(56.5487, 3);
+  });
+});
+
 describe('reduce motion', () => {
+  it('never starts a timing — the ring is set outright', async () => {
+    __setReducedMotion(true);
+    await renderArc({ value: 1240 });
+
+    expect(timings).toEqual([]);
+  });
+
   it('lands on exactly the same ring, with the value still legible', async () => {
     __setReducedMotion(true);
     await renderArc({ value: 1240 });
@@ -155,6 +263,15 @@ describe('reduce motion', () => {
     expect(dashOffsetOf('arc-first-lap')).toBeCloseTo(163.9911, 4);
     expect(screen.getByText('1,240')).toBeTruthy();
     expect(screen.getByText('1,160 left')).toBeTruthy();
+  });
+
+  it('still follows a new total, without animating to it', async () => {
+    __setReducedMotion(true);
+    const view = await renderArc({ value: 1240 });
+    await view.rerender(arc({ value: 2000 }));
+
+    expect(timings).toEqual([]);
+    expect(dashOffsetOf('arc-first-lap')).toBeCloseTo(56.5487, 3);
   });
 });
 
