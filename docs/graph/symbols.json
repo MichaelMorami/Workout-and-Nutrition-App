@@ -1,6 +1,6 @@
 {
   "generated": "scripts/graph-gen.mjs — do not edit by hand",
-  "moduleCount": 46,
+  "moduleCount": 51,
   "modules": {
     "app/(tabs)/_layout.tsx": {
       "exports": [
@@ -32,10 +32,14 @@
         "react",
         "react-native",
         "src/components/quick-add/index.ts",
+        "src/components/today/index.ts",
+        "src/db/index.ts",
+        "src/hooks/deviceWhen.ts",
+        "src/hooks/useDb.ts",
         "src/hooks/useTheme.ts",
         "src/theme/tokens.ts"
       ],
-      "loc": 44
+      "loc": 81
     },
     "app/(tabs)/settings.tsx": {
       "exports": [
@@ -156,7 +160,10 @@
         "type TickLine = {\n  readonly x1: number;\n  readonly y1: number;\n  readonly x2: number;\n  readonly y2: number;\n}"
       ],
       "imports": [],
-      "loc": 26
+      "loc": 26,
+      "importedBy": [
+        "src/components/today/TodayHeader.tsx"
+      ]
     },
     "src/components/charts/test-support/reanimated-mock.tsx": {
       "exports": [
@@ -219,7 +226,10 @@
         "function formatWeightKg(kg: number): string"
       ],
       "imports": [],
-      "loc": 10
+      "loc": 10,
+      "importedBy": [
+        "src/components/today/WeightChip.tsx"
+      ]
     },
     "src/components/quick-add/QuickAddGrid.tsx": {
       "exports": [
@@ -329,6 +339,83 @@
         "src/components/theme/ThemeProvider.tsx",
         "src/hooks/useTheme.ts"
       ]
+    },
+    "src/components/today/TodayHeader.tsx": {
+      "exports": [
+        "function TodayHeader({\n  kcal,\n  protein,\n  kcalTarget,\n  proteinTarget,\n  isDefault,\n  at,\n  timeZone,\n  theme,\n  locale,\n  testID = 'today-header',\n}: TodayHeaderProps): import(\"react\").JSX.Element",
+        "type TodayHeaderProps = {\n  /** Today's total so far — kept live by the caller, not re-read here. */\n  readonly kcal: number;\n  readonly protein: number;\n  /** The day's targets from `getSettings()`. Ignored (rings read `0`) while `isDefault` is true. */\n  readonly kcalTarget: number;\n  readonly proteinTarget: number;\n  /** `getSettings().isDefault` — no target has ever been saved. */\n  readonl..."
+      ],
+      "imports": [
+        "expo-router",
+        "react-native",
+        "src/components/charts/index.ts",
+        "src/components/today/date-header.ts",
+        "src/theme/tokens.ts"
+      ],
+      "loc": 146
+    },
+    "src/components/today/WeightChip.tsx": {
+      "exports": [
+        "function WeightChip({ testID = 'weight-chip' }: WeightChipProps): import(\"react\").JSX.Element",
+        "type WeightChipProps = {\n  /** Formatting locale, forwarded to nothing today (the weight formatter is locale-free) — kept\n   * for parity with the app's other chips and for when it is not. */\n  readonly locale?: string;\n  readonly testID?: string;\n}"
+      ],
+      "imports": [
+        "expo-router",
+        "react",
+        "react-native",
+        "src/components/format/weight.ts",
+        "src/db/index.ts",
+        "src/hooks/deviceWhen.ts",
+        "src/hooks/useDb.ts",
+        "src/hooks/useTheme.ts",
+        "src/theme/tokens.ts"
+      ],
+      "loc": 166
+    },
+    "src/components/today/date-header.ts": {
+      "exports": [
+        "function formatTodayDate(at: number, timeZone: string, locale?: string): string"
+      ],
+      "imports": [],
+      "loc": 19,
+      "importedBy": [
+        "src/components/today/TodayHeader.tsx"
+      ]
+    },
+    "src/components/today/index.ts": {
+      "exports": [
+        "function TodayHeader({\n  kcal,\n  protein,\n  kcalTarget,\n  proteinTarget,\n  isDefault,\n  at,\n  timeZone,\n  theme,\n  locale,\n  testID = 'today-header',\n}: TodayHeaderProps): import(\"react\").JSX.Element",
+        "function WeightChip({ testID = 'weight-chip' }: WeightChipProps): import(\"react\").JSX.Element",
+        "function formatTodayDate(at: number, timeZone: string, locale?: string): string",
+        "type TodayHeaderProps = {\n  /** Today's total so far — kept live by the caller, not re-read here. */\n  readonly kcal: number;\n  readonly protein: number;\n  /** The day's targets from `getSettings()`. Ignored (rings read `0`) while `isDefault` is true. */\n  readonly kcalTarget: number;\n  readonly proteinTarget: number;\n  /** `getSettings().isDefault` — no target has ever been saved. */\n  readonl...",
+        "type WeightChipProps = {\n  /** Formatting locale, forwarded to nothing today (the weight formatter is locale-free) — kept\n   * for parity with the app's other chips and for when it is not. */\n  readonly locale?: string;\n  readonly testID?: string;\n}"
+      ],
+      "imports": [],
+      "loc": 4,
+      "importedBy": [
+        "app/(tabs)/index.tsx"
+      ]
+    },
+    "src/components/today/test-support/reanimated-mock.tsx": {
+      "exports": [
+        "const Easing: { bezier: (x1: number, y1: number, x2: number, y2: number) => MockEasing; }",
+        "const default: { View: typeof AnimatedView; createAnimatedComponent: typeof createAnimatedComponent; }",
+        "const useAnimatedProps: <T>(updater: () => T) => T",
+        "const useAnimatedStyle: <T>(updater: () => T) => T",
+        "const useReducedMotion: () => boolean",
+        "function __resetAnimations(): void",
+        "function __setReducedMotion(value: boolean): void",
+        "function createAnimatedComponent(Component: ComponentType<P>): (props: WithAnimatedProps<P>) => import(\"react\").ReactElement<P, string | import(\"react\").JSXElementConstructor<any>>",
+        "function useSharedValue(initial: T): SharedValue<T>",
+        "function withTiming(toValue: T, _config?: TimingConfig): T",
+        "type MockEasing = { readonly factory: () => (t: number) => number; readonly points: readonly number[] }",
+        "type TimingConfig = { readonly duration?: number; readonly easing?: MockEasing }"
+      ],
+      "imports": [
+        "react",
+        "react-native"
+      ],
+      "loc": 90
     },
     "src/db/client.ts": {
       "exports": [
@@ -477,10 +564,12 @@
       "imports": [],
       "loc": 84,
       "importedBy": [
+        "app/(tabs)/index.tsx",
         "src/components/db/DbProvider.tsx",
         "src/components/db/db-context.ts",
         "src/components/quick-add/QuickAddGrid.tsx",
         "src/components/quick-add/QuickAddTile.tsx",
+        "src/components/today/WeightChip.tsx",
         "src/hooks/deviceWhen.ts",
         "src/hooks/useDb.ts"
       ]
@@ -761,7 +850,9 @@
       ],
       "loc": 12,
       "importedBy": [
-        "src/components/quick-add/QuickAddGrid.tsx"
+        "app/(tabs)/index.tsx",
+        "src/components/quick-add/QuickAddGrid.tsx",
+        "src/components/today/WeightChip.tsx"
       ]
     },
     "src/hooks/useDb.ts": {
@@ -775,7 +866,9 @@
       ],
       "loc": 15,
       "importedBy": [
-        "src/components/quick-add/QuickAddGrid.tsx"
+        "app/(tabs)/index.tsx",
+        "src/components/quick-add/QuickAddGrid.tsx",
+        "src/components/today/WeightChip.tsx"
       ]
     },
     "src/hooks/useHapticFeedback.ts": {
@@ -806,7 +899,8 @@
         "app/(tabs)/_layout.tsx",
         "app/(tabs)/index.tsx",
         "app/_layout.tsx",
-        "src/components/quick-add/QuickAddGrid.tsx"
+        "src/components/quick-add/QuickAddGrid.tsx",
+        "src/components/today/WeightChip.tsx"
       ]
     },
     "src/store/theme-preference.ts": {
@@ -870,6 +964,8 @@
         "src/components/theme/ThemeProvider.tsx",
         "src/components/theme/font-assets.ts",
         "src/components/theme/theme-context.ts",
+        "src/components/today/TodayHeader.tsx",
+        "src/components/today/WeightChip.tsx",
         "src/hooks/useHapticFeedback.ts",
         "src/hooks/useTheme.ts",
         "src/store/theme-preference.ts"
