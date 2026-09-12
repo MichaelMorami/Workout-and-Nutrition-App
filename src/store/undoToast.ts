@@ -1,0 +1,70 @@
+/**
+ * The undo toast's state (issue #21) — a zustand store because `QuickAddGrid` (which logs) and
+ * `<UndoToast>` (which shows and reverses the log) are siblings under the Today screen, not a
+ * parent/child pair: `<UndoToast>` has to float above the tab bar, clear of the scrolling grid
+ * (`docs/decisions.md`), so it is mounted outside the `ScrollView` that `QuickAddGrid` lives in.
+ * A store is what lets either side reach the same toast without threading it through a screen.
+ *
+ * `docs/decisions.md`'s "no 4-second timer" ruling: `interaction.undoCeilingMs` (three minutes) is
+ * the only *timed* dismissal, there only to stop a stale toast carrying into the next meal — not a
+ * guess at how long someone needs. Every other trigger in `interaction.undoDismissedBy` is a
+ * deliberate call from a component (`show()` replacing a toast still up counts as "anotherLog";
+ * opening the portion sheet calls `dismiss()` directly) rather than something this store times
+ * itself. `interaction.undoSurvives` lists scroll, screen lock and backgrounding on purpose — this
+ * store has no scroll listener, and none should be added without a decision to change that.
+ */
+import { create } from 'zustand';
+import type { UndoToken } from '../db';
+import { interaction } from '../theme/tokens';
+
+/** What undoing an action must subtract from the running Today totals — `QuickAddGrid` computes
+ * this once, at the moment of the write, so `<UndoToast>` never has to re-derive it from a token. */
+export interface LogDelta {
+  readonly kcal: number;
+  readonly protein: number;
+  readonly entryCountDelta: number;
+}
+
+export interface UndoToastPayload {
+  readonly token: UndoToken;
+  /** `logTracker`'s key for the candidate this action logged — `<UndoToast>` forgets it here on
+   * undo, so the next tap on the same tile logs fresh instead of trying to add a portion to a row
+   * `undo()` just tombstoned. */
+  readonly candidateKey: string;
+  /** "Whey + Milk" or, after a double-tap, "Whey + Milk  ×2". */
+  readonly title: string;
+  /** "240 kcal · 40 g protein" — the entries' current total, not just what this action added. */
+  readonly meta: string;
+  readonly delta: LogDelta;
+}
+
+interface UndoToastState {
+  readonly toast: UndoToastPayload | null;
+  readonly show: (payload: UndoToastPayload) => void;
+  readonly dismiss: () => void;
+}
+
+let ceilingTimer: ReturnType<typeof setTimeout> | null = null;
+
+function clearCeiling(): void {
+  if (ceilingTimer !== null) {
+    clearTimeout(ceilingTimer);
+    ceilingTimer = null;
+  }
+}
+
+export const useUndoToastStore = create<UndoToastState>((set) => ({
+  toast: null,
+  show: (payload) => {
+    clearCeiling();
+    ceilingTimer = setTimeout(() => {
+      ceilingTimer = null;
+      set({ toast: null });
+    }, interaction.undoCeilingMs);
+    set({ toast: payload });
+  },
+  dismiss: () => {
+    clearCeiling();
+    set({ toast: null });
+  },
+}));
