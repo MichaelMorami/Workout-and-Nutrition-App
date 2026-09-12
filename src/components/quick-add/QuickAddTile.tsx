@@ -8,9 +8,17 @@
  *
  * THE LOGGED STATE IS THE ONLY CONFIRMATION. There is no save button, so the wash (`tile.bgLogged`,
  * `tile.borderLogged`) and the haptic are what tell the user something happened. It holds for
- * `interaction.tileLoggedHoldMs`, then reverts to the resting figures. A tap that lands mid-hold is
- * ignored — the double-tap-adds-a-portion gesture is issue #21's, not this one's, and swallowing a
- * fast double tap here is strictly safer than logging twice by accident.
+ * `interaction.tileLoggedHoldMs`, then reverts to the resting figures. A tap that lands mid-hold
+ * fires `onLog` again (issue #21's double-tap-adds-a-portion) — `QuickAddGrid` decides, from
+ * `logTracker`, whether that means a fresh log or another portion on the same entry; this
+ * component just keeps confirming and restarts its hold. `onLog` returns the candidate's current
+ * portion count so the tile can show a "×N" badge once it is more than one.
+ *
+ * LONG-PRESS OPENS THE PORTION SHEET, NOT A LOG. `onLongPress` (after `interaction.longPressMs`)
+ * is the third of the three mechanisms in `docs/decisions.md` §2; a `Pressable` firing both
+ * `onLongPress` and `onPress` for the same gesture is guarded against with a ref, since the sheet
+ * opening and a log firing for the same touch would be exactly the silent double-write the tap
+ * doctrine forbids.
  *
  * ARM'S-LENGTH SIZE. The name renders at `type.tileName` (16.5 pt) — decision 1 in
  * `docs/decisions.md`: six tiles, not nine, is what keeps this size instead of shrinking past the
@@ -35,9 +43,12 @@ const MEAL_GLYPH = '▤';
 export type QuickAddTileProps = {
   /** The food or meal this tile logs. */
   readonly candidate: Candidate;
-  /** Called the instant the tile is tapped, once per tap outside the logged hold. Whatever it does
-   * (the actual `logFood` / `logMeal` write) is this component's caller's job, not this one's. */
-  readonly onLog: (candidate: Candidate) => void;
+  /** Called on every tap, fresh or repeated. Whatever it does (`logFood` / `logMeal` / `addPortion`)
+   * is this component's caller's job, not this one's — it only returns the resulting portion count
+   * so the tile can badge it. */
+  readonly onLog: (candidate: Candidate) => number;
+  /** Held for `interaction.longPressMs`; opens the portion sheet instead of logging. */
+  readonly onLongPress?: (candidate: Candidate) => void;
   readonly theme: Theme;
   /** Formatting locale. Defaults to the device's. */
   readonly locale?: string;
@@ -62,23 +73,28 @@ function servingLabelOf(candidate: Candidate): string {
   return `${candidate.itemCount} item${candidate.itemCount === 1 ? '' : 's'}`;
 }
 
-function accessibilityLabelOf(candidate: Candidate, kcal: string, protein: string): string {
+function accessibilityLabelOf(candidate: Candidate, kcal: string, protein: string, portions: number): string {
   const kind = candidate.kind === 'meal' ? 'meal' : 'food';
-  return `Log ${candidate.name}, ${kind}, ${kcal} kilocalories, ${protein} grams protein`;
+  const suffix = portions > 1 ? `, logged ×${portions}` : '';
+  return `Log ${candidate.name}, ${kind}, ${kcal} kilocalories, ${protein} grams protein${suffix}`;
 }
 
-export function QuickAddTile({ candidate, onLog, theme, locale, testID = 'quick-add-tile' }: QuickAddTileProps) {
+export function QuickAddTile({ candidate, onLog, onLongPress, theme, locale, testID = 'quick-add-tile' }: QuickAddTileProps) {
   const { tile } = theme.color;
   const fireHaptic = useHapticFeedback();
   const reducedMotion = useReducedMotion();
   const scale = useSharedValue(1);
   const [logged, setLogged] = useState(false);
+  const [portions, setPortions] = useState(1);
   // Finger down/up, tracked as plain state — the shared-value write it drives lives in the
   // `useEffect` below, not here, matching `ProgressArc`'s ring sweep: the React Compiler's
   // mutation check only recognises a shared-value write as safe inside a `useEffect`, not inside
   // an event handler passed straight to a `Pressable` prop.
   const [pressed, setPressed] = useState(false);
   const holdTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Set the instant `onLongPress` fires, cleared on the next `onPressOut` — stops the same touch
+  // that opened the sheet from also firing `onPress` when the finger lifts.
+  const longPressed = useRef(false);
 
   useEffect(
     () => () => {
@@ -101,14 +117,38 @@ export function QuickAddTile({ candidate, onLog, theme, locale, testID = 'quick-
 
   const animatedStyle = useAnimatedStyle(() => ({ transform: [{ scale: scale.value }] }));
 
-  const handlePress = (): void => {
-    // A tap mid-hold is swallowed, not queued — one tap, one log, per `docs/decisions.md`.
-    if (logged) return;
+  const showBadge = logged && portions > 1;
+  const badgeOpacity = useSharedValue(0);
 
-    onLog(candidate);
+  useEffect(() => {
+    const event = motion.events.repeatBadge;
+    const duration = reducedMotion ? event.reduced.duration : event.duration;
+    const curve = motion.easing[event.easing];
+    badgeOpacity.value = withTiming(showBadge ? 1 : 0, { duration, easing: Easing.bezier(...curve) });
+  }, [showBadge, reducedMotion, badgeOpacity]);
+
+  const badgeAnimatedStyle = useAnimatedStyle(() => ({ opacity: badgeOpacity.value }));
+
+  const handlePress = (): void => {
+    if (longPressed.current) {
+      // The same touch already opened the portion sheet via `onLongPress` — a `Pressable` fires
+      // `onPress` too when the finger lifts, and that must not also log.
+      longPressed.current = false;
+      return;
+    }
+
+    if (holdTimer.current) clearTimeout(holdTimer.current);
+    const result = onLog(candidate);
     fireHaptic(haptics.foodLogged);
     setLogged(true);
+    setPortions(result ?? 1);
     holdTimer.current = setTimeout(() => setLogged(false), interaction.tileLoggedHoldMs);
+  };
+
+  const handleLongPress = (): void => {
+    if (!onLongPress) return;
+    longPressed.current = true;
+    onLongPress(candidate);
   };
 
   const kcalText = Math.round(candidate.kcal).toLocaleString(locale);
@@ -123,9 +163,11 @@ export function QuickAddTile({ candidate, onLog, theme, locale, testID = 'quick-
         onPressIn={() => setPressed(true)}
         onPressOut={() => setPressed(false)}
         onPress={handlePress}
+        onLongPress={handleLongPress}
+        delayLongPress={interaction.longPressMs}
         accessible
         accessibilityRole="button"
-        accessibilityLabel={accessibilityLabelOf(candidate, kcalText, proteinText)}
+        accessibilityLabel={accessibilityLabelOf(candidate, kcalText, proteinText, portions)}
         style={[
           styles.root,
           {
@@ -151,6 +193,25 @@ export function QuickAddTile({ candidate, onLog, theme, locale, testID = 'quick-
             {candidate.name}
           </Text>
         </View>
+
+        {showBadge ? (
+          <Animated.View
+            testID={`${testID}-repeat-badge`}
+            accessible={false}
+            style={[
+              styles.repeatBadge,
+              badgeAnimatedStyle,
+              {
+                width: size.tile.repeatBadge,
+                height: size.tile.repeatBadge,
+                borderRadius: size.tile.repeatBadge / 2,
+                backgroundColor: tile.repeatBadgeBg,
+              },
+            ]}
+          >
+            <Text style={textStyle(type.unit, tile.repeatBadgeText)}>{`×${portions}`}</Text>
+          </Animated.View>
+        ) : null}
 
         <View style={styles.footer}>
           {logged ? (
@@ -208,5 +269,12 @@ const styles = StyleSheet.create({
   figureGroup: {
     flexDirection: 'row',
     alignItems: 'baseline',
+  },
+  repeatBadge: {
+    position: 'absolute',
+    top: space[2],
+    right: space[2],
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 });
