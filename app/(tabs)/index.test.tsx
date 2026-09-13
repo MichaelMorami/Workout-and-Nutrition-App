@@ -8,12 +8,16 @@ import { act, fireEvent, render, screen, within } from '@testing-library/react-n
 import { DbProvider } from '../../src/components/db/DbProvider';
 import { ThemeContext } from '../../src/components/theme/theme-context';
 import {
+  dayLog,
   getSettings,
   logFood,
   quickAddCandidates,
+  softDeleteLogEntries,
   todayTotals,
   undo,
+  updateLogEntry,
   weightSummary,
+  type DayLogEntry,
   type FoodCandidate,
   type LogReceipt,
 } from '../../src/db';
@@ -31,6 +35,9 @@ jest.mock('../../src/db', () => ({
   weightSummary: jest.fn(),
   logFood: jest.fn(),
   undo: jest.fn(),
+  dayLog: jest.fn().mockReturnValue([]),
+  updateLogEntry: jest.fn(),
+  softDeleteLogEntries: jest.fn(),
 }));
 
 const mockGetSettings = jest.mocked(getSettings);
@@ -38,6 +45,9 @@ const mockTodayTotals = jest.mocked(todayTotals);
 const mockWeightSummary = jest.mocked(weightSummary);
 const mockLogFood = jest.mocked(logFood);
 const mockUndo = jest.mocked(undo);
+const mockDayLog = jest.mocked(dayLog);
+const mockUpdateLogEntry = jest.mocked(updateLogEntry);
+const mockSoftDelete = jest.mocked(softDeleteLogEntries);
 
 const yoghurt: FoodCandidate = {
   kind: 'food',
@@ -50,6 +60,26 @@ const yoghurt: FoodCandidate = {
   protein: 20,
   useCount: 4,
   lastUsedAt: null,
+};
+
+const loggedYoghurt: DayLogEntry = {
+  id: 'log-1',
+  updatedAt: 0,
+  deleted: 0,
+  loggedAt: 0,
+  localDate: '2025-03-10',
+  localMinute: 415,
+  foodId: 'food-1',
+  mealId: null,
+  qty: 1,
+  grams: 170,
+  kcal: 120,
+  protein: 20,
+  slot: 'breakfast',
+  foodName: 'Greek yoghurt',
+  brand: null,
+  servingLabel: '1 pot',
+  mealName: null,
 };
 
 const receipt: LogReceipt = {
@@ -155,5 +185,64 @@ describe('TodayScreen', () => {
       jest.advanceTimersByTime(motion.events.toastOut.duration);
     });
     expect(screen.queryByTestId('today-undo-toast-title')).toBeNull();
+  });
+
+  it("mounts today's log below the grid, reading dayLog once up front (issue #42)", async () => {
+    mockDayLog.mockReturnValue([loggedYoghurt]);
+    await renderScreen();
+
+    expect(screen.getByTestId('day-log-list')).toBeTruthy();
+    expect(screen.getByTestId('day-log-list-row-log-1-name')).toHaveTextContent('Greek yoghurt');
+    expect(mockDayLog).toHaveBeenCalledTimes(1);
+  });
+
+  it('a quick-add tap tells the day log to refetch, on top of moving the ring', async () => {
+    jest.mocked(quickAddCandidates).mockReturnValue([yoghurt]);
+    mockLogFood.mockReturnValue(receipt);
+    mockDayLog.mockReturnValue([]);
+    await renderScreen();
+    expect(mockDayLog).toHaveBeenCalledTimes(1);
+
+    await fireEvent.press(screen.getByTestId('quick-add-grid-tile-food-1'));
+
+    expect(mockDayLog).toHaveBeenCalledTimes(2);
+  });
+
+  it('deleting a row from the day log moves the ring back down, through the same shared handler', async () => {
+    // The first read (mount) still has the row; the day log's own refetch, woken by the same
+    // `dayLogVersion` bump that moves the ring, reflects the delete already committed to SQLite —
+    // exactly what the mock is standing in for here.
+    mockDayLog.mockReturnValueOnce([loggedYoghurt]).mockReturnValue([]);
+    mockSoftDelete.mockReturnValue({ undo: { kind: 'restore', logIds: ['log-1'] } });
+    await renderScreen();
+    const ring = within(screen.getByTestId('today-header-kcal-arc'));
+    expect(ring.getByTestId('arc-value').props.children).toBe('1,240');
+
+    await fireEvent.press(screen.getByTestId('day-log-list-row-log-1-delete'));
+
+    expect(mockSoftDelete).toHaveBeenCalledWith(expect.anything(), { at: expect.any(Number), ids: ['log-1'] });
+    expect(screen.queryByTestId('day-log-list-row-log-1')).toBeNull();
+    expect(ring.getByTestId('arc-value').props.children).toBe('1,120');
+  });
+
+  it('editing a row from the day log moves the ring by the difference, through the same shared handler', async () => {
+    const editedYoghurt: DayLogEntry = { ...loggedYoghurt, qty: 2, grams: 340, kcal: 240, protein: 40 };
+    // See the delete test above: the day log's post-edit refetch stands in for SQLite already
+    // reflecting the write by the time it runs.
+    mockDayLog.mockReturnValueOnce([loggedYoghurt]).mockReturnValue([editedYoghurt]);
+    mockUpdateLogEntry.mockReturnValue({
+      entry: editedYoghurt,
+      undo: { kind: 'revert', previous: [{ id: 'log-1', qty: 1, grams: 170, kcal: 120, protein: 20, slot: 'breakfast' }] },
+    });
+    await renderScreen();
+    const ring = within(screen.getByTestId('today-header-kcal-arc'));
+    expect(ring.getByTestId('arc-value').props.children).toBe('1,240');
+
+    await fireEvent.press(screen.getByTestId('day-log-list-row-log-1'));
+    await fireEvent.press(screen.getByTestId('day-log-list-portion-sheet-exact-nudge-up'));
+    await fireEvent.press(screen.getByTestId('day-log-list-portion-sheet-exact-log'));
+
+    expect(mockUpdateLogEntry).toHaveBeenCalledTimes(1);
+    expect(ring.getByTestId('arc-value').props.children).toBe('1,360');
   });
 });

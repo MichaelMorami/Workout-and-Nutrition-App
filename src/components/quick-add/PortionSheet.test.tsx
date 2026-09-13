@@ -170,6 +170,41 @@ describe('PortionSheet', () => {
     expect(screen.getByTestId('sheet-step-1')).toBeTruthy();
   });
 
+  it('issue #42: initialMode="exact" with initialPortions opens straight into Exact, pre-filled at that amount', async () => {
+    await renderSheet({ initialMode: 'exact', initialPortions: 2 });
+
+    expect(screen.queryByTestId('sheet-step-1')).toBeNull();
+    expect(screen.getByTestId('sheet-exact-readout')).toHaveTextContent(`${170 * 2} g`);
+  });
+
+  it('issue #42: a meal edit pre-fills Exact with its current servings multiple', async () => {
+    await renderSheet({ candidate: meal, initialMode: 'exact', initialPortions: 2.5 });
+
+    expect(screen.getByTestId('sheet-exact-readout')).toHaveTextContent('×2.5');
+  });
+
+  it('resets to initialMode, not a hardcoded Presets, when a different candidate opens the sheet', async () => {
+    const { rerender } = await renderSheet({ initialMode: 'exact', initialPortions: 1 });
+    expect(screen.getByTestId('sheet-exact')).toBeTruthy();
+
+    await fireEvent.press(screen.getByTestId('sheet-mode-presets'));
+    expect(screen.getByTestId('sheet-step-1')).toBeTruthy();
+
+    await rerender(
+      <PortionSheet
+        candidate={meal}
+        theme={themes.dark}
+        onLog={jest.fn()}
+        onClose={jest.fn()}
+        initialMode="exact"
+        initialPortions={1}
+        testID="sheet"
+      />,
+    );
+
+    expect(screen.getByTestId('sheet-exact')).toBeTruthy();
+  });
+
   it('has accessibility roles and labels on every interactive control', async () => {
     await renderSheet();
     const step = screen.getByTestId('sheet-step-1');
