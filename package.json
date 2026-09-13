@@ -52,7 +52,8 @@
     "typecheck": "tsc --noEmit",
     "test": "jest --passWithNoTests",
     "graph": "scripts/graph.sh",
-    "boundaries": "scripts/boundaries.sh"
+    "boundaries": "scripts/boundaries.sh",
+    "fonts": "scripts/fonts.sh"
   },
   "private": true
 }
