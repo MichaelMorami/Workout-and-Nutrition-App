@@ -1,6 +1,6 @@
 {
   "generated": "scripts/graph-gen.mjs — do not edit by hand",
-  "moduleCount": 51,
+  "moduleCount": 54,
   "modules": {
     "app/(tabs)/_layout.tsx": {
       "exports": [
@@ -231,27 +231,47 @@
         "src/components/today/WeightChip.tsx"
       ]
     },
-    "src/components/quick-add/QuickAddGrid.tsx": {
+    "src/components/quick-add/PortionSheet.tsx": {
       "exports": [
-        "function QuickAddGrid({ onLogged, locale, testID = 'quick-add-grid' }: QuickAddGridProps): import(\"react\").JSX.Element",
-        "type QuickAddGridProps = {\n  /** Called after a tap's write lands, with the receipt (`kcal`/`protein` logged, for #41's arcs\n   * and any other listener). Never called for a tap that failed to write. */\n  readonly onLogged?: (receipt: LogReceipt) => void;\n  /** Formatting locale, forwarded to every tile and the \"Ranked for\" hour. Defaults to the device's. */\n  readonly locale?: string;\n  readon..."
+        "function PortionSheet({ candidate, theme, locale, onLog, onClose, testID = 'portion-sheet' }: PortionSheetProps): import(\"react\").JSX.Element | null",
+        "type PortionSheetProps = {\n  /** `null` closes the sheet — there is deliberately no separate `visible` flag to fall out of sync with. */\n  readonly candidate: Candidate | null;\n  readonly theme: Theme;\n  /** Formatting locale, forwarded to every figure. Defaults to the device's. */\n  readonly locale?: string;\n  /** A step, or Exact's Log button — always a servings multiple of the candidate's ow..."
       ],
       "imports": [
         "react",
         "react-native",
+        "src/db/index.ts",
+        "src/hooks/useHapticFeedback.ts",
+        "src/theme/tokens.ts"
+      ],
+      "loc": 485,
+      "importedBy": [
+        "src/components/quick-add/QuickAddGrid.tsx"
+      ]
+    },
+    "src/components/quick-add/QuickAddGrid.tsx": {
+      "exports": [
+        "function QuickAddGrid({ onLogged, onPortionAdded, locale, testID = 'quick-add-grid' }: QuickAddGridProps): import(\"react\").JSX.Element",
+        "type QuickAddGridProps = {\n  /** Called after a *fresh* log lands — a first tap, or the portion sheet's own Log — with the\n   * receipt (`kcal`/`protein` logged, for #41's arcs and any other listener). Never called for a\n   * write that failed, and never called for a double-tap's `addPortion` (see `onPortionAdded`). */\n  readonly onLogged?: (receipt: LogReceipt) => void;\n  /** Called after a do..."
+      ],
+      "imports": [
+        "react",
+        "react-native",
+        "src/components/quick-add/PortionSheet.tsx",
         "src/components/quick-add/QuickAddTile.tsx",
         "src/db/index.ts",
         "src/hooks/deviceWhen.ts",
         "src/hooks/useDb.ts",
         "src/hooks/useTheme.ts",
+        "src/store/logTracker.ts",
+        "src/store/undoToast.ts",
         "src/theme/tokens.ts"
       ],
-      "loc": 172
+      "loc": 274
     },
     "src/components/quick-add/QuickAddTile.tsx": {
       "exports": [
-        "function QuickAddTile({ candidate, onLog, theme, locale, testID = 'quick-add-tile' }: QuickAddTileProps): import(\"react\").JSX.Element",
-        "type QuickAddTileProps = {\n  /** The food or meal this tile logs. */\n  readonly candidate: Candidate;\n  /** Called the instant the tile is tapped, once per tap outside the logged hold. Whatever it does\n   * (the actual `logFood` / `logMeal` write) is this component's caller's job, not this one's. */\n  readonly onLog: (candidate: Candidate) => void;\n  readonly theme: Theme;\n  /** Formatting loca..."
+        "function QuickAddTile({ candidate, onLog, onLongPress, theme, locale, testID = 'quick-add-tile' }: QuickAddTileProps): import(\"react\").JSX.Element",
+        "type QuickAddTileProps = {\n  /** The food or meal this tile logs. */\n  readonly candidate: Candidate;\n  /** Called on every tap, fresh or repeated. Whatever it does (`logFood` / `logMeal` / `addPortion`)\n   * is this component's caller's job, not this one's — it only returns the resulting portion count\n   * so the tile can badge it. */\n  readonly onLog: (candidate: Candidate) => number;\n  /** H..."
       ],
       "imports": [
         "react",
@@ -261,20 +281,22 @@
         "src/hooks/useHapticFeedback.ts",
         "src/theme/tokens.ts"
       ],
-      "loc": 213,
+      "loc": 281,
       "importedBy": [
         "src/components/quick-add/QuickAddGrid.tsx"
       ]
     },
     "src/components/quick-add/index.ts": {
       "exports": [
-        "function QuickAddGrid({ onLogged, locale, testID = 'quick-add-grid' }: QuickAddGridProps): import(\"react\").JSX.Element",
-        "function QuickAddTile({ candidate, onLog, theme, locale, testID = 'quick-add-tile' }: QuickAddTileProps): import(\"react\").JSX.Element",
-        "type QuickAddGridProps = {\n  /** Called after a tap's write lands, with the receipt (`kcal`/`protein` logged, for #41's arcs\n   * and any other listener). Never called for a tap that failed to write. */\n  readonly onLogged?: (receipt: LogReceipt) => void;\n  /** Formatting locale, forwarded to every tile and the \"Ranked for\" hour. Defaults to the device's. */\n  readonly locale?: string;\n  readon...",
-        "type QuickAddTileProps = {\n  /** The food or meal this tile logs. */\n  readonly candidate: Candidate;\n  /** Called the instant the tile is tapped, once per tap outside the logged hold. Whatever it does\n   * (the actual `logFood` / `logMeal` write) is this component's caller's job, not this one's. */\n  readonly onLog: (candidate: Candidate) => void;\n  readonly theme: Theme;\n  /** Formatting loca..."
+        "function PortionSheet({ candidate, theme, locale, onLog, onClose, testID = 'portion-sheet' }: PortionSheetProps): import(\"react\").JSX.Element | null",
+        "function QuickAddGrid({ onLogged, onPortionAdded, locale, testID = 'quick-add-grid' }: QuickAddGridProps): import(\"react\").JSX.Element",
+        "function QuickAddTile({ candidate, onLog, onLongPress, theme, locale, testID = 'quick-add-tile' }: QuickAddTileProps): import(\"react\").JSX.Element",
+        "type PortionSheetProps = {\n  /** `null` closes the sheet — there is deliberately no separate `visible` flag to fall out of sync with. */\n  readonly candidate: Candidate | null;\n  readonly theme: Theme;\n  /** Formatting locale, forwarded to every figure. Defaults to the device's. */\n  readonly locale?: string;\n  /** A step, or Exact's Log button — always a servings multiple of the candidate's ow...",
+        "type QuickAddGridProps = {\n  /** Called after a *fresh* log lands — a first tap, or the portion sheet's own Log — with the\n   * receipt (`kcal`/`protein` logged, for #41's arcs and any other listener). Never called for a\n   * write that failed, and never called for a double-tap's `addPortion` (see `onPortionAdded`). */\n  readonly onLogged?: (receipt: LogReceipt) => void;\n  /** Called after a do...",
+        "type QuickAddTileProps = {\n  /** The food or meal this tile logs. */\n  readonly candidate: Candidate;\n  /** Called on every tap, fresh or repeated. Whatever it does (`logFood` / `logMeal` / `addPortion`)\n   * is this component's caller's job, not this one's — it only returns the resulting portion count\n   * so the tile can badge it. */\n  readonly onLog: (candidate: Candidate) => number;\n  /** H..."
       ],
       "imports": [],
-      "loc": 3,
+      "loc": 4,
       "importedBy": [
         "app/(tabs)/index.tsx"
       ]
@@ -567,11 +589,14 @@
         "app/(tabs)/index.tsx",
         "src/components/db/DbProvider.tsx",
         "src/components/db/db-context.ts",
+        "src/components/quick-add/PortionSheet.tsx",
         "src/components/quick-add/QuickAddGrid.tsx",
         "src/components/quick-add/QuickAddTile.tsx",
         "src/components/today/WeightChip.tsx",
         "src/hooks/deviceWhen.ts",
-        "src/hooks/useDb.ts"
+        "src/hooks/useDb.ts",
+        "src/store/logTracker.ts",
+        "src/store/undoToast.ts"
       ]
     },
     "src/db/local-time.ts": {
@@ -882,6 +907,7 @@
       ],
       "loc": 49,
       "importedBy": [
+        "src/components/quick-add/PortionSheet.tsx",
         "src/components/quick-add/QuickAddTile.tsx"
       ]
     },
@@ -903,6 +929,23 @@
         "src/components/today/WeightChip.tsx"
       ]
     },
+    "src/store/logTracker.ts": {
+      "exports": [
+        "function __resetLogTracker(): void",
+        "function forgetLog(key: string): void",
+        "function logTrackerKey(candidate: { readonly kind: 'food' | 'meal'; readonly id: string }): string",
+        "function recentLog(key: string, now: number): LogReceipt | undefined",
+        "function trackLog(key: string, receipt: LogReceipt, at: number): void"
+      ],
+      "imports": [
+        "src/db/index.ts",
+        "src/theme/tokens.ts"
+      ],
+      "loc": 59,
+      "importedBy": [
+        "src/components/quick-add/QuickAddGrid.tsx"
+      ]
+    },
     "src/store/theme-preference.ts": {
       "exports": [
         "const useThemePreferenceStore: import(\"zustand\").UseBoundStore<import(\"zustand\").StoreApi<ThemePreferenceState>>"
@@ -914,6 +957,22 @@
       "loc": 19,
       "importedBy": [
         "src/components/theme/ThemeProvider.tsx"
+      ]
+    },
+    "src/store/undoToast.ts": {
+      "exports": [
+        "const useUndoToastStore: import(\"zustand\").UseBoundStore<import(\"zustand\").StoreApi<UndoToastState>>",
+        "interface LogDelta",
+        "interface UndoToastPayload"
+      ],
+      "imports": [
+        "src/db/index.ts",
+        "src/theme/tokens.ts",
+        "zustand"
+      ],
+      "loc": 71,
+      "importedBy": [
+        "src/components/quick-add/QuickAddGrid.tsx"
       ]
     },
     "src/theme/tokens.ts": {
@@ -959,6 +1018,7 @@
         "app/(tabs)/index.tsx",
         "app/_layout.tsx",
         "src/components/charts/ProgressArc.tsx",
+        "src/components/quick-add/PortionSheet.tsx",
         "src/components/quick-add/QuickAddGrid.tsx",
         "src/components/quick-add/QuickAddTile.tsx",
         "src/components/theme/ThemeProvider.tsx",
@@ -968,7 +1028,9 @@
         "src/components/today/WeightChip.tsx",
         "src/hooks/useHapticFeedback.ts",
         "src/hooks/useTheme.ts",
-        "src/store/theme-preference.ts"
+        "src/store/logTracker.ts",
+        "src/store/theme-preference.ts",
+        "src/store/undoToast.ts"
       ]
     }
   }
