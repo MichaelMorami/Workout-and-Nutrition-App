@@ -1,6 +1,6 @@
 {
   "generated": "scripts/graph-gen.mjs — do not edit by hand",
-  "moduleCount": 59,
+  "moduleCount": 73,
   "modules": {
     "app/(tabs)/_layout.tsx": {
       "exports": [
@@ -45,12 +45,16 @@
     },
     "app/(tabs)/settings.tsx": {
       "exports": [
-        "function default(): import(\"react\").JSX.Element"
+        "function default(): React.JSX.Element"
       ],
       "imports": [
-        "react-native"
+        "expo-router",
+        "react",
+        "react-native",
+        "src/hooks/useTheme.ts",
+        "src/theme/tokens.ts"
       ],
-      "loc": 12
+      "loc": 82
     },
     "app/(tabs)/workout.tsx": {
       "exports": [
@@ -99,6 +103,88 @@
         "src/theme/tokens.ts"
       ],
       "loc": 80
+    },
+    "app/foods/[id].tsx": {
+      "exports": [
+        "function default(): React.JSX.Element"
+      ],
+      "imports": [
+        "expo-router",
+        "react",
+        "react-native",
+        "src/components/food-form/index.ts",
+        "src/db/index.ts",
+        "src/hooks/deviceWhen.ts",
+        "src/hooks/useDb.ts",
+        "src/hooks/useTheme.ts",
+        "src/theme/tokens.ts"
+      ],
+      "loc": 83
+    },
+    "app/foods/index.tsx": {
+      "exports": [
+        "function default(): React.JSX.Element"
+      ],
+      "imports": [
+        "expo-router",
+        "react",
+        "react-native",
+        "src/components/food-list/index.ts",
+        "src/db/index.ts",
+        "src/hooks/useDb.ts",
+        "src/hooks/useTheme.ts"
+      ],
+      "loc": 48
+    },
+    "app/foods/new.tsx": {
+      "exports": [
+        "function default(): React.JSX.Element"
+      ],
+      "imports": [
+        "expo-router",
+        "react",
+        "react-native",
+        "src/components/food-form/index.ts",
+        "src/db/index.ts",
+        "src/hooks/deviceWhen.ts",
+        "src/hooks/useDb.ts",
+        "src/hooks/useTheme.ts",
+        "src/theme/tokens.ts"
+      ],
+      "loc": 43
+    },
+    "app/meals/index.tsx": {
+      "exports": [
+        "function default(): React.JSX.Element"
+      ],
+      "imports": [
+        "expo-router",
+        "react",
+        "react-native",
+        "src/components/meals/index.ts",
+        "src/components/quick-add/index.ts",
+        "src/db/index.ts",
+        "src/hooks/useDb.ts",
+        "src/hooks/useTheme.ts"
+      ],
+      "loc": 45
+    },
+    "app/meals/new.tsx": {
+      "exports": [
+        "function default(): React.JSX.Element"
+      ],
+      "imports": [
+        "expo-router",
+        "react",
+        "react-native",
+        "src/components/meals/index.ts",
+        "src/db/index.ts",
+        "src/hooks/deviceWhen.ts",
+        "src/hooks/useDb.ts",
+        "src/hooks/useTheme.ts",
+        "src/theme/tokens.ts"
+      ],
+      "loc": 43
     },
     "src/components/charts/ProgressArc.tsx": {
       "exports": [
@@ -283,6 +369,72 @@
         "src/hooks/useDb.ts"
       ]
     },
+    "src/components/food-form/FoodForm.tsx": {
+      "exports": [
+        "function FoodForm({ initial = null, onSave, onCancel, theme, testID = 'food-form' }: FoodFormProps): import(\"react\").JSX.Element",
+        "type FoodFormProps = {\n  /** `undefined`/`null` — a fresh food, every field starts blank/zero. Given — an edit, pre-filled\n   * at exactly what the food currently holds (issue #43: \"pre-fill everything that can be predicted\"). */\n  readonly initial?: FoodInput | null;\n  readonly onSave: (input: FoodInput) => void;\n  readonly onCancel: () => void;\n  readonly theme: Theme;\n  readonly testID?: str..."
+      ],
+      "imports": [
+        "react",
+        "react-native",
+        "src/components/food-form/Stepper.tsx",
+        "src/db/index.ts",
+        "src/theme/tokens.ts"
+      ],
+      "loc": 218
+    },
+    "src/components/food-form/Stepper.tsx": {
+      "exports": [
+        "function Stepper({\n  label,\n  value,\n  step,\n  min = 0,\n  max,\n  unit,\n  onChange,\n  formatValue,\n  locale,\n  theme,\n  testID = 'stepper',\n}: StepperProps): import(\"react\").JSX.Element",
+        "type StepperProps = {\n  readonly label: string;\n  readonly value: number;\n  readonly step: number;\n  /** Defaults to 0 — nothing on this form is ever negative (a serving, a kcal, a gram). */\n  readonly min?: number;\n  readonly max?: number;\n  readonly unit?: string;\n  readonly onChange: (value: number) => void;\n  /** Defaults to a rounded, locale-formatted number. Overridable for a food-serving..."
+      ],
+      "imports": [
+        "react-native",
+        "src/theme/tokens.ts"
+      ],
+      "loc": 158,
+      "importedBy": [
+        "src/components/food-form/FoodForm.tsx"
+      ]
+    },
+    "src/components/food-form/index.ts": {
+      "exports": [
+        "function FoodForm({ initial = null, onSave, onCancel, theme, testID = 'food-form' }: FoodFormProps): import(\"react\").JSX.Element",
+        "function Stepper({\n  label,\n  value,\n  step,\n  min = 0,\n  max,\n  unit,\n  onChange,\n  formatValue,\n  locale,\n  theme,\n  testID = 'stepper',\n}: StepperProps): import(\"react\").JSX.Element",
+        "type FoodFormProps = {\n  /** `undefined`/`null` — a fresh food, every field starts blank/zero. Given — an edit, pre-filled\n   * at exactly what the food currently holds (issue #43: \"pre-fill everything that can be predicted\"). */\n  readonly initial?: FoodInput | null;\n  readonly onSave: (input: FoodInput) => void;\n  readonly onCancel: () => void;\n  readonly theme: Theme;\n  readonly testID?: str...",
+        "type StepperProps = {\n  readonly label: string;\n  readonly value: number;\n  readonly step: number;\n  /** Defaults to 0 — nothing on this form is ever negative (a serving, a kcal, a gram). */\n  readonly min?: number;\n  readonly max?: number;\n  readonly unit?: string;\n  readonly onChange: (value: number) => void;\n  /** Defaults to a rounded, locale-formatted number. Overridable for a food-serving..."
+      ],
+      "imports": [],
+      "loc": 3,
+      "importedBy": [
+        "app/foods/[id].tsx",
+        "app/foods/new.tsx",
+        "src/components/meals/MealForm.tsx"
+      ]
+    },
+    "src/components/food-list/FoodList.tsx": {
+      "exports": [
+        "function FoodList({ foods, onSelect, onAdd, locale, theme, testID = 'food-list' }: FoodListProps): import(\"react\").JSX.Element",
+        "type FoodListProps = {\n  readonly foods: readonly FoodRow[];\n  readonly onSelect: (food: FoodRow) => void;\n  readonly onAdd: () => void;\n  /** Formatting locale for the kcal/protein figures. Defaults to the device's. */\n  readonly locale?: string;\n  readonly theme: Theme;\n  readonly testID?: string;\n}"
+      ],
+      "imports": [
+        "react-native",
+        "src/db/index.ts",
+        "src/theme/tokens.ts"
+      ],
+      "loc": 146
+    },
+    "src/components/food-list/index.ts": {
+      "exports": [
+        "function FoodList({ foods, onSelect, onAdd, locale, theme, testID = 'food-list' }: FoodListProps): import(\"react\").JSX.Element",
+        "type FoodListProps = {\n  readonly foods: readonly FoodRow[];\n  readonly onSelect: (food: FoodRow) => void;\n  readonly onAdd: () => void;\n  /** Formatting locale for the kcal/protein figures. Defaults to the device's. */\n  readonly locale?: string;\n  readonly theme: Theme;\n  readonly testID?: string;\n}"
+      ],
+      "imports": [],
+      "loc": 2,
+      "importedBy": [
+        "app/foods/index.tsx"
+      ]
+    },
     "src/components/format/length.ts": {
       "exports": [
         "function formatLengthCm(cm: number): string"
@@ -298,6 +450,66 @@
       "loc": 10,
       "importedBy": [
         "src/components/today/WeightChip.tsx"
+      ]
+    },
+    "src/components/meals/MealForm.tsx": {
+      "exports": [
+        "function MealForm({ foods, onSave, onCancel, theme, testID = 'meal-form' }: MealFormProps): import(\"react\").JSX.Element",
+        "type MealFormProps = {\n  /** Every live food the meal can be built from (`listFoods`). */\n  readonly foods: readonly FoodRow[];\n  readonly onSave: (values: MealFormValues) => void;\n  readonly onCancel: () => void;\n  readonly theme: Theme;\n  readonly testID?: string;\n}",
+        "type MealFormValues = { readonly name: string; readonly items: readonly MealItemInput[] }"
+      ],
+      "imports": [
+        "react",
+        "react-native",
+        "src/components/food-form/index.ts",
+        "src/db/index.ts",
+        "src/theme/tokens.ts"
+      ],
+      "loc": 203
+    },
+    "src/components/meals/MealList.tsx": {
+      "exports": [
+        "function MealList({ db, meals, onLogged, onCreate, locale, theme, testID = 'meal-list' }: MealListProps): import(\"react\").JSX.Element",
+        "type MealListProps = {\n  readonly db: VitalsDb;\n  readonly meals: readonly MealSummary[];\n  /** Called after a meal logs successfully, with the delta a caller's running totals need. */\n  readonly onLogged?: (delta: LogDelta) => void;\n  readonly onCreate: () => void;\n  readonly locale?: string;\n  readonly theme: Theme;\n  readonly testID?: string;\n}"
+      ],
+      "imports": [
+        "react-native",
+        "src/components/meals/meal-candidate.ts",
+        "src/db/index.ts",
+        "src/hooks/deviceWhen.ts",
+        "src/hooks/useHapticFeedback.ts",
+        "src/store/logTracker.ts",
+        "src/store/undoToast.ts",
+        "src/theme/tokens.ts"
+      ],
+      "loc": 181
+    },
+    "src/components/meals/index.ts": {
+      "exports": [
+        "function MealForm({ foods, onSave, onCancel, theme, testID = 'meal-form' }: MealFormProps): import(\"react\").JSX.Element",
+        "function MealList({ db, meals, onLogged, onCreate, locale, theme, testID = 'meal-list' }: MealListProps): import(\"react\").JSX.Element",
+        "function candidateForMeal(meal: MealSummary): MealCandidate",
+        "type MealFormProps = {\n  /** Every live food the meal can be built from (`listFoods`). */\n  readonly foods: readonly FoodRow[];\n  readonly onSave: (values: MealFormValues) => void;\n  readonly onCancel: () => void;\n  readonly theme: Theme;\n  readonly testID?: string;\n}",
+        "type MealFormValues = { readonly name: string; readonly items: readonly MealItemInput[] }",
+        "type MealListProps = {\n  readonly db: VitalsDb;\n  readonly meals: readonly MealSummary[];\n  /** Called after a meal logs successfully, with the delta a caller's running totals need. */\n  readonly onLogged?: (delta: LogDelta) => void;\n  readonly onCreate: () => void;\n  readonly locale?: string;\n  readonly theme: Theme;\n  readonly testID?: string;\n}"
+      ],
+      "imports": [],
+      "loc": 4,
+      "importedBy": [
+        "app/meals/index.tsx",
+        "app/meals/new.tsx"
+      ]
+    },
+    "src/components/meals/meal-candidate.ts": {
+      "exports": [
+        "function candidateForMeal(meal: MealSummary): MealCandidate"
+      ],
+      "imports": [
+        "src/db/index.ts"
+      ],
+      "loc": 22,
+      "importedBy": [
+        "src/components/meals/MealList.tsx"
       ]
     },
     "src/components/quick-add/PortionSheet.tsx": {
@@ -390,7 +602,8 @@
       "imports": [],
       "loc": 5,
       "importedBy": [
-        "app/(tabs)/index.tsx"
+        "app/(tabs)/index.tsx",
+        "app/meals/index.tsx"
       ]
     },
     "src/components/quick-add/test-support/reanimated-mock.tsx": {
@@ -679,11 +892,21 @@
       "loc": 84,
       "importedBy": [
         "app/(tabs)/index.tsx",
+        "app/foods/[id].tsx",
+        "app/foods/index.tsx",
+        "app/foods/new.tsx",
+        "app/meals/index.tsx",
+        "app/meals/new.tsx",
         "src/components/day-log/DayLogList.tsx",
         "src/components/day-log/DayLogRow.tsx",
         "src/components/day-log/entry-candidate.ts",
         "src/components/db/DbProvider.tsx",
         "src/components/db/db-context.ts",
+        "src/components/food-form/FoodForm.tsx",
+        "src/components/food-list/FoodList.tsx",
+        "src/components/meals/MealForm.tsx",
+        "src/components/meals/MealList.tsx",
+        "src/components/meals/meal-candidate.ts",
         "src/components/quick-add/PortionSheet.tsx",
         "src/components/quick-add/QuickAddGrid.tsx",
         "src/components/quick-add/QuickAddTile.tsx",
@@ -972,7 +1195,11 @@
       "loc": 12,
       "importedBy": [
         "app/(tabs)/index.tsx",
+        "app/foods/[id].tsx",
+        "app/foods/new.tsx",
+        "app/meals/new.tsx",
         "src/components/day-log/DayLogList.tsx",
+        "src/components/meals/MealList.tsx",
         "src/components/quick-add/QuickAddGrid.tsx",
         "src/components/quick-add/UndoToast.tsx",
         "src/components/today/WeightChip.tsx"
@@ -990,6 +1217,11 @@
       "loc": 15,
       "importedBy": [
         "app/(tabs)/index.tsx",
+        "app/foods/[id].tsx",
+        "app/foods/index.tsx",
+        "app/foods/new.tsx",
+        "app/meals/index.tsx",
+        "app/meals/new.tsx",
         "src/components/day-log/DayLogList.tsx",
         "src/components/quick-add/QuickAddGrid.tsx",
         "src/components/quick-add/UndoToast.tsx",
@@ -1007,6 +1239,7 @@
       ],
       "loc": 49,
       "importedBy": [
+        "src/components/meals/MealList.tsx",
         "src/components/quick-add/PortionSheet.tsx",
         "src/components/quick-add/QuickAddTile.tsx",
         "src/components/quick-add/UndoToast.tsx"
@@ -1025,7 +1258,13 @@
       "importedBy": [
         "app/(tabs)/_layout.tsx",
         "app/(tabs)/index.tsx",
+        "app/(tabs)/settings.tsx",
         "app/_layout.tsx",
+        "app/foods/[id].tsx",
+        "app/foods/index.tsx",
+        "app/foods/new.tsx",
+        "app/meals/index.tsx",
+        "app/meals/new.tsx",
         "src/components/day-log/DayLogList.tsx",
         "src/components/quick-add/QuickAddGrid.tsx",
         "src/components/quick-add/UndoToast.tsx",
@@ -1047,6 +1286,7 @@
       "loc": 59,
       "importedBy": [
         "src/components/day-log/DayLogList.tsx",
+        "src/components/meals/MealList.tsx",
         "src/components/quick-add/QuickAddGrid.tsx",
         "src/components/quick-add/UndoToast.tsx"
       ]
@@ -1079,6 +1319,7 @@
       "importedBy": [
         "app/(tabs)/index.tsx",
         "src/components/day-log/DayLogList.tsx",
+        "src/components/meals/MealList.tsx",
         "src/components/quick-add/QuickAddGrid.tsx",
         "src/components/quick-add/UndoToast.tsx"
       ]
@@ -1124,10 +1365,19 @@
       "importedBy": [
         "app/(tabs)/_layout.tsx",
         "app/(tabs)/index.tsx",
+        "app/(tabs)/settings.tsx",
         "app/_layout.tsx",
+        "app/foods/[id].tsx",
+        "app/foods/new.tsx",
+        "app/meals/new.tsx",
         "src/components/charts/ProgressArc.tsx",
         "src/components/day-log/DayLogList.tsx",
         "src/components/day-log/DayLogRow.tsx",
+        "src/components/food-form/FoodForm.tsx",
+        "src/components/food-form/Stepper.tsx",
+        "src/components/food-list/FoodList.tsx",
+        "src/components/meals/MealForm.tsx",
+        "src/components/meals/MealList.tsx",
         "src/components/quick-add/PortionSheet.tsx",
         "src/components/quick-add/QuickAddGrid.tsx",
         "src/components/quick-add/QuickAddTile.tsx",
