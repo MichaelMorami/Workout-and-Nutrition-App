@@ -195,7 +195,10 @@ export function SearchSheet({ db, onSelect, onCreate, locale, theme, testID = 's
     ? [...results.map((candidate) => ({ key: `${candidate.kind}-${candidate.id}`, kind: 'candidate' as const, candidate })), { key: 'create', kind: 'create' as const }]
     : recent.map((candidate) => ({ key: `${candidate.kind}-${candidate.id}`, kind: 'candidate' as const, candidate }));
 
-  const showNoLibraryEmptyState = !typing && recent.length === 0;
+  // Keyed off `libraryEmpty` (`quickAddCandidates`, the whole library), not `recent` — `recentFoods`
+  // only covers the last `interaction.recentDays` days, so a library with real items that simply
+  // have not been logged recently must never see "No foods yet".
+  const showNoLibraryEmptyState = !typing && libraryEmpty;
 
   const renderRow = ({ item }: { item: Row }) =>
     item.kind === 'create' ? (
@@ -383,7 +386,9 @@ const styles = StyleSheet.create({
   },
   mealTag: {
     paddingHorizontal: space[2],
-    paddingVertical: 1,
+    // `space[1]` (4) — the tightest step on the scale. No step is as small as the previous
+    // hardcoded 1px; this is the closest token to the small pill the tag calls for.
+    paddingVertical: space[1],
   },
   rowFigures: {
     alignItems: 'flex-end',

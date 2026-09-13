@@ -641,7 +641,7 @@
         "src/hooks/deviceWhen.ts",
         "src/theme/tokens.ts"
       ],
-      "loc": 406
+      "loc": 411
     },
     "src/components/search/index.ts": {
       "exports": [

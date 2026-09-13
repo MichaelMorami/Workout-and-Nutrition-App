@@ -644,7 +644,7 @@ jq -r '.modules["src/db/queries/nutrition.ts"].exports[]' docs/graph/symbols.jso
 
 ## `src/components/search/`
 
-### `src/components/search/SearchSheet.tsx`  <sub>406 lines</sub>
+### `src/components/search/SearchSheet.tsx`  <sub>411 lines</sub>
 
 - `function SearchSheet({ db, onSelect, onCreate, locale, theme, testID = 'search-sheet' }: SearchSheetProps): import("react").JSX.Element`
 - `type SearchSheetProps = {
