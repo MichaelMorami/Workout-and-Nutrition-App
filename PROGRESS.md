@@ -46,3 +46,4 @@ screen is coded.
 - 2026-09-12  feat: searchFoods, recentFoods, createFoodAndLog (green) — issue #37  (PR #57 closes #37)
 - 2026-09-12  feat: date header, arcs and weight chip for Today (issue #41)  (PR #58 closes #41)
 - 2026-09-12  test: drop dead fixture fallback and unused unit types, cover localMinute in seed test  (PR #59 closes #45)
+- 2026-09-13  feat: logTracker and undoToast store — the double-tap window and toast state (issue #21)  (PR #60 closes #21)
