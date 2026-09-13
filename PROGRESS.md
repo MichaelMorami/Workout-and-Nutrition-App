@@ -6,20 +6,19 @@ For the sprint-by-sprint plan see [`README.md`](README.md); for open work see th
 
 ## Current sprint
 
-**Sprint 0 — Foundation and look.** Repo scaffolding, CI, the project graph, the test harness, and
-the design canvas. Ends at **Checkpoint 1**, where the client signs off the visual design before any
-screen is coded.
+**Sprint 1 — Nutrition core: the Today screen and one-tap food logging.** 18/23 issues closed. Ends at
+**Checkpoint 2** (Log real food for 2–3 days on their own phone).
 
 ## Checkpoints
 
 | # | When | What the client does | State |
 | --- | --- | --- | --- |
-| 1 | end of Sprint 0 | Review the design canvas of all four screens | pending |
-| 2 | end of Sprint 1 | Log real food for 2–3 days on their own phone | pending |
-| 3 | end of Sprint 2 | Judge the charts against a year of data | pending |
-| 4 | end of Sprint 3 | Log real gym sessions | pending |
-| 5 | end of Sprint 4 | Verify sync and data safety across two phones | pending |
-| 6 | end of Sprint 5 | Accept v1.0 as installed apps | pending |
+| 1 | end of Sprint 0 | Review the design canvas of all four screens | signed off |
+| 2 | end of Sprint 1 | Log real food for 2–3 days on their own phone | in progress |
+| 3 | end of Sprint 2 | Judge the charts against a year of data | planned |
+| 4 | end of Sprint 3 | Log real gym sessions | planned |
+| 5 | end of Sprint 4 | Verify sync and data safety across two phones | planned |
+| 6 | end of Sprint 5 | Accept v1.0 as installed apps | planned |
 
 ## Merged
 
@@ -47,3 +46,7 @@ screen is coded.
 - 2026-09-12  feat: date header, arcs and weight chip for Today (issue #41)  (PR #58 closes #41)
 - 2026-09-12  test: drop dead fixture fallback and unused unit types, cover localMinute in seed test  (PR #59 closes #45)
 - 2026-09-13  feat: logTracker and undoToast store — the double-tap window and toast state (issue #21)  (PR #60 closes #21)
+- 2026-09-13  test: tap-count budget for the Today screen — one-tap, double-tap and long-press (issue #23)  (PR #62)
+- 2026-09-13  feat: PortionSheet initialMode/initialPortions — pre-fill an edit at its logged amount (issue #42)  (PR #61 closes #42)
+- 2026-09-13  fix: mock dayLog/getMeal in tap-budget test (issue #63)  (PR #64 closes #63)
+- 2026-09-13  feat: add/edit food and saved meals (issue #43)  (PR #65 closes #43)
