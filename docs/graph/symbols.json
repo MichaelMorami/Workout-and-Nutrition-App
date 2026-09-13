@@ -1,6 +1,6 @@
 {
   "generated": "scripts/graph-gen.mjs — do not edit by hand",
-  "moduleCount": 74,
+  "moduleCount": 76,
   "modules": {
     "app/(tabs)/_layout.tsx": {
       "exports": [
@@ -33,6 +33,7 @@
         "react-native",
         "src/components/day-log/index.ts",
         "src/components/quick-add/index.ts",
+        "src/components/search/index.ts",
         "src/components/today/index.ts",
         "src/db/index.ts",
         "src/hooks/deviceWhen.ts",
@@ -41,7 +42,7 @@
         "src/store/undoToast.ts",
         "src/theme/tokens.ts"
       ],
-      "loc": 128
+      "loc": 138
     },
     "app/(tabs)/settings.tsx": {
       "exports": [
@@ -628,6 +629,31 @@
       ],
       "loc": 79
     },
+    "src/components/search/SearchSheet.tsx": {
+      "exports": [
+        "function SearchSheet({ db, onSelect, onCreate, locale, theme, testID = 'search-sheet' }: SearchSheetProps): import(\"react\").JSX.Element",
+        "type SearchSheetProps = {\n  readonly db: VitalsDb;\n  /** A result row was tapped. What that means (log it) is issue #70's job — this only reports it. */\n  readonly onSelect?: (candidate: Candidate) => void;\n  /** The trailing Create row was tapped, with the trimmed query that seeded it. Issue #71 wires this\n   * to the pre-filled add-food form. */\n  readonly onCreate?: (query: string) => void;\n..."
+      ],
+      "imports": [
+        "react",
+        "react-native",
+        "src/db/index.ts",
+        "src/hooks/deviceWhen.ts",
+        "src/theme/tokens.ts"
+      ],
+      "loc": 406
+    },
+    "src/components/search/index.ts": {
+      "exports": [
+        "function SearchSheet({ db, onSelect, onCreate, locale, theme, testID = 'search-sheet' }: SearchSheetProps): import(\"react\").JSX.Element",
+        "type SearchSheetProps = {\n  readonly db: VitalsDb;\n  /** A result row was tapped. What that means (log it) is issue #70's job — this only reports it. */\n  readonly onSelect?: (candidate: Candidate) => void;\n  /** The trailing Create row was tapped, with the trimmed query that seeded it. Issue #71 wires this\n   * to the pre-filled add-food form. */\n  readonly onCreate?: (query: string) => void;\n..."
+      ],
+      "imports": [],
+      "loc": 2,
+      "importedBy": [
+        "app/(tabs)/index.tsx"
+      ]
+    },
     "src/components/settings/TargetsGroup.tsx": {
       "exports": [
         "function TargetsGroup({ db, theme, locale, testID = 'targets' }: TargetsGroupProps): import(\"react\").JSX.Element",
@@ -932,6 +958,7 @@
         "src/components/quick-add/QuickAddGrid.tsx",
         "src/components/quick-add/QuickAddTile.tsx",
         "src/components/quick-add/UndoToast.tsx",
+        "src/components/search/SearchSheet.tsx",
         "src/components/settings/TargetsGroup.tsx",
         "src/components/today/WeightChip.tsx",
         "src/hooks/deviceWhen.ts",
@@ -1224,6 +1251,7 @@
         "src/components/meals/MealList.tsx",
         "src/components/quick-add/QuickAddGrid.tsx",
         "src/components/quick-add/UndoToast.tsx",
+        "src/components/search/SearchSheet.tsx",
         "src/components/settings/TargetsGroup.tsx",
         "src/components/today/WeightChip.tsx"
       ]
@@ -1406,6 +1434,7 @@
         "src/components/quick-add/QuickAddGrid.tsx",
         "src/components/quick-add/QuickAddTile.tsx",
         "src/components/quick-add/UndoToast.tsx",
+        "src/components/search/SearchSheet.tsx",
         "src/components/settings/TargetsGroup.tsx",
         "src/components/theme/ThemeProvider.tsx",
         "src/components/theme/font-assets.ts",
