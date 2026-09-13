@@ -143,3 +143,94 @@ nothing on screen looks tappable and does nothing.
 
 This is a data-model decision (routines need an order, or a weekday), so it is put to the client
 before the workout schema is designed.
+
+---
+
+## Sprint 1 review — the same day, weighed on two devices
+
+Raised by `code-reviewer` on PR #30 (suggestion 3), carried into issue #46 · no schema change ·
+binding on the sync engine when it is built, and on Sprint 2's weight writes before then
+
+### 8. `body_metrics` resolves on `local_date`, not on `id`
+
+**The situation.** `body_metrics_local_date_idx` is UNIQUE **including tombstones** — the #17
+contract fixed it that way, and it is what makes a deleted weigh-in resurrect rather than duplicate.
+So a device holds **at most one `body_metrics` row per `local_date`, alive or dead**. Sync's identity,
+meanwhile, is `id`. The two disagree the moment the user weighs in on the phone and on the tablet on
+the same day while both are offline: two uuids, one date.
+
+Applying that pull by `id` inserts a second row for the date and fails with
+`UNIQUE constraint failed: body_metrics.local_date`. `INSERT OR REPLACE` "fixes" it by physically
+deleting the existing row, which breaks invariant 3 (deletes are tombstones) and can drop a
+tombstone the other device still needs. Neither is acceptable, so the rule below is not an
+optimisation — it is the only correct way to apply a `body_metrics` pull.
+
+**The match key.** The sync engine carries a **match key per table**: `id` everywhere, `local_date`
+on `body_metrics`. Any table whose natural key differs from `id` must declare one, or its pull fails
+on a unique index instead of resolving. Today `body_metrics` is the only such table.
+
+**The winner, for one `local_date`.** Compare the two candidate rows on the pair
+`(updated_at, id)`:
+
+1. the higher `updated_at` wins;
+2. on an exact tie, the lexicographically **smaller** `id` wins (uuids compared as text).
+
+`deleted` does not take part: a tombstone is just another version of the row, so a newer remote
+tombstone correctly beats an older local weigh-in, and a newer local weigh-in correctly beats an
+older remote tombstone. The comparison is a **total order**, so every device reaches the same winner
+from any arrival order — including a first-login restore into an empty database, where both uuids
+arrive in whatever order the page returns them.
+
+**Applying it.** One statement, and it may rewrite the row's `id`:
+
+```
+update body_metrics
+   set id = :winner_id, measured_at = …, weight = …, body_fat_pct = …,
+       updated_at = :winner_updated_at, deleted = :winner_deleted
+ where local_date = :date
+```
+
+- Only when **no** row holds that `local_date` is the remote row inserted, under its own `id`.
+- A pulled row that **loses** is discarded and never inserted — under its own id it would violate the
+  unique index anyway.
+- Never `delete`, never `insert or replace`, never delete-then-insert. The row's physical existence
+  is continuous; only its identity column changes. Nothing references `body_metrics` by foreign key,
+  so rewriting `id` is safe.
+
+**The losing uuid is superseded, not deleted.** It goes on existing in Supabase, and that is fine:
+the rule is total and deterministic, so the superseded row can never win again on any device, in any
+order, ever — including a full restore. Correctness must not depend on cleaning it up. An engine that
+keeps an outbox may push a tombstone for a superseded id as housekeeping; it must never be
+load-bearing.
+
+**Ordering across clock skew.** `updated_at` is the writing device's wall clock at the moment of the
+user's edit, in ms epoch. It is the only ordering key we have, and it is trusted for ordering only
+under these three rules:
+
+- **Strictly greater wins.** An equal `updated_at` never overwrites; it falls to the `id` tiebreak.
+  That is what keeps the outcome independent of arrival order, so skew can never turn a merge into a
+  coin flip decided by which device happened to sync first.
+- **A pulled row keeps the `updated_at` it arrived with.** Never stamp it with local receive time — a
+  pulled row would then beat its own source on the next round and the two devices would ping-pong
+  forever.
+- **A device's own write to a row uses `max(now, existing.updated_at + 1)`.** The user's newer edit
+  then always beats the value they were editing, even when the clock has jumped backwards after an
+  NTP correction or a timezone change.
+
+**Sprint 2's weight writes follow the same rule, before any sync code exists.** They are what
+produces the rows the engine will have to merge, so they must never create a state the rule cannot
+resolve:
+
+- One row per date: `insert … on conflict(local_date) do update`, which keeps the **existing** row's
+  `id` and sets `deleted = 0`. Never `insert or replace`.
+- Never mint a second uuid for a date that already has a row, live **or** tombstoned.
+- Deleting a weigh-in sets `deleted = 1` and leaves the date occupied — the date's row *is* the
+  tombstone. Re-logging that day resurrects the same row and the same `id`.
+- The seeder and the test factories follow this too, or they will manufacture duplicates the app
+  itself cannot produce.
+
+**Named tests the sync engine owes**, over the pure `(localRows, remoteRows) => plan` merge: same
+date and two uuids with the remote newer · the same with the local newer · an exact `updated_at` tie
+resolved by `id` · a remote tombstone against a live local row · a live local row against an older
+remote tombstone · a restore into an empty database applying both uuids in **both** orders and
+converging · a backwards clock jump that must not let an older edit win.
