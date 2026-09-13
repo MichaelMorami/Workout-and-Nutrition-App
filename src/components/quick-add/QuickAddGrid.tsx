@@ -13,26 +13,45 @@
  * right tool here, not `FlashList` (`CLAUDE.md`'s virtualisation rule is about unbounded lists:
  * the day's log, search results).
  *
- * THE WRITE IS OPTIMISTIC AND NEVER BLOCKS THE TILE. `logFood`/`logMeal` are synchronous local
- * SQLite writes (`src/db`'s contract) — there is no network round trip to wait on, so the tile's
- * own "Logged" wash (`QuickAddTile`) already _is_ the confirmation. A write failure is swallowed
- * here, not surfaced as a dialog (the tap doctrine: undo, not confirmation, and there is nothing to
- * undo from a failed write) — the resting UI resumes on the next hold-timeout as if the tap simply
- * did not count.
+ * THE WRITE IS OPTIMISTIC AND NEVER BLOCKS THE TILE. `logFood`/`logMeal`/`addPortion` are
+ * synchronous local SQLite writes (`src/db`'s contract) — there is no network round trip to wait
+ * on, so the tile's own "Logged" wash (`QuickAddTile`) already _is_ the confirmation. A write
+ * failure is swallowed here, not surfaced as a dialog (the tap doctrine: undo, not confirmation,
+ * and there is nothing to undo from a failed write) — the resting UI resumes on the next
+ * hold-timeout as if the tap simply did not count.
+ *
+ * THREE WAYS TO LOG, ONE PLACE THAT DECIDES (issue #21). A tap goes through `handleTap`, which
+ * asks `logTracker` whether this candidate was logged inside `interaction.repeatWindowMs` — a
+ * fresh `logFood`/`logMeal` if not, `addPortion` on the same rows if so (`onLogged` vs.
+ * `onPortionAdded`, so a caller summing running totals never double-counts a portion add against
+ * rows it already counted once). A long-press opens `<PortionSheet>` instead of logging, and
+ * dismisses any toast still up (`interaction.undoDismissedBy` includes `'sheetOpened'`) so a stale
+ * undo from the tap before it never survives into a different decision. The sheet's own "Log"
+ * always writes fresh — a chosen serving multiple, not an addition to whatever's already there —
+ * and lands back on the same `onLogged` path a plain tap uses. Every one of the three raises the
+ * undo toast (`useUndoToastStore`) with the token the write returned.
  */
 import { useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
-import { logFood, logMeal, quickAddCandidates, VitalsDbError, type Candidate, type LogReceipt } from '../../db';
+import { addPortion, logFood, logMeal, quickAddCandidates, VitalsDbError, type Candidate, type LogReceipt } from '../../db';
 import { deviceWhen } from '../../hooks/deviceWhen';
 import { useDb } from '../../hooks/useDb';
 import { useTheme } from '../../hooks/useTheme';
+import { forgetLog, logTrackerKey, recentLog, trackLog } from '../../store/logTracker';
+import { useUndoToastStore, type LogDelta } from '../../store/undoToast';
 import { layout, radius, space, type, type Theme, type TypeStyle } from '../../theme/tokens';
+import { PortionSheet } from './PortionSheet';
 import { QuickAddTile } from './QuickAddTile';
 
 export type QuickAddGridProps = {
-  /** Called after a tap's write lands, with the receipt (`kcal`/`protein` logged, for #41's arcs
-   * and any other listener). Never called for a tap that failed to write. */
+  /** Called after a *fresh* log lands — a first tap, or the portion sheet's own Log — with the
+   * receipt (`kcal`/`protein` logged, for #41's arcs and any other listener). Never called for a
+   * write that failed, and never called for a double-tap's `addPortion` (see `onPortionAdded`). */
   readonly onLogged?: (receipt: LogReceipt) => void;
+  /** Called after a double-tap adds a portion to an existing row. Carries only what changed —
+   * `receipt.entries` after an `addPortion` holds the rows' new, larger totals, not an addition, so
+   * a caller summing running totals from `onLogged` alone would double-count them. */
+  readonly onPortionAdded?: (delta: LogDelta) => void;
   /** Formatting locale, forwarded to every tile and the "Ranked for" hour. Defaults to the device's. */
   readonly locale?: string;
   readonly testID?: string;
@@ -62,6 +81,24 @@ function pairs<T>(items: readonly T[]): T[][] {
   return rows;
 }
 
+/** Sums `kcal`/`protein` off any row shape that carries them — `FoodLogRow` (`receipt.entries`) and
+ * `LogAmount` (`addPortion`'s `undo.previous`) both qualify, so one function serves both. */
+function totalsOf(rows: readonly { readonly kcal: number; readonly protein: number }[]): { kcal: number; protein: number } {
+  return rows.reduce((sum, row) => ({ kcal: sum.kcal + row.kcal, protein: sum.protein + row.protein }), { kcal: 0, protein: 0 });
+}
+
+/** "Skyr Pot" once, "Skyr Pot ×2" from the second portion on — the undo toast's title. */
+function toastTitle(name: string, portions: number): string {
+  return portions > 1 ? `${name} ×${portions}` : name;
+}
+
+/** "240 kcal · 40 g protein" — the toast's meta line: the entries' current total, not just the delta. */
+function toastMeta(totals: { kcal: number; protein: number }, locale?: string): string {
+  const kcal = Math.round(totals.kcal).toLocaleString(locale);
+  const protein = Math.round(totals.protein).toLocaleString(locale);
+  return `${kcal} kcal · ${protein} g protein`;
+}
+
 function EmptyState({ theme, testID }: { theme: Theme; testID: string }) {
   const { sectionLabel, tile } = theme.color;
   return (
@@ -79,7 +116,7 @@ function EmptyState({ theme, testID }: { theme: Theme; testID: string }) {
   );
 }
 
-export function QuickAddGrid({ onLogged, locale, testID = 'quick-add-grid' }: QuickAddGridProps) {
+export function QuickAddGrid({ onLogged, onPortionAdded, locale, testID = 'quick-add-grid' }: QuickAddGridProps) {
   const db = useDb();
   const theme = useTheme();
   const { sectionLabel } = theme.color;
@@ -87,16 +124,71 @@ export function QuickAddGrid({ onLogged, locale, testID = 'quick-add-grid' }: Qu
   // Captured once per mount — see the module note on why re-ranking is not tied to render.
   const [when] = useState(deviceWhen);
   const [candidates] = useState<Candidate[]>(() => quickAddCandidates(db, { ...when, limit: 6 }));
+  const [sheetCandidate, setSheetCandidate] = useState<Candidate | null>(null);
 
-  const handleLog = (candidate: Candidate): void => {
+  const logFreshCandidate = (candidate: Candidate, at: { at: number; timeZone: string }, portions?: number): LogReceipt =>
+    candidate.kind === 'food'
+      ? logFood(db, { ...at, foodId: candidate.id, amount: portions === undefined ? undefined : { servings: portions } })
+      : logMeal(db, { ...at, mealId: candidate.id, portions });
+
+  const publishToast = (candidate: Candidate, receipt: LogReceipt, totals: { kcal: number; protein: number }, delta: LogDelta): void => {
+    useUndoToastStore.getState().show({
+      token: receipt.undo,
+      candidateKey: logTrackerKey(candidate),
+      title: toastTitle(candidate.name, receipt.portions),
+      meta: toastMeta(totals, locale),
+      delta,
+    });
+  };
+
+  const handleTap = (candidate: Candidate): number => {
+    const key = logTrackerKey(candidate);
+    const now = deviceWhen();
     try {
-      const receipt =
-        candidate.kind === 'food'
-          ? logFood(db, { ...deviceWhen(), foodId: candidate.id })
-          : logMeal(db, { ...deviceWhen(), mealId: candidate.id });
+      const previous = recentLog(key, now.at);
+      if (previous) {
+        const next = addPortion(db, { at: now.at, receipt: previous });
+        trackLog(key, next, now.at);
+        const totals = totalsOf(next.entries);
+        const prevTotals = next.undo.kind === 'revert' ? totalsOf(next.undo.previous) : totalsOf(previous.entries);
+        const delta: LogDelta = { kcal: totals.kcal - prevTotals.kcal, protein: totals.protein - prevTotals.protein, entryCountDelta: 0 };
+        publishToast(candidate, next, totals, delta);
+        onPortionAdded?.(delta);
+        return next.portions;
+      }
+
+      const receipt = logFreshCandidate(candidate, now);
+      trackLog(key, receipt, now.at);
+      const totals = totalsOf(receipt.entries);
+      const delta: LogDelta = { kcal: totals.kcal, protein: totals.protein, entryCountDelta: receipt.entries.length };
+      publishToast(candidate, receipt, totals, delta);
       onLogged?.(receipt);
+      return receipt.portions;
     } catch (err) {
       // See the module note: no dialog, no crash — a failed write is not a user-visible event.
+      if (!(err instanceof VitalsDbError)) throw err;
+      forgetLog(key);
+      return 1;
+    }
+  };
+
+  const handleLongPress = (candidate: Candidate): void => {
+    // `interaction.undoDismissedBy` includes `'sheetOpened'` — a toast from the tap before this
+    // long-press must not survive into a decision the sheet is about to make instead.
+    useUndoToastStore.getState().dismiss();
+    setSheetCandidate(candidate);
+  };
+
+  const handleSheetLog = (candidate: Candidate, portions: number): void => {
+    const now = deviceWhen();
+    try {
+      const receipt = logFreshCandidate(candidate, now, portions);
+      trackLog(logTrackerKey(candidate), receipt, now.at);
+      const totals = totalsOf(receipt.entries);
+      const delta: LogDelta = { kcal: totals.kcal, protein: totals.protein, entryCountDelta: receipt.entries.length };
+      publishToast(candidate, receipt, totals, delta);
+      onLogged?.(receipt);
+    } catch (err) {
       if (!(err instanceof VitalsDbError)) throw err;
     }
   };
@@ -124,7 +216,8 @@ export function QuickAddGrid({ onLogged, locale, testID = 'quick-add-grid' }: Qu
                 <View key={`${candidate.kind}-${candidate.id}`} style={styles.cell}>
                   <QuickAddTile
                     candidate={candidate}
-                    onLog={handleLog}
+                    onLog={handleTap}
+                    onLongPress={handleLongPress}
                     theme={theme}
                     locale={locale}
                     testID={`${testID}-tile-${candidate.id}`}
@@ -135,6 +228,15 @@ export function QuickAddGrid({ onLogged, locale, testID = 'quick-add-grid' }: Qu
           ))}
         </View>
       )}
+
+      <PortionSheet
+        candidate={sheetCandidate}
+        theme={theme}
+        locale={locale}
+        onLog={handleSheetLog}
+        onClose={() => setSheetCandidate(null)}
+        testID={`${testID}-portion-sheet`}
+      />
     </View>
   );
 }

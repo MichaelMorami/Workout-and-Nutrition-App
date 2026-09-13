@@ -7,8 +7,10 @@
  */
 import { fireEvent, render, screen } from '@testing-library/react-native';
 import type { FoodCandidate, LogReceipt, MealCandidate } from '../../db';
-import { logFood, logMeal, quickAddCandidates, VitalsDbError } from '../../db';
+import { addPortion, logFood, logMeal, quickAddCandidates, VitalsDbError } from '../../db';
 import { DbProvider } from '../db/DbProvider';
+import { __resetLogTracker } from '../../store/logTracker';
+import { useUndoToastStore } from '../../store/undoToast';
 import { ThemeContext } from '../theme/theme-context';
 import { themes } from '../../theme/tokens';
 import { QuickAddGrid } from './QuickAddGrid';
@@ -21,12 +23,14 @@ jest.mock('../../db', () => {
     quickAddCandidates: jest.fn(),
     logFood: jest.fn(),
     logMeal: jest.fn(),
+    addPortion: jest.fn(),
   };
 });
 
 const mockCandidates = jest.mocked(quickAddCandidates);
 const mockLogFood = jest.mocked(logFood);
 const mockLogMeal = jest.mocked(logMeal);
+const mockAddPortion = jest.mocked(addPortion);
 
 const yoghurt: FoodCandidate = {
   kind: 'food',
@@ -95,6 +99,8 @@ const renderGrid = (props: Partial<React.ComponentProps<typeof QuickAddGrid>> = 
 
 beforeEach(() => {
   mockCandidates.mockReturnValue(six);
+  __resetLogTracker();
+  useUndoToastStore.getState().dismiss();
 });
 
 describe('QuickAddGrid', () => {
@@ -154,5 +160,67 @@ describe('QuickAddGrid', () => {
     expect(screen.getByTestId('grid-empty')).toBeTruthy();
     expect(screen.queryByTestId(`grid-tile-${yoghurt.id}`)).toBeNull();
     expect(screen.queryByTestId('grid-ranked-for')).toBeNull();
+  });
+
+  it('a second tap within the repeat window calls addPortion, not a second logFood, and reports the delta', async () => {
+    const onLogged = jest.fn();
+    const onPortionAdded = jest.fn();
+    const first = receiptFor(yoghurt);
+    mockLogFood.mockReturnValue(first);
+    const second = { ...first, entries: [{ ...first.entries[0]!, kcal: 240, protein: 40 }], portions: 2, undo: { kind: 'revert' as const, previous: [first.entries[0]!] } };
+    mockAddPortion.mockReturnValue(second);
+    await renderGrid({ onLogged, onPortionAdded });
+
+    await fireEvent.press(screen.getByTestId('grid-tile-food-1'));
+    await fireEvent.press(screen.getByTestId('grid-tile-food-1'));
+
+    expect(mockLogFood).toHaveBeenCalledTimes(1);
+    expect(mockAddPortion).toHaveBeenCalledTimes(1);
+    expect(mockAddPortion.mock.calls[0]?.[1]).toMatchObject({ receipt: first });
+    expect(onLogged).toHaveBeenCalledTimes(1);
+    expect(onPortionAdded).toHaveBeenCalledWith({ kcal: 120, protein: 20, entryCountDelta: 0 });
+  });
+
+  it('shows the undo toast after a fresh log, keyed to the candidate and carrying the write token', async () => {
+    const receipt = receiptFor(yoghurt);
+    mockLogFood.mockReturnValue(receipt);
+    await renderGrid();
+
+    await fireEvent.press(screen.getByTestId('grid-tile-food-1'));
+
+    const toast = useUndoToastStore.getState().toast;
+    expect(toast?.token).toEqual(receipt.undo);
+    expect(toast?.candidateKey).toBe('food-food-1');
+    expect(toast?.title).toBe('Greek yoghurt');
+    expect(toast?.meta).toBe('120 kcal · 20 g protein');
+  });
+
+  it('long-pressing a tile opens the portion sheet and dismisses any toast already showing', async () => {
+    const receipt = receiptFor(yoghurt);
+    mockLogFood.mockReturnValue(receipt);
+    await renderGrid();
+    await fireEvent.press(screen.getByTestId('grid-tile-food-1'));
+    expect(useUndoToastStore.getState().toast).not.toBeNull();
+
+    await fireEvent(screen.getByTestId('grid-tile-food-1'), 'longPress');
+
+    expect(useUndoToastStore.getState().toast).toBeNull();
+    expect(screen.getByTestId('grid-portion-sheet-title')).toHaveTextContent('Greek yoghurt');
+  });
+
+  it("the portion sheet's preset logs fresh (not addPortion) with the chosen multiple and closes", async () => {
+    const onLogged = jest.fn();
+    const receipt = receiptFor(yoghurt);
+    mockLogFood.mockReturnValue(receipt);
+    await renderGrid({ onLogged });
+
+    await fireEvent(screen.getByTestId('grid-tile-food-1'), 'longPress');
+    await fireEvent.press(screen.getByTestId('grid-portion-sheet-step-2'));
+
+    expect(mockLogFood).toHaveBeenCalledTimes(1);
+    expect(mockLogFood.mock.calls[0]?.[1]).toMatchObject({ foodId: 'food-1', amount: { servings: 2 } });
+    expect(mockAddPortion).not.toHaveBeenCalled();
+    expect(onLogged).toHaveBeenCalledWith(receipt);
+    expect(screen.queryByTestId('grid-portion-sheet-title')).toBeNull();
   });
 });

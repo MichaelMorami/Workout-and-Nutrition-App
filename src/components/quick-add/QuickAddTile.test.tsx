@@ -6,7 +6,7 @@
 import { act, fireEvent, render, screen } from '@testing-library/react-native';
 import * as Haptics from 'expo-haptics';
 import type { ComponentProps } from 'react';
-import type { FoodCandidate, MealCandidate } from '../../db';
+import type { Candidate, FoodCandidate, MealCandidate } from '../../db';
 import { interaction, themes } from '../../theme/tokens';
 import { QuickAddTile } from './QuickAddTile';
 
@@ -43,7 +43,7 @@ const meal: MealCandidate = {
 };
 
 const renderTile = (props: Partial<ComponentProps<typeof QuickAddTile>> = {}) =>
-  render(<QuickAddTile candidate={food} onLog={jest.fn()} theme={themes.dark} testID="tile" {...props} />);
+  render(<QuickAddTile candidate={food} onLog={jest.fn<(candidate: Candidate) => number>()} theme={themes.dark} testID="tile" {...props} />);
 
 describe('QuickAddTile', () => {
   it('renders the name, kcal and protein figures, and the serving label', async () => {
@@ -78,7 +78,7 @@ describe('QuickAddTile', () => {
   });
 
   it('tapping logs the candidate exactly once, with a haptic', async () => {
-    const onLog = jest.fn();
+    const onLog = jest.fn<(candidate: Candidate) => number>();
     await renderTile({ onLog });
 
     await fireEvent.press(screen.getByTestId('tile'));
@@ -96,7 +96,7 @@ describe('QuickAddTile', () => {
   });
 
   it('reverts to the resting figures after the logged hold, and can be tapped again', async () => {
-    const onLog = jest.fn();
+    const onLog = jest.fn<(candidate: Candidate) => number>();
     await renderTile({ onLog });
 
     await fireEvent.press(screen.getByTestId('tile'));
@@ -113,14 +113,61 @@ describe('QuickAddTile', () => {
     expect(onLog).toHaveBeenCalledTimes(2);
   });
 
-  it('ignores a second tap while the Logged state is still holding', async () => {
-    const onLog = jest.fn();
+  it('a second tap while the Logged state is still holding also logs — double-tap adds a portion (issue #21), the caller decides fresh vs additional', async () => {
+    const onLog = jest.fn<(candidate: Candidate) => number>();
     await renderTile({ onLog });
 
     await fireEvent.press(screen.getByTestId('tile'));
     await fireEvent.press(screen.getByTestId('tile'));
     await fireEvent.press(screen.getByTestId('tile'));
 
-    expect(onLog).toHaveBeenCalledTimes(1);
+    expect(onLog).toHaveBeenCalledTimes(3);
+    expect(mockImpact).toHaveBeenCalledTimes(3);
+  });
+
+  it('shows the portions onLog returns as a ×N badge, and drops it once portions is 1 again', async () => {
+    const onLog = jest.fn<(candidate: Candidate) => number>().mockReturnValue(2);
+    await renderTile({ onLog });
+
+    await fireEvent.press(screen.getByTestId('tile'));
+    expect(screen.getByTestId('tile-repeat-badge')).toHaveTextContent('×2');
+
+    await act(async () => {
+      jest.advanceTimersByTime(interaction.tileLoggedHoldMs);
+    });
+
+    onLog.mockReturnValue(1);
+    await fireEvent.press(screen.getByTestId('tile'));
+    expect(screen.queryByTestId('tile-repeat-badge')).toBeNull();
+  });
+
+  it('long-pressing opens the portion sheet instead of logging', async () => {
+    const onLog = jest.fn<(candidate: Candidate) => number>();
+    const onLongPress = jest.fn();
+    await renderTile({ onLog, onLongPress });
+
+    fireEvent(screen.getByTestId('tile'), 'longPress');
+
+    expect(onLongPress).toHaveBeenCalledWith(food);
+    expect(onLog).not.toHaveBeenCalled();
+    expect(screen.queryByTestId('tile-logged')).toBeNull();
+  });
+
+  it('waits interaction.longPressMs of a real hold before opening the sheet, not a moment less', async () => {
+    const onLongPress = jest.fn();
+    await renderTile({ onLongPress });
+    const tile = screen.getByTestId('tile');
+    const touchEvent = { persist: () => {}, currentTarget: 1, nativeEvent: { touches: [], changedTouches: [] } };
+
+    await fireEvent(tile, 'responderGrant', touchEvent);
+    await act(async () => {
+      jest.advanceTimersByTime(interaction.longPressMs - 1);
+    });
+    expect(onLongPress).not.toHaveBeenCalled();
+
+    await act(async () => {
+      jest.advanceTimersByTime(1);
+    });
+    expect(onLongPress).toHaveBeenCalledWith(food);
   });
 });

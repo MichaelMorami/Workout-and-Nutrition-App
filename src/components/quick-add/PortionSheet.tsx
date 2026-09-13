@@ -1,0 +1,484 @@
+/**
+ * `<PortionSheet>` — the long-press sheet (issue #21, `docs/decisions.md` §2): normalised presets by
+ * default, an "any amount" Exact control one tap away. Neither mode has a save button of its own
+ * separate from "Log" — Presets logs the instant a step is tapped, Exact only because a drag must
+ * not commit on release by accident (the design canvas's own reasoning for why Exact alone gets a
+ * button).
+ *
+ * SCOPE CUT — ONE UNIT, NOT THREE. The canvas mocks a unit chooser ("1 pot · 150g" / "100g" /
+ * "1 tbsp · 15g") for foods with more than one normalised unit. `FoodCandidate` carries exactly one
+ * `servingLabel`/`servingGrams` pair — the data model has nowhere to store a second unit — so this
+ * sheet always presets multiples of THE food's one serving (½, 1, 1½, 2, 3), which is what
+ * `portionSheet.stepBg` and friends are actually sized for. A unit chooser is a data-model change,
+ * not a UI one; raised as a follow-up, not guessed at here.
+ *
+ * ALWAYS A SERVINGS MULTIPLE, EVEN IN EXACT MODE. `onLog` reports a plain `portions` number in every
+ * case — Presets multiplies the food's serving directly; Exact (for a food with `servingGrams`) is a
+ * grams slider converted back to servings on Log, so `QuickAddGrid` has one `logFresh` path instead
+ * of two. A meal has no grams at all, so its Exact control is a servings stepper in 0.5 steps
+ * instead of a slider — still no typing, just a coarser instrument for a candidate the data model
+ * cannot weigh.
+ *
+ * NO NEW NATIVE DEPENDENCY. The slider track is `PanResponder` (React Native core) driving plain
+ * component state, not `@react-native-community/slider` — CLAUDE.md requires raising a native
+ * dependency in the issue before adding one, and this need not wait on that. The sheet's own
+ * presentation uses `Modal`'s built-in `animationType="slide"` for the same reason: `sheetIn`/
+ * `sheetOut` describe a spring worth revisiting once a native bottom-sheet dependency is on the
+ * table, but are not implementable from RN core alone without reaching for one now.
+ */
+import { useMemo, useState } from 'react';
+import {
+  Modal,
+  PanResponder,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+  type GestureResponderEvent,
+  type LayoutChangeEvent,
+  type TextStyle,
+} from 'react-native';
+import type { Candidate } from '../../db';
+import { useHapticFeedback } from '../../hooks/useHapticFeedback';
+import { haptics, interaction, radius, size, space, type, type Theme, type TypeStyle } from '../../theme/tokens';
+
+const PRESET_MULTIPLES = [0.5, 1, 1.5, 2, 3] as const;
+const PRESET_LABELS: Record<(typeof PRESET_MULTIPLES)[number], string> = {
+  0.5: '½',
+  1: '1',
+  1.5: '1½',
+  2: '2',
+  3: '3',
+};
+
+export type PortionSheetProps = {
+  /** `null` closes the sheet — there is deliberately no separate `visible` flag to fall out of sync with. */
+  readonly candidate: Candidate | null;
+  readonly theme: Theme;
+  /** Formatting locale, forwarded to every figure. Defaults to the device's. */
+  readonly locale?: string;
+  /** A step, or Exact's Log button — always a servings multiple of the candidate's own serving. */
+  readonly onLog: (candidate: Candidate, portions: number) => void;
+  readonly onClose: () => void;
+  readonly testID?: string;
+};
+
+function textStyle(token: TypeStyle, color: string): TextStyle {
+  return {
+    fontFamily: token.fontFamily,
+    fontSize: token.fontSize,
+    lineHeight: token.lineHeight,
+    letterSpacing: token.letterSpacing,
+    textTransform: token.textTransform,
+    color,
+  };
+}
+
+/** The food's serving unit ("1 pot", "100 g") or, for a meal, its item count — same wording `QuickAddTile` uses. */
+function servingUnitLabel(candidate: Candidate): string {
+  if (candidate.kind === 'food') return candidate.servingLabel;
+  return `${candidate.itemCount} item${candidate.itemCount === 1 ? '' : 's'}`;
+}
+
+/** Nearest 0.5-serving multiple to `portions`, for the Exact grams slider's detents. */
+function nearestHalfServing(portions: number): number {
+  return Math.round(portions * 2) / 2;
+}
+
+function Segmented({
+  theme,
+  mode,
+  onChange,
+  testID,
+}: {
+  theme: Theme;
+  mode: 'presets' | 'exact';
+  onChange: (mode: 'presets' | 'exact') => void;
+  testID: string;
+}) {
+  const { segmented } = theme.color;
+  return (
+    <View
+      testID={testID}
+      style={[styles.segmentTrack, { backgroundColor: segmented.trackBg, borderRadius: radius.sm, height: size.portionSheet.segmentHit }]}
+    >
+      {(['presets', 'exact'] as const).map((option) => {
+        const selected = option === mode;
+        return (
+          <Pressable
+            key={option}
+            testID={`${testID}-${option}`}
+            onPress={() => onChange(option)}
+            accessibilityRole="button"
+            accessibilityState={{ selected }}
+            accessibilityLabel={option === 'presets' ? 'Presets' : 'Exact'}
+            style={[
+              styles.segmentOption,
+              {
+                height: size.portionSheet.segmentPainted,
+                borderRadius: radius.sm,
+                backgroundColor: selected ? segmented.selectedBg : 'transparent',
+                borderWidth: selected ? StyleSheet.hairlineWidth : 0,
+                borderColor: segmented.selectedBorder,
+              },
+            ]}
+          >
+            <Text style={textStyle(selected ? type.controlSelected : type.control, selected ? segmented.selectedText : segmented.optionText)}>
+              {option === 'presets' ? 'Presets' : 'Exact'}
+            </Text>
+          </Pressable>
+        );
+      })}
+    </View>
+  );
+}
+
+function PresetSteps({
+  candidate,
+  theme,
+  locale,
+  onPick,
+  testID,
+}: {
+  candidate: Candidate;
+  theme: Theme;
+  locale?: string;
+  onPick: (portions: number) => void;
+  testID: string;
+}) {
+  const { portionSheet } = theme.color;
+  return (
+    <View style={styles.stepsRow}>
+      {PRESET_MULTIPLES.map((multiple) => {
+        const usual = multiple === 1;
+        const kcal = Math.round(candidate.kcal * multiple).toLocaleString(locale);
+        return (
+          <Pressable
+            key={multiple}
+            testID={`${testID}-step-${multiple}`}
+            onPress={() => onPick(multiple)}
+            accessibilityRole="button"
+            accessibilityLabel={`Log ${PRESET_LABELS[multiple]} times the usual serving, ${kcal} kilocalories`}
+            style={[
+              styles.step,
+              {
+                width: size.portionSheet.stepWidth,
+                minHeight: size.portionSheet.stepHit,
+                borderRadius: radius.md,
+                backgroundColor: usual ? portionSheet.stepSelectedBg : portionSheet.stepBg,
+                borderWidth: StyleSheet.hairlineWidth,
+                borderColor: portionSheet.stepBorder,
+              },
+            ]}
+          >
+            <Text style={textStyle(type.numericLg, usual ? portionSheet.stepSelectedText : portionSheet.stepText)}>
+              {PRESET_LABELS[multiple]}
+            </Text>
+            <Text style={textStyle(type.label, usual ? portionSheet.stepSelectedText : portionSheet.stepMetaText)}>{`${kcal} kcal`}</Text>
+          </Pressable>
+        );
+      })}
+    </View>
+  );
+}
+
+function NudgeButton({
+  theme,
+  label,
+  onPress,
+  testID,
+}: {
+  theme: Theme;
+  label: string;
+  onPress: () => void;
+  testID: string;
+}) {
+  const { slider } = theme.color;
+  return (
+    <Pressable
+      testID={testID}
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityLabel={label === '−' ? 'Decrease amount' : 'Increase amount'}
+      style={[
+        styles.nudge,
+        {
+          width: size.slider.nudgeWidth,
+          minHeight: size.slider.nudgeHit,
+          borderRadius: radius.md,
+          backgroundColor: slider.nudgeBg,
+        },
+      ]}
+    >
+      <Text style={textStyle(type.numericLg, slider.nudgeIcon)}>{label}</Text>
+    </Pressable>
+  );
+}
+
+/** The Exact slider track — `PanResponder`-driven, `value` and `max` in the same unit (grams for a
+ * food, servings for a meal). Detents fall at every half of `unitSize` (one serving), snapped within
+ * `interaction.sliderDetentSnapG` of a detent with `haptics.sliderDetent`. */
+function SliderTrack({
+  theme,
+  value,
+  max,
+  unitSize,
+  onChange,
+  onSnap,
+  testID,
+}: {
+  theme: Theme;
+  value: number;
+  max: number;
+  unitSize: number;
+  onChange: (next: number) => void;
+  onSnap: () => void;
+  testID: string;
+}) {
+  const { slider } = theme.color;
+  // Plain state, not a ref: the `PanResponder` handlers below are functions created during render
+  // and only invoked later by the responder system, but the lint rule that catches stray ref reads
+  // during render cannot tell the two apart — state sidesteps the question entirely.
+  const [trackWidth, setTrackWidth] = useState(0);
+  const detentStep = unitSize / 2;
+
+  const panResponder = useMemo(
+    () =>
+      PanResponder.create({
+        onStartShouldSetPanResponder: () => true,
+        onMoveShouldSetPanResponder: () => true,
+        onPanResponderMove: (event: GestureResponderEvent) => {
+          if (trackWidth <= 0) return;
+          const ratio = Math.min(1, Math.max(0, event.nativeEvent.locationX / trackWidth));
+          onChange(Math.round(ratio * max));
+        },
+        onPanResponderRelease: (event: GestureResponderEvent) => {
+          if (trackWidth <= 0) return;
+          const ratio = Math.min(1, Math.max(0, event.nativeEvent.locationX / trackWidth));
+          const raw = ratio * max;
+          const nearestDetent = Math.round(raw / detentStep) * detentStep;
+          if (Math.abs(raw - nearestDetent) <= interaction.sliderDetentSnapG) {
+            onSnap();
+            onChange(nearestDetent);
+          } else {
+            onChange(raw);
+          }
+        },
+      }),
+    [max, detentStep, trackWidth, onChange, onSnap],
+  );
+
+  const handleLayout = (event: LayoutChangeEvent): void => {
+    setTrackWidth(event.nativeEvent.layout.width);
+  };
+
+  const fillPct = max > 0 ? Math.min(100, Math.max(0, (value / max) * 100)) : 0;
+
+  return (
+    <View
+      testID={testID}
+      onLayout={handleLayout}
+      {...panResponder.panHandlers}
+      style={[styles.track, { height: size.slider.track, borderRadius: radius.pill, backgroundColor: slider.track }]}
+    >
+      <View style={[styles.trackFill, { width: `${fillPct}%`, borderRadius: radius.pill, backgroundColor: slider.fill }]} />
+    </View>
+  );
+}
+
+function ExactControl({
+  candidate,
+  theme,
+  locale,
+  onLog,
+  testID,
+}: {
+  candidate: Candidate;
+  theme: Theme;
+  locale?: string;
+  onLog: (portions: number) => void;
+  testID: string;
+}) {
+  const { portionSheet } = theme.color;
+  const fireHaptic = useHapticFeedback();
+  const isGrams = candidate.kind === 'food' && candidate.servingGrams != null;
+  const unitSize = isGrams ? (candidate as { servingGrams: number }).servingGrams : 1;
+  const max = unitSize * interaction.sliderMaxServings;
+  const nudgeStep = isGrams ? interaction.sliderNudgeG : 0.5;
+
+  const [amount, setAmount] = useState<number>(unitSize);
+
+  const clamp = (next: number): number => Math.min(max, Math.max(0, next));
+  const portions = amount / unitSize;
+  const kcalText = Math.round(candidate.kcal * portions).toLocaleString(locale);
+  const proteinText = Math.round(candidate.protein * portions).toLocaleString(locale);
+  const readout = isGrams ? `${Math.round(amount)} g` : `×${nearestHalfServing(portions)}`;
+  const logLabel = isGrams ? `Log ${Math.round(amount)} g` : `Log ×${nearestHalfServing(portions)}`;
+
+  return (
+    <View testID={testID}>
+      <Text testID={`${testID}-readout`} style={textStyle(type.portionReadout, portionSheet.readoutText)}>
+        {readout}
+      </Text>
+      <View style={styles.figuresRow}>
+        <Text style={textStyle(type.numericLg, portionSheet.kcalText)}>{`${kcalText} kcal`}</Text>
+        <Text style={textStyle(type.numericLg, portionSheet.proteinText)}>{`${proteinText} g protein`}</Text>
+      </View>
+
+      <View style={styles.sliderRow}>
+        <NudgeButton theme={theme} label="−" onPress={() => setAmount((prev) => clamp(prev - nudgeStep))} testID={`${testID}-nudge-down`} />
+        <View style={styles.sliderTrackWrap}>
+          <SliderTrack
+            theme={theme}
+            value={amount}
+            max={max}
+            unitSize={unitSize}
+            onChange={(next) => setAmount(clamp(next))}
+            onSnap={() => fireHaptic(haptics.sliderDetent)}
+            testID={`${testID}-track`}
+          />
+        </View>
+        <NudgeButton theme={theme} label="+" onPress={() => setAmount((prev) => clamp(prev + nudgeStep))} testID={`${testID}-nudge-up`} />
+      </View>
+
+      <Pressable
+        testID={`${testID}-log`}
+        onPress={() => onLog(isGrams ? portions : nearestHalfServing(portions))}
+        accessibilityRole="button"
+        accessibilityLabel={logLabel}
+        style={[
+          styles.logButton,
+          { minHeight: size.portionSheet.logButtonHit, borderRadius: radius.md, backgroundColor: portionSheet.logButtonBg },
+        ]}
+      >
+        <Text style={textStyle(type.button, portionSheet.logButtonText)}>{logLabel}</Text>
+      </Pressable>
+    </View>
+  );
+}
+
+export function PortionSheet({ candidate, theme, locale, onLog, onClose, testID = 'portion-sheet' }: PortionSheetProps) {
+  const { bg, portionSheet } = theme.color;
+  const [mode, setMode] = useState<'presets' | 'exact'>('presets');
+
+  // Exact's slider position is per-candidate — reset the mode (back to Presets) each time a
+  // different tile opens the sheet, so the last food's Exact drag never leaks onto the next.
+  const openKey = candidate ? `${candidate.kind}-${candidate.id}` : null;
+  const [lastOpenKey, setLastOpenKey] = useState<string | null>(null);
+  if (openKey !== lastOpenKey) {
+    setLastOpenKey(openKey);
+    if (mode !== 'presets') setMode('presets');
+  }
+
+  if (!candidate) return null;
+
+  const handlePick = (portions: number): void => {
+    onLog(candidate, portions);
+    onClose();
+  };
+
+  const kcalText = Math.round(candidate.kcal).toLocaleString(locale);
+  const proteinText = Math.round(candidate.protein).toLocaleString(locale);
+  const unit = servingUnitLabel(candidate);
+
+  return (
+    <Modal visible transparent animationType="slide" onRequestClose={onClose} testID={testID}>
+      <Pressable
+        testID={`${testID}-scrim`}
+        accessibilityLabel="Close"
+        accessibilityRole="button"
+        onPress={onClose}
+        style={[styles.scrim, { backgroundColor: bg.scrim }]}
+      />
+      <View
+        style={[
+          styles.sheet,
+          {
+            backgroundColor: portionSheet.bg,
+            borderTopLeftRadius: radius.xl,
+            borderTopRightRadius: radius.xl,
+            boxShadow: theme.shadow.sheet,
+          },
+        ]}
+      >
+        <View style={[styles.grabber, { backgroundColor: portionSheet.grabber, borderRadius: radius.pill }]} />
+        <Text testID={`${testID}-title`} style={textStyle(type.title, portionSheet.titleText)}>
+          {candidate.name}
+        </Text>
+        <Text style={textStyle(type.label, portionSheet.metaText)}>{`${kcalText} kcal · ${proteinText} g protein per ${unit}`}</Text>
+
+        <Segmented theme={theme} mode={mode} onChange={setMode} testID={`${testID}-mode`} />
+
+        {mode === 'presets' ? (
+          <PresetSteps candidate={candidate} theme={theme} locale={locale} onPick={handlePick} testID={testID} />
+        ) : (
+          <ExactControl candidate={candidate} theme={theme} locale={locale} onLog={handlePick} testID={`${testID}-exact`} />
+        )}
+      </View>
+    </Modal>
+  );
+}
+
+const styles = StyleSheet.create({
+  scrim: {
+    flex: 1,
+  },
+  sheet: {
+    paddingHorizontal: space[6],
+    paddingTop: space[3],
+    paddingBottom: space[7],
+    gap: space[4],
+  },
+  grabber: {
+    alignSelf: 'center',
+    width: 36,
+    height: 4,
+  },
+  segmentTrack: {
+    flexDirection: 'row',
+    padding: 2,
+    gap: space[1],
+  },
+  segmentOption: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  stepsRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: space[2],
+  },
+  step: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: space[1],
+  },
+  figuresRow: {
+    flexDirection: 'row',
+    gap: space[4],
+  },
+  sliderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space[3],
+  },
+  sliderTrackWrap: {
+    flex: 1,
+  },
+  track: {
+    width: '100%',
+    justifyContent: 'center',
+  },
+  trackFill: {
+    height: '100%',
+  },
+  nudge: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  logButton: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+});
