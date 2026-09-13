@@ -47,3 +47,8 @@ screen is coded.
 - 2026-09-12  feat: date header, arcs and weight chip for Today (issue #41)  (PR #58 closes #41)
 - 2026-09-12  test: drop dead fixture fallback and unused unit types, cover localMinute in seed test  (PR #59 closes #45)
 - 2026-09-13  feat: logTracker and undoToast store — the double-tap window and toast state (issue #21)  (PR #60 closes #21)
+- 2026-09-13  test: tap-count budget for the Today screen — one-tap, double-tap and long-press (issue #23)  (PR #62)
+- 2026-09-13  feat: PortionSheet initialMode/initialPortions — pre-fill an edit at its logged amount (issue #42)  (PR #61 closes #42)
+- 2026-09-13  fix: mock dayLog/getMeal in tap-budget test (issue #63)  (PR #64 closes #63)
+- 2026-09-13  feat: add/edit food and saved meals (issue #43)  (PR #65 closes #43)
+- 2026-09-13  chore: check in .claude/settings.json — allowlist scripts/merge.sh (issue #52)  (PR #66 closes #52)
