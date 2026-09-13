@@ -60,6 +60,18 @@ export type PortionSheetProps = {
   /** A step, or Exact's Log button — always a servings multiple of the candidate's own serving. */
   readonly onLog: (candidate: Candidate, portions: number) => void;
   readonly onClose: () => void;
+  /**
+   * Opens directly in this mode. Defaults to `'presets'` — a fresh long-press from the grid, where
+   * "the usual serving" is the useful starting guess (issue #21). Issue #42's day-log row edit
+   * passes `'exact'` with `initialPortions`, so correcting an already-logged amount starts from
+   * what was actually logged instead of resetting to the food's usual serving — "pre-fill
+   * everything that can be predicted" applies to editing exactly as it does to a fresh log.
+   */
+  readonly initialMode?: 'presets' | 'exact';
+  /** Exact mode's starting amount, as a servings multiple of the candidate's own serving. Defaults
+   * to 1 (fresh logging's "usual serving" start). Ignored by Presets, which has no notion of a
+   * current amount. */
+  readonly initialPortions?: number;
   readonly testID?: string;
 };
 
@@ -292,12 +304,14 @@ function ExactControl({
   locale,
   onLog,
   testID,
+  initialPortions = 1,
 }: {
   candidate: Candidate;
   theme: Theme;
   locale?: string;
   onLog: (portions: number) => void;
   testID: string;
+  initialPortions?: number;
 }) {
   const { portionSheet } = theme.color;
   const fireHaptic = useHapticFeedback();
@@ -306,7 +320,7 @@ function ExactControl({
   const max = unitSize * interaction.sliderMaxServings;
   const nudgeStep = isGrams ? interaction.sliderNudgeG : 0.5;
 
-  const [amount, setAmount] = useState<number>(unitSize);
+  const [amount, setAmount] = useState<number>(unitSize * initialPortions);
 
   const clamp = (next: number): number => Math.min(max, Math.max(0, next));
   const portions = amount / unitSize;
@@ -357,17 +371,27 @@ function ExactControl({
   );
 }
 
-export function PortionSheet({ candidate, theme, locale, onLog, onClose, testID = 'portion-sheet' }: PortionSheetProps) {
+export function PortionSheet({
+  candidate,
+  theme,
+  locale,
+  onLog,
+  onClose,
+  initialMode = 'presets',
+  initialPortions = 1,
+  testID = 'portion-sheet',
+}: PortionSheetProps) {
   const { bg, portionSheet } = theme.color;
-  const [mode, setMode] = useState<'presets' | 'exact'>('presets');
+  const [mode, setMode] = useState<'presets' | 'exact'>(initialMode);
 
-  // Exact's slider position is per-candidate — reset the mode (back to Presets) each time a
-  // different tile opens the sheet, so the last food's Exact drag never leaks onto the next.
+  // Exact's slider position is per-candidate — reset the mode back to `initialMode` each time a
+  // different tile (or log-entry edit) opens the sheet, so the last food's Exact drag never leaks
+  // onto the next.
   const openKey = candidate ? `${candidate.kind}-${candidate.id}` : null;
   const [lastOpenKey, setLastOpenKey] = useState<string | null>(null);
   if (openKey !== lastOpenKey) {
     setLastOpenKey(openKey);
-    if (mode !== 'presets') setMode('presets');
+    if (mode !== initialMode) setMode(initialMode);
   }
 
   if (!candidate) return null;
@@ -412,7 +436,14 @@ export function PortionSheet({ candidate, theme, locale, onLog, onClose, testID 
         {mode === 'presets' ? (
           <PresetSteps candidate={candidate} theme={theme} locale={locale} onPick={handlePick} testID={testID} />
         ) : (
-          <ExactControl candidate={candidate} theme={theme} locale={locale} onLog={handlePick} testID={`${testID}-exact`} />
+          <ExactControl
+            candidate={candidate}
+            theme={theme}
+            locale={locale}
+            onLog={handlePick}
+            initialPortions={initialPortions}
+            testID={`${testID}-exact`}
+          />
         )}
       </View>
     </Modal>
