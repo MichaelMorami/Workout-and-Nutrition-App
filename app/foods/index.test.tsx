@@ -31,7 +31,6 @@ jest.mock('expo-router', () => {
       focusCallback = cb;
       react.useEffect(() => {
         cb();
-        // eslint-disable-next-line react-hooks/exhaustive-deps
       }, []);
     },
   };
