@@ -4,7 +4,7 @@
  * with every section mounted — not a placeholder — and a tile tap moves the rings without a
  * second database read.
  */
-import { fireEvent, render, screen, within } from '@testing-library/react-native';
+import { act, fireEvent, render, screen, within } from '@testing-library/react-native';
 import { DbProvider } from '../../src/components/db/DbProvider';
 import { ThemeContext } from '../../src/components/theme/theme-context';
 import {
@@ -12,11 +12,13 @@ import {
   logFood,
   quickAddCandidates,
   todayTotals,
+  undo,
   weightSummary,
   type FoodCandidate,
   type LogReceipt,
 } from '../../src/db';
-import { themes } from '../../src/theme/tokens';
+import { __resetLogTracker } from '../../src/store/logTracker';
+import { motion, themes } from '../../src/theme/tokens';
 import TodayScreen from './index';
 
 jest.mock('react-native-reanimated', () => jest.requireActual('../../src/components/today/test-support/reanimated-mock'));
@@ -28,12 +30,14 @@ jest.mock('../../src/db', () => ({
   todayTotals: jest.fn(),
   weightSummary: jest.fn(),
   logFood: jest.fn(),
+  undo: jest.fn(),
 }));
 
 const mockGetSettings = jest.mocked(getSettings);
 const mockTodayTotals = jest.mocked(todayTotals);
 const mockWeightSummary = jest.mocked(weightSummary);
 const mockLogFood = jest.mocked(logFood);
+const mockUndo = jest.mocked(undo);
 
 const yoghurt: FoodCandidate = {
   kind: 'food',
@@ -82,6 +86,9 @@ beforeEach(() => {
     entryCount: 3,
   });
   mockWeightSummary.mockReturnValue({ latest: null, avg7: null, avg7PrevWeek: null, weeklyDelta: null });
+  // Every test's frozen clock lands on the same instant — without this, a tile "logged" by an
+  // earlier test in this file still looks like a double-tap to `logTracker`'s repeat window.
+  __resetLogTracker();
 });
 
 const renderScreen = () =>
@@ -124,5 +131,29 @@ describe('TodayScreen', () => {
     const ring = within(screen.getByTestId('today-header-kcal-arc'));
     expect(ring.getByTestId('arc-value').props.children).toBe('1,360');
     expect(mockTodayTotals).toHaveBeenCalledTimes(1);
+  });
+
+  it('renders the undo toast, and undoing a fresh log calls undo() and moves the ring back', async () => {
+    jest.mocked(quickAddCandidates).mockReturnValue([yoghurt]);
+    mockLogFood.mockReturnValue(receipt);
+    await renderScreen();
+
+    await fireEvent.press(screen.getByTestId('quick-add-grid-tile-food-1'));
+    const ring = within(screen.getByTestId('today-header-kcal-arc'));
+    expect(ring.getByTestId('arc-value').props.children).toBe('1,360');
+
+    expect(screen.getByTestId('today-undo-toast-title')).toBeTruthy();
+    await fireEvent.press(screen.getByTestId('today-undo-toast-undo'));
+
+    expect(mockUndo).toHaveBeenCalledTimes(1);
+    expect(mockUndo.mock.calls[0]?.[1]).toMatchObject({ token: receipt.undo });
+    expect(ring.getByTestId('arc-value').props.children).toBe('1,240');
+
+    // The toast fades out (`toastOut`) rather than vanishing mid-tween — it is gone once that
+    // finishes, not before.
+    await act(async () => {
+      jest.advanceTimersByTime(motion.events.toastOut.duration);
+    });
+    expect(screen.queryByTestId('today-undo-toast-title')).toBeNull();
   });
 });

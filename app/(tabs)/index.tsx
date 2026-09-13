@@ -1,11 +1,12 @@
 import React, { useState } from 'react';
-import { ScrollView, StyleSheet } from 'react-native';
+import { ScrollView, StyleSheet, View } from 'react-native';
 import { getSettings, localDateOf, todayTotals, type DayTotals, type LogReceipt, type SettingsView } from '../../src/db';
-import { QuickAddGrid } from '../../src/components/quick-add';
+import { QuickAddGrid, UndoToast } from '../../src/components/quick-add';
 import { TodayHeader, WeightChip } from '../../src/components/today';
 import { deviceWhen } from '../../src/hooks/deviceWhen';
 import { useDb } from '../../src/hooks/useDb';
 import { useTheme } from '../../src/hooks/useTheme';
+import type { LogDelta } from '../../src/store/undoToast';
 import { layout, space } from '../../src/theme/tokens';
 
 /**
@@ -26,6 +27,13 @@ import { layout, space } from '../../src/theme/tokens';
  *
  * The "Search foods" bar (#24, decision 4 in `docs/decisions.md`) still has no slot here — its
  * issue lands it between the grid and the weight chip.
+ *
+ * `<UndoToast>` MOUNTS OUTSIDE THE `ScrollView` (issue #21). It floats above the tab bar, clear of
+ * the grid's own scrolling content (`docs/decisions.md`, `UndoToast.tsx`'s own module note) — a
+ * sibling of the `ScrollView`, not a child, so scrolling the log never carries it off-screen and it
+ * never fights the content's own layout. `handlePortionAdded`/`handleUndo` mirror `handleLogged`:
+ * every one of the three logging paths, and undo of any of them, keeps the rings live from the same
+ * running `totals` state, with no second database read either way.
  */
 export default function TodayScreen(): React.JSX.Element {
   const db = useDb();
@@ -46,31 +54,55 @@ export default function TodayScreen(): React.JSX.Element {
     }));
   };
 
+  const handlePortionAdded = (delta: LogDelta): void => {
+    setTotals((current) => ({
+      ...current,
+      kcal: current.kcal + delta.kcal,
+      protein: current.protein + delta.protein,
+      entryCount: current.entryCount + delta.entryCountDelta,
+    }));
+  };
+
+  const handleUndo = (delta: LogDelta): void => {
+    setTotals((current) => ({
+      ...current,
+      kcal: current.kcal - delta.kcal,
+      protein: current.protein - delta.protein,
+      entryCount: current.entryCount - delta.entryCountDelta,
+    }));
+  };
+
   return (
-    <ScrollView
-      style={{ backgroundColor: theme.color.bg.canvas }}
-      contentContainerStyle={styles.content}
-      testID="today-screen"
-    >
-      <TodayHeader
-        kcal={totals.kcal}
-        protein={totals.protein}
-        kcalTarget={settings.kcalTarget}
-        proteinTarget={settings.proteinTarget}
-        isDefault={settings.isDefault}
-        at={when.at}
-        timeZone={when.timeZone}
-        theme={theme}
-        testID="today-header"
-      />
-      <QuickAddGrid onLogged={handleLogged} />
-      {/* TODO(#24): "Search foods" bar goes here, between the grid and the weight chip. */}
-      <WeightChip testID="weight-chip" />
-    </ScrollView>
+    <View style={styles.screen}>
+      <ScrollView
+        style={{ backgroundColor: theme.color.bg.canvas }}
+        contentContainerStyle={styles.content}
+        testID="today-screen"
+      >
+        <TodayHeader
+          kcal={totals.kcal}
+          protein={totals.protein}
+          kcalTarget={settings.kcalTarget}
+          proteinTarget={settings.proteinTarget}
+          isDefault={settings.isDefault}
+          at={when.at}
+          timeZone={when.timeZone}
+          theme={theme}
+          testID="today-header"
+        />
+        <QuickAddGrid onLogged={handleLogged} onPortionAdded={handlePortionAdded} />
+        {/* TODO(#24): "Search foods" bar goes here, between the grid and the weight chip. */}
+        <WeightChip testID="weight-chip" />
+      </ScrollView>
+      <UndoToast onUndo={handleUndo} testID="today-undo-toast" />
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
+  screen: {
+    flex: 1,
+  },
   content: {
     paddingHorizontal: layout.gutterToday,
     paddingTop: space[9],
