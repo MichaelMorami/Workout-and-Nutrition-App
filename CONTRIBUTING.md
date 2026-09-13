@@ -11,7 +11,7 @@ is what lets several agents work at the same time without conflicts.
 
 | Role | Profession | Writes (exclusive) |
 | --- | --- | --- |
-| `tech-lead` | Engineering manager | issues, labels, milestones, board, `PROGRESS.md`, merges |
+| `tech-lead` | Engineering manager | issues, labels, milestones, board, `PROGRESS.md`, merges, `README.md`, `CLAUDE.md`, `CONTRIBUTING.md`, `.gitignore`, `.claude/**` |
 | `design-lead` | Product designer | `design/**`, `src/theme/tokens.ts` |
 | `db-engineer` | Data engineer | `src/db/**`, `drizzle.config.ts` |
 | `ui-engineer` | Mobile app engineer | `app/**` (not `app/(auth)/**`), `src/components/**` (not `charts/`), `src/hooks/**`, `src/store/**` |
@@ -93,5 +93,6 @@ on green CI and reviewer approval; sprint boundaries are the client's gate.
 - Squash-merge only. `main` is always releasable and always green.
 - `main` is protected by a ruleset with **no bypass actors**: pull request required, CI must
   pass, force-push and deletion blocked. This binds every agent and the repo owner equally.
-- `PROGRESS.md` is **derived**, not hand-edited — `scripts/progress.sh` regenerates it from
-  merged pull requests. GitHub is the authoritative progress record; the file is its snapshot.
+- `PROGRESS.md` is **derived**, not hand-edited — `scripts/progress.sh` regenerates the current
+  sprint and checkpoint states from GitHub milestones, and the merged-PR log from merged pull
+  requests. GitHub is the authoritative progress record; the file is its snapshot.
