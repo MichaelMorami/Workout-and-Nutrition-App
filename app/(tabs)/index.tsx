@@ -3,6 +3,7 @@ import { ScrollView, StyleSheet, View } from 'react-native';
 import { getSettings, localDateOf, todayTotals, type DayTotals, type LogReceipt, type SettingsView } from '../../src/db';
 import { DayLogList } from '../../src/components/day-log';
 import { QuickAddGrid, UndoToast } from '../../src/components/quick-add';
+import { SearchSheet } from '../../src/components/search';
 import { TodayHeader, WeightChip } from '../../src/components/today';
 import { deviceWhen } from '../../src/hooks/deviceWhen';
 import { useDb } from '../../src/hooks/useDb';
@@ -26,8 +27,10 @@ import { layout, space } from '../../src/theme/tokens';
  * same frame as the tile's own "Logged" wash — no second database read, no network involved either
  * way (`CLAUDE.md` — the app never blocks on the network).
  *
- * The "Search foods" bar (#24, decision 4 in `docs/decisions.md`) still has no slot here — its
- * issue lands it between the grid and the day log below.
+ * The "Search foods" bar (#69, decision 4 in `docs/decisions.md`) sits right under the grid, in the
+ * same `layout.tileGap` rhythm as the tiles themselves — `<SearchSheet>` owns the bar and the sheet
+ * it opens; row *behaviour* (tap-to-log, long-press, create) is #70/#71, so `onSelect`/`onCreate`
+ * are left unwired here.
  *
  * `<UndoToast>` MOUNTS OUTSIDE THE `ScrollView` (issue #21). It floats above the tab bar, clear of
  * the grid's own scrolling content (`docs/decisions.md`, `UndoToast.tsx`'s own module note) — a
@@ -104,8 +107,10 @@ export default function TodayScreen(): React.JSX.Element {
           theme={theme}
           testID="today-header"
         />
-        <QuickAddGrid onLogged={handleLogged} onPortionAdded={handlePortionAdded} />
-        {/* TODO(#24): "Search foods" bar goes here, between the grid and the day log below. */}
+        <View style={styles.quickAddGroup}>
+          <QuickAddGrid onLogged={handleLogged} onPortionAdded={handlePortionAdded} />
+          <SearchSheet db={db} theme={theme} testID="today-search-sheet" />
+        </View>
         <DayLogList refreshToken={dayLogVersion} onChanged={handlePortionAdded} testID="day-log-list" />
         <WeightChip testID="weight-chip" />
       </ScrollView>
@@ -123,5 +128,10 @@ const styles = StyleSheet.create({
     paddingTop: space[9],
     paddingBottom: space[9],
     gap: space[6],
+  },
+  // The grid and the search bar share `layout.tileGap` — tighter than the `space[6]` rhythm between
+  // every other section on this screen (`docs/decisions.md` §4).
+  quickAddGroup: {
+    gap: layout.tileGap,
   },
 });
