@@ -50,3 +50,4 @@ For the sprint-by-sprint plan see [`README.md`](README.md); for open work see th
 - 2026-09-13  feat: PortionSheet initialMode/initialPortions — pre-fill an edit at its logged amount (issue #42)  (PR #61 closes #42)
 - 2026-09-13  fix: mock dayLog/getMeal in tap-budget test (issue #63)  (PR #64 closes #63)
 - 2026-09-13  feat: add/edit food and saved meals (issue #43)  (PR #65 closes #43)
+- 2026-09-13  chore: check in .claude/settings.json — allowlist scripts/merge.sh (issue #52)  (PR #66 closes #52)

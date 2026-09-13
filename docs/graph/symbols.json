@@ -1,6 +1,6 @@
 {
   "generated": "scripts/graph-gen.mjs — do not edit by hand",
-  "moduleCount": 73,
+  "moduleCount": 74,
   "modules": {
     "app/(tabs)/_layout.tsx": {
       "exports": [
@@ -51,10 +51,12 @@
         "expo-router",
         "react",
         "react-native",
+        "src/components/settings/TargetsGroup.tsx",
+        "src/hooks/useDb.ts",
         "src/hooks/useTheme.ts",
         "src/theme/tokens.ts"
       ],
-      "loc": 82
+      "loc": 96
     },
     "app/(tabs)/workout.tsx": {
       "exports": [
@@ -394,7 +396,8 @@
       ],
       "loc": 158,
       "importedBy": [
-        "src/components/food-form/FoodForm.tsx"
+        "src/components/food-form/FoodForm.tsx",
+        "src/components/settings/TargetsGroup.tsx"
       ]
     },
     "src/components/food-form/index.ts": {
@@ -624,6 +627,24 @@
         "react-native"
       ],
       "loc": 79
+    },
+    "src/components/settings/TargetsGroup.tsx": {
+      "exports": [
+        "function TargetsGroup({ db, theme, locale, testID = 'targets' }: TargetsGroupProps): import(\"react\").JSX.Element",
+        "type TargetsGroupProps = {\n  readonly db: VitalsDb;\n  readonly theme: Theme;\n  readonly locale?: string;\n  readonly testID?: string;\n}"
+      ],
+      "imports": [
+        "react",
+        "react-native",
+        "src/components/food-form/Stepper.tsx",
+        "src/db/index.ts",
+        "src/hooks/deviceWhen.ts",
+        "src/theme/tokens.ts"
+      ],
+      "loc": 240,
+      "importedBy": [
+        "app/(tabs)/settings.tsx"
+      ]
     },
     "src/components/theme/ThemeProvider.tsx": {
       "exports": [
@@ -911,6 +932,7 @@
         "src/components/quick-add/QuickAddGrid.tsx",
         "src/components/quick-add/QuickAddTile.tsx",
         "src/components/quick-add/UndoToast.tsx",
+        "src/components/settings/TargetsGroup.tsx",
         "src/components/today/WeightChip.tsx",
         "src/hooks/deviceWhen.ts",
         "src/hooks/useDb.ts",
@@ -1202,6 +1224,7 @@
         "src/components/meals/MealList.tsx",
         "src/components/quick-add/QuickAddGrid.tsx",
         "src/components/quick-add/UndoToast.tsx",
+        "src/components/settings/TargetsGroup.tsx",
         "src/components/today/WeightChip.tsx"
       ]
     },
@@ -1217,6 +1240,7 @@
       "loc": 15,
       "importedBy": [
         "app/(tabs)/index.tsx",
+        "app/(tabs)/settings.tsx",
         "app/foods/[id].tsx",
         "app/foods/index.tsx",
         "app/foods/new.tsx",
@@ -1382,6 +1406,7 @@
         "src/components/quick-add/QuickAddGrid.tsx",
         "src/components/quick-add/QuickAddTile.tsx",
         "src/components/quick-add/UndoToast.tsx",
+        "src/components/settings/TargetsGroup.tsx",
         "src/components/theme/ThemeProvider.tsx",
         "src/components/theme/font-assets.ts",
         "src/components/theme/theme-context.ts",

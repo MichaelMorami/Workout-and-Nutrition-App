@@ -1,6 +1,8 @@
 import { useRouter } from 'expo-router';
 import React from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View, type TextStyle } from 'react-native';
+import { TargetsGroup } from '../../src/components/settings/TargetsGroup';
+import { useDb } from '../../src/hooks/useDb';
 import { useTheme } from '../../src/hooks/useTheme';
 import { layout, radius, size, space, type, type Theme, type TypeStyle } from '../../src/theme/tokens';
 
@@ -36,24 +38,33 @@ function SettingsRow({ label, onPress, theme, testID }: { label: string; onPress
 }
 
 /**
- * The Settings tab. Issue #44 (kcal/protein targets) adds the "TARGETS" group this screen is
- * still missing — this slice (issue #43) is the "LIBRARY" group: the only way into the food
- * catalogue and saved-meal management, per `<MealList>`'s own module note that those lists are
- * reached "via Settings, not the Today screen's main loop". Deliberately no more than that: this
- * is a navigation entry point, not a redesign of the whole screen ahead of #44.
+ * The Settings tab. Issue #44 adds the "TARGETS" group below — kcal and protein targets through
+ * `getSettings`/`updateSettings`, `<TargetsGroup>`'s own module note has the tap-doctrine reasoning.
+ * Issue #43 built the "LIBRARY" group: the only way into the food catalogue and saved-meal
+ * management, per `<MealList>`'s own module note that those lists are reached "via Settings, not
+ * the Today screen's main loop".
+ *
+ * `layout.groupGap` between the two groups, not the tighter `space[3]` #43 shipped with when this
+ * screen only had one group — a single group's own top padding read fine alone, but two groups
+ * back to back need the token actually named for the job so "Targets" and "Library" don't collide.
  */
 export default function SettingsScreen(): React.JSX.Element {
   const theme = useTheme();
   const router = useRouter();
+  const db = useDb();
   const { color } = theme;
 
   return (
     <ScrollView style={{ backgroundColor: color.bg.canvas }} contentContainerStyle={styles.content}>
-      <Text style={textStyle(type.micro, color.settings.groupTitleText)}>Library</Text>
-      <View style={[styles.group, { borderRadius: radius.lg, backgroundColor: color.settings.groupBg }]}>
-        <SettingsRow label="Foods" onPress={() => router.push('/foods')} theme={theme} testID="settings-foods" />
-        <View style={[styles.divider, { backgroundColor: color.line.hairline }]} />
-        <SettingsRow label="Meals" onPress={() => router.push('/meals')} theme={theme} testID="settings-meals" />
+      <TargetsGroup db={db} theme={theme} testID="settings-targets" />
+
+      <View style={styles.group}>
+        <Text style={textStyle(type.micro, color.settings.groupTitleText)}>Library</Text>
+        <View style={[styles.card, { borderRadius: radius.lg, backgroundColor: color.settings.groupBg }]}>
+          <SettingsRow label="Foods" onPress={() => router.push('/foods')} theme={theme} testID="settings-foods" />
+          <View style={[styles.divider, { backgroundColor: color.line.hairline }]} />
+          <SettingsRow label="Meals" onPress={() => router.push('/meals')} theme={theme} testID="settings-meals" />
+        </View>
       </View>
     </ScrollView>
   );
@@ -64,9 +75,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: layout.gutter,
     paddingTop: space[9],
     paddingBottom: space[9],
-    gap: space[3],
+    gap: layout.groupGap,
   },
   group: {
+    gap: space[2],
+  },
+  card: {
     overflow: 'hidden',
   },
   row: {
