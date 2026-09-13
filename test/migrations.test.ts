@@ -131,8 +131,8 @@ describe('the migrations', () => {
     sqlite.close();
   });
 
-  it('report which schema they belong to, so nobody mistakes the fixture for the app schema', () => {
+  it('report which schema they belong to, so nobody mistakes a stand-in for the app schema', () => {
     const source = resolveSchemaSource();
-    expect(source.label).toContain(source.isFixture ? 'fixture' : 'src/db');
+    expect(source.label).toContain('src/db');
   });
 });

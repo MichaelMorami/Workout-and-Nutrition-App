@@ -11,7 +11,7 @@ import os from 'node:os';
 import path from 'node:path';
 import Database from 'better-sqlite3';
 import { countRows, makeTestDb, tableNames } from './db';
-import { addLocalDays, localDateOf, localDayOfWeek, naiveLocalDateOf } from './local-date';
+import { addLocalDays, localDateOf, localDayOfWeek, naiveLocalDateOf, wallClockAt } from './local-date';
 import type { SeedData } from './model';
 import { insertSeed, makeSeededTestDb, seedData, seedSummary, seedTestDb, seedToFile } from './seed';
 import * as schema from './schema';
@@ -119,6 +119,16 @@ describe('seeded nutrition', () => {
 
   it('puts every log row on the local_date its own timestamp falls on', () => {
     const wrong = YEAR.foodLog.filter((r) => localDateOf(r.loggedAt, 'America/Los_Angeles') !== r.localDate);
+    expect(wrong).toEqual([]);
+  });
+
+  it('puts every log row on the local_minute its own timestamp falls on', () => {
+    // Guards `localMinuteOf` independently of `local_date`: a rounding change there could still
+    // agree on the day while skewing #18's hour histogram, which buckets on this field alone.
+    const wrong = YEAR.foodLog.filter((r) => {
+      const wall = wallClockAt(r.loggedAt, 'America/Los_Angeles');
+      return wall.hour * 60 + wall.minute !== r.localMinute;
+    });
     expect(wrong).toEqual([]);
   });
 

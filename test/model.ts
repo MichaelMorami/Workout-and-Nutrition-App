@@ -19,8 +19,6 @@ export interface SyncFields {
 }
 
 export type MealSlot = 'breakfast' | 'lunch' | 'dinner' | 'snack';
-export type WeightUnit = 'kg' | 'lb';
-export type LengthUnit = 'cm' | 'in';
 export type ExerciseUnit = 'kg' | 'lb' | 'bodyweight' | 'time';
 export type MuscleGroup =
   | 'chest'
