@@ -143,6 +143,21 @@ describe('SearchSheet — recent', () => {
     expect(empty.props.accessibilityLabel).toMatch(/no foods yet/i);
     expect(screen.queryByTestId('search-sheet-create')).toBeNull();
   });
+
+  it('does not show the "no library yet" empty state when the library has items, even if nothing is recent', async () => {
+    // `recentFoods` only covers the last `interaction.recentDays` days, while `quickAddCandidates`
+    // ranks the whole library (including items with `useCount === 0`). A library with real items
+    // that simply have not been logged recently must not be told "No foods yet" — that message is
+    // reserved for a genuinely empty library (`libraryEmpty`, i.e. `quickAddCandidates` returning
+    // nothing), never for an empty `recentFoods` window alone.
+    mockQuickAdd.mockReturnValue(sixOnGrid);
+    mockRecent.mockReturnValue([]);
+    await renderSheet();
+
+    await fireEvent.press(screen.getByTestId('search-sheet-bar'));
+
+    expect(screen.queryByTestId('search-sheet-empty')).toBeNull();
+  });
 });
 
 describe('SearchSheet — typing', () => {
