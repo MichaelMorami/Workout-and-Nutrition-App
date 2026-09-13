@@ -85,8 +85,10 @@ export function timeLabel(localMinute: number): string {
 }
 
 /** The row's display name — the meal it was logged from, else the food, else an honest placeholder
- * for the data-integrity edge case where neither resolved (never silently blank). */
-function entryName(entry: DayLogEntry): string {
+ * for the data-integrity edge case where neither resolved (never silently blank). Exported for
+ * `<DayLogList>`'s own undo-toast title, so an edit or a delete names itself the same way the row
+ * that triggered it already reads on screen. */
+export function entryName(entry: DayLogEntry): string {
   return entry.mealName ?? entry.foodName ?? 'Removed food';
 }
 
