@@ -30,6 +30,8 @@ jest.mock('expo-router', () => ({ useRouter: () => ({ push: jest.fn() }) }));
 jest.mock('../../src/db', () => ({
   ...jest.requireActual<typeof import('../../src/db')>('../../src/db'),
   quickAddCandidates: jest.fn().mockReturnValue([]),
+  recentFoods: jest.fn().mockReturnValue([]),
+  searchFoods: jest.fn().mockReturnValue([]),
   getSettings: jest.fn(),
   todayTotals: jest.fn(),
   weightSummary: jest.fn(),
@@ -142,6 +144,13 @@ describe('TodayScreen', () => {
     expect(screen.getByTestId('weight-chip')).toBeTruthy();
     // No workout chip, no placeholder for it (issue #41's acceptance criteria).
     expect(screen.queryByTestId('workout-chip')).toBeNull();
+  });
+
+  it('mounts the "Search foods" bar directly under the quick-add grid — no header search button (issue #69)', async () => {
+    await renderScreen();
+
+    expect(screen.getByTestId('today-search-sheet-bar')).toBeTruthy();
+    expect(screen.getByTestId('today-search-sheet-bar').props.accessibilityRole).toBe('button');
   });
 
   it('feeds the rings from todayTotals against the getSettings targets', async () => {
