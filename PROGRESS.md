@@ -6,7 +6,7 @@ For the sprint-by-sprint plan see [`README.md`](README.md); for open work see th
 
 ## Current sprint
 
-**Sprint 1 — Nutrition core: the Today screen and one-tap food logging.** 18/23 issues closed. Ends at
+**Sprint 1 — Nutrition core: the Today screen and one-tap food logging.** 21/26 issues closed. Ends at
 **Checkpoint 2** (Log real food for 2–3 days on their own phone).
 
 ## Checkpoints
@@ -51,3 +51,5 @@ For the sprint-by-sprint plan see [`README.md`](README.md); for open work see th
 - 2026-09-13  fix: mock dayLog/getMeal in tap-budget test (issue #63)  (PR #64 closes #63)
 - 2026-09-13  feat: add/edit food and saved meals (issue #43)  (PR #65 closes #43)
 - 2026-09-13  chore: check in .claude/settings.json — allowlist scripts/merge.sh (issue #52)  (PR #66 closes #52)
+- 2026-09-13  feat: TargetsGroup — kcal/protein targets through getSettings/updateSettings (issue #44)  (PR #67 closes #44)
+- 2026-09-13  feat: cut the 8 static Archivo fonts font-assets.ts requires  (PR #68 closes #54)
