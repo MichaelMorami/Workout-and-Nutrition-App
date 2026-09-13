@@ -36,7 +36,7 @@ boundaries in CI, so a violation is a build failure, not a style note.
 
 | Agent | Writes (exclusive) |
 | --- | --- |
-| `tech-lead` | GitHub issues/labels/milestones/board, `PROGRESS.md`, merges |
+| `tech-lead` | GitHub issues/labels/milestones/board, `PROGRESS.md`, merges, `README.md`, `CLAUDE.md`, `CONTRIBUTING.md`, `.gitignore`, `.claude/**` |
 | `design-lead` | `design/**`, `src/theme/tokens.ts` |
 | `db-engineer` | `src/db/**`, `drizzle.config.ts` |
 | `ui-engineer` | `app/**` (not `app/(auth)/**`), `src/components/**` (not `charts/`), `src/hooks/**`, `src/store/**` |
@@ -60,7 +60,7 @@ Need a change outside your paths? Say so in the PR or issue. Do not reach across
 | `scripts/pr.sh <issue>` | open PR with `Closes #n`, test output, screenshots |
 | `scripts/pr-title.test.sh` | tests the PR-title rule (run by `check.sh`) |
 | `scripts/merge.sh <pr>` | squash-merge, delete branch, close issue, refresh `PROGRESS.md` |
-| `scripts/progress.sh` | regenerate `PROGRESS.md` from GitHub (it is derived, never hand-edited) |
+| `scripts/progress.sh` | regenerate `PROGRESS.md` from GitHub milestones and merged PRs (it is derived, never hand-edited) |
 | `scripts/boundaries.sh` | dependency-cruiser ownership-boundary check |
 | `scripts/graph.sh` | regenerate the project graph |
 | `scripts/review-graph.sh <pr>` | blast radius of a PR — changed exports + who imports them |

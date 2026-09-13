@@ -26,12 +26,15 @@ In development. See [`PROGRESS.md`](PROGRESS.md) for what has shipped, and the
 
 | Sprint | Scope | State |
 | --- | --- | --- |
-| 0 | Foundation, CI, design | in progress |
-| 1 | Nutrition core | planned |
+| 0 | Foundation, CI, design | complete |
+| 1 | Nutrition core | in progress |
 | 2 | Body + charts | planned |
 | 3 | Workouts | planned |
 | 4 | Cloud sync | planned |
 | 5 | Standalone builds + polish | planned |
+
+See [`PROGRESS.md`](PROGRESS.md) for the current issue count per sprint — that section is
+regenerated from GitHub milestones by `scripts/progress.sh`, so it never drifts from this table.
 
 ## Stack
 
