@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 import { getSettings, localDateOf, todayTotals, type DayTotals, type LogReceipt, type SettingsView } from '../../src/db';
+import { DayLogList } from '../../src/components/day-log';
 import { QuickAddGrid, UndoToast } from '../../src/components/quick-add';
 import { TodayHeader, WeightChip } from '../../src/components/today';
 import { deviceWhen } from '../../src/hooks/deviceWhen';
@@ -26,7 +27,7 @@ import { layout, space } from '../../src/theme/tokens';
  * way (`CLAUDE.md` — the app never blocks on the network).
  *
  * The "Search foods" bar (#24, decision 4 in `docs/decisions.md`) still has no slot here — its
- * issue lands it between the grid and the weight chip.
+ * issue lands it between the grid and the day log below.
  *
  * `<UndoToast>` MOUNTS OUTSIDE THE `ScrollView` (issue #21). It floats above the tab bar, clear of
  * the grid's own scrolling content (`docs/decisions.md`, `UndoToast.tsx`'s own module note) — a
@@ -34,6 +35,14 @@ import { layout, space } from '../../src/theme/tokens';
  * never fights the content's own layout. `handlePortionAdded`/`handleUndo` mirror `handleLogged`:
  * every one of the three logging paths, and undo of any of them, keeps the rings live from the same
  * running `totals` state, with no second database read either way.
+ *
+ * `<DayLogList>` (issue #42) SITS BELOW THE SEARCH BAR SLOT, ABOVE THE WEIGHT CHIP — #20's revised
+ * layout note. It reads `dayLog` itself, once per visit, the same way this screen reads
+ * `todayTotals` once — so it needs telling, not polling, whenever a write elsewhere might have
+ * changed today's log. `dayLogVersion` is that tell: every one of this screen's own three totals
+ * handlers already fires on exactly those writes (a grid tap, a portion add, an undo of either —
+ * and now the day log's own edits/deletes, routed back through the same `handlePortionAdded` via
+ * `onChanged`), so bumping it there costs nothing new to wire up.
  */
 export default function TodayScreen(): React.JSX.Element {
   const db = useDb();
@@ -42,6 +51,8 @@ export default function TodayScreen(): React.JSX.Element {
   const [when] = useState(deviceWhen);
   const [settings] = useState<SettingsView>(() => getSettings(db));
   const [totals, setTotals] = useState<DayTotals>(() => todayTotals(db, localDateOf(when.at, when.timeZone)));
+  // Bumped by every handler below — `<DayLogList>`'s cue to re-read `dayLog` (see the module note).
+  const [dayLogVersion, setDayLogVersion] = useState(0);
 
   const handleLogged = (receipt: LogReceipt): void => {
     const kcal = receipt.entries.reduce((sum, entry) => sum + entry.kcal, 0);
@@ -52,6 +63,7 @@ export default function TodayScreen(): React.JSX.Element {
       protein: current.protein + protein,
       entryCount: current.entryCount + receipt.entries.length,
     }));
+    setDayLogVersion((v) => v + 1);
   };
 
   const handlePortionAdded = (delta: LogDelta): void => {
@@ -61,6 +73,7 @@ export default function TodayScreen(): React.JSX.Element {
       protein: current.protein + delta.protein,
       entryCount: current.entryCount + delta.entryCountDelta,
     }));
+    setDayLogVersion((v) => v + 1);
   };
 
   const handleUndo = (delta: LogDelta): void => {
@@ -70,6 +83,7 @@ export default function TodayScreen(): React.JSX.Element {
       protein: current.protein - delta.protein,
       entryCount: current.entryCount - delta.entryCountDelta,
     }));
+    setDayLogVersion((v) => v + 1);
   };
 
   return (
@@ -91,7 +105,8 @@ export default function TodayScreen(): React.JSX.Element {
           testID="today-header"
         />
         <QuickAddGrid onLogged={handleLogged} onPortionAdded={handlePortionAdded} />
-        {/* TODO(#24): "Search foods" bar goes here, between the grid and the weight chip. */}
+        {/* TODO(#24): "Search foods" bar goes here, between the grid and the day log below. */}
+        <DayLogList refreshToken={dayLogVersion} onChanged={handlePortionAdded} testID="day-log-list" />
         <WeightChip testID="weight-chip" />
       </ScrollView>
       <UndoToast onUndo={handleUndo} testID="today-undo-toast" />

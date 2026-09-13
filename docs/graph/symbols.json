@@ -1,6 +1,6 @@
 {
   "generated": "scripts/graph-gen.mjs — do not edit by hand",
-  "moduleCount": 55,
+  "moduleCount": 59,
   "modules": {
     "app/(tabs)/_layout.tsx": {
       "exports": [
@@ -31,6 +31,7 @@
       "imports": [
         "react",
         "react-native",
+        "src/components/day-log/index.ts",
         "src/components/quick-add/index.ts",
         "src/components/today/index.ts",
         "src/db/index.ts",
@@ -40,7 +41,7 @@
         "src/store/undoToast.ts",
         "src/theme/tokens.ts"
       ],
-      "loc": 113
+      "loc": 128
     },
     "app/(tabs)/settings.tsx": {
       "exports": [
@@ -187,6 +188,73 @@
       ],
       "loc": 118
     },
+    "src/components/day-log/DayLogList.tsx": {
+      "exports": [
+        "function DayLogList({ locale, refreshToken, onChanged, testID = 'day-log-list' }: DayLogListProps): import(\"react\").JSX.Element",
+        "type DayLogListProps = {\n  /** Formatting locale, forwarded to every row and the portion sheet. Defaults to the device's. */\n  readonly locale?: string;\n  /** Bumped by the caller whenever a write elsewhere (the quick-add grid, or an undo of one) may\n   * have changed today's log — see the module note on why this list does not poll on its own. */\n  readonly refreshToken?: number;\n  /** Called a..."
+      ],
+      "imports": [
+        "react",
+        "react-native",
+        "src/components/day-log/DayLogRow.tsx",
+        "src/components/day-log/entry-candidate.ts",
+        "src/components/quick-add/PortionSheet.tsx",
+        "src/db/index.ts",
+        "src/hooks/deviceWhen.ts",
+        "src/hooks/useDb.ts",
+        "src/hooks/useTheme.ts",
+        "src/store/logTracker.ts",
+        "src/store/undoToast.ts",
+        "src/theme/tokens.ts"
+      ],
+      "loc": 236
+    },
+    "src/components/day-log/DayLogRow.tsx": {
+      "exports": [
+        "function DayLogRow({ entry, theme, locale, onPress, onDelete, testID = 'day-log-row' }: DayLogRowProps): import(\"react\").JSX.Element",
+        "function entryName(entry: DayLogEntry): string",
+        "function timeLabel(localMinute: number): string",
+        "type DayLogRowProps = {\n  readonly entry: DayLogEntry;\n  readonly theme: Theme;\n  /** Formatting locale, forwarded to the kcal/protein figures. Defaults to the device's. */\n  readonly locale?: string;\n  readonly onPress: (entry: DayLogEntry) => void;\n  readonly onDelete: (entry: DayLogEntry) => void;\n  readonly testID?: string;\n}"
+      ],
+      "imports": [
+        "react",
+        "react-native",
+        "src/db/index.ts",
+        "src/theme/tokens.ts"
+      ],
+      "loc": 231,
+      "importedBy": [
+        "src/components/day-log/DayLogList.tsx"
+      ]
+    },
+    "src/components/day-log/entry-candidate.ts": {
+      "exports": [
+        "function candidateForEntry(entry: DayLogEntry, meal: MealDetail | null): Candidate"
+      ],
+      "imports": [
+        "src/db/index.ts"
+      ],
+      "loc": 46,
+      "importedBy": [
+        "src/components/day-log/DayLogList.tsx"
+      ]
+    },
+    "src/components/day-log/index.ts": {
+      "exports": [
+        "function DayLogList({ locale, refreshToken, onChanged, testID = 'day-log-list' }: DayLogListProps): import(\"react\").JSX.Element",
+        "function DayLogRow({ entry, theme, locale, onPress, onDelete, testID = 'day-log-row' }: DayLogRowProps): import(\"react\").JSX.Element",
+        "function candidateForEntry(entry: DayLogEntry, meal: MealDetail | null): Candidate",
+        "function entryName(entry: DayLogEntry): string",
+        "function timeLabel(localMinute: number): string",
+        "type DayLogListProps = {\n  /** Formatting locale, forwarded to every row and the portion sheet. Defaults to the device's. */\n  readonly locale?: string;\n  /** Bumped by the caller whenever a write elsewhere (the quick-add grid, or an undo of one) may\n   * have changed today's log — see the module note on why this list does not poll on its own. */\n  readonly refreshToken?: number;\n  /** Called a...",
+        "type DayLogRowProps = {\n  readonly entry: DayLogEntry;\n  readonly theme: Theme;\n  /** Formatting locale, forwarded to the kcal/protein figures. Defaults to the device's. */\n  readonly locale?: string;\n  readonly onPress: (entry: DayLogEntry) => void;\n  readonly onDelete: (entry: DayLogEntry) => void;\n  readonly testID?: string;\n}"
+      ],
+      "imports": [],
+      "loc": 4,
+      "importedBy": [
+        "app/(tabs)/index.tsx"
+      ]
+    },
     "src/components/db/DbProvider.tsx": {
       "exports": [
         "function DbProvider({ db, children }: { db: VitalsDb; children: React.ReactNode }): React.JSX.Element"
@@ -234,7 +302,7 @@
     },
     "src/components/quick-add/PortionSheet.tsx": {
       "exports": [
-        "function PortionSheet({ candidate, theme, locale, onLog, onClose, testID = 'portion-sheet' }: PortionSheetProps): import(\"react\").JSX.Element | null",
+        "function PortionSheet({\n  candidate,\n  theme,\n  locale,\n  onLog,\n  onClose,\n  initialMode = 'presets',\n  initialPortions = 1,\n  testID = 'portion-sheet',\n}: PortionSheetProps): import(\"react\").JSX.Element | null",
         "type PortionSheetProps = {\n  /** `null` closes the sheet — there is deliberately no separate `visible` flag to fall out of sync with. */\n  readonly candidate: Candidate | null;\n  readonly theme: Theme;\n  /** Formatting locale, forwarded to every figure. Defaults to the device's. */\n  readonly locale?: string;\n  /** A step, or Exact's Log button — always a servings multiple of the candidate's ow..."
       ],
       "imports": [
@@ -244,8 +312,9 @@
         "src/hooks/useHapticFeedback.ts",
         "src/theme/tokens.ts"
       ],
-      "loc": 485,
+      "loc": 516,
       "importedBy": [
+        "src/components/day-log/DayLogList.tsx",
         "src/components/quick-add/QuickAddGrid.tsx"
       ]
     },
@@ -309,7 +378,7 @@
     },
     "src/components/quick-add/index.ts": {
       "exports": [
-        "function PortionSheet({ candidate, theme, locale, onLog, onClose, testID = 'portion-sheet' }: PortionSheetProps): import(\"react\").JSX.Element | null",
+        "function PortionSheet({\n  candidate,\n  theme,\n  locale,\n  onLog,\n  onClose,\n  initialMode = 'presets',\n  initialPortions = 1,\n  testID = 'portion-sheet',\n}: PortionSheetProps): import(\"react\").JSX.Element | null",
         "function QuickAddGrid({ onLogged, onPortionAdded, locale, testID = 'quick-add-grid' }: QuickAddGridProps): import(\"react\").JSX.Element",
         "function QuickAddTile({ candidate, onLog, onLongPress, theme, locale, testID = 'quick-add-tile' }: QuickAddTileProps): import(\"react\").JSX.Element",
         "function UndoToast({ onUndo, testID = 'undo-toast' }: UndoToastProps): import(\"react\").JSX.Element | null",
@@ -610,6 +679,9 @@
       "loc": 84,
       "importedBy": [
         "app/(tabs)/index.tsx",
+        "src/components/day-log/DayLogList.tsx",
+        "src/components/day-log/DayLogRow.tsx",
+        "src/components/day-log/entry-candidate.ts",
         "src/components/db/DbProvider.tsx",
         "src/components/db/db-context.ts",
         "src/components/quick-add/PortionSheet.tsx",
@@ -900,6 +972,7 @@
       "loc": 12,
       "importedBy": [
         "app/(tabs)/index.tsx",
+        "src/components/day-log/DayLogList.tsx",
         "src/components/quick-add/QuickAddGrid.tsx",
         "src/components/quick-add/UndoToast.tsx",
         "src/components/today/WeightChip.tsx"
@@ -917,6 +990,7 @@
       "loc": 15,
       "importedBy": [
         "app/(tabs)/index.tsx",
+        "src/components/day-log/DayLogList.tsx",
         "src/components/quick-add/QuickAddGrid.tsx",
         "src/components/quick-add/UndoToast.tsx",
         "src/components/today/WeightChip.tsx"
@@ -952,6 +1026,7 @@
         "app/(tabs)/_layout.tsx",
         "app/(tabs)/index.tsx",
         "app/_layout.tsx",
+        "src/components/day-log/DayLogList.tsx",
         "src/components/quick-add/QuickAddGrid.tsx",
         "src/components/quick-add/UndoToast.tsx",
         "src/components/today/WeightChip.tsx"
@@ -971,6 +1046,7 @@
       ],
       "loc": 59,
       "importedBy": [
+        "src/components/day-log/DayLogList.tsx",
         "src/components/quick-add/QuickAddGrid.tsx",
         "src/components/quick-add/UndoToast.tsx"
       ]
@@ -1002,6 +1078,7 @@
       "loc": 71,
       "importedBy": [
         "app/(tabs)/index.tsx",
+        "src/components/day-log/DayLogList.tsx",
         "src/components/quick-add/QuickAddGrid.tsx",
         "src/components/quick-add/UndoToast.tsx"
       ]
@@ -1049,6 +1126,8 @@
         "app/(tabs)/index.tsx",
         "app/_layout.tsx",
         "src/components/charts/ProgressArc.tsx",
+        "src/components/day-log/DayLogList.tsx",
+        "src/components/day-log/DayLogRow.tsx",
         "src/components/quick-add/PortionSheet.tsx",
         "src/components/quick-add/QuickAddGrid.tsx",
         "src/components/quick-add/QuickAddTile.tsx",
