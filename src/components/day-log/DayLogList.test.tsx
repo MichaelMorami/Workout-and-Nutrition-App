@@ -132,7 +132,7 @@ describe('DayLogList', () => {
     const onChanged = jest.fn();
     mockUpdateLogEntry.mockReturnValue({
       entry: { ...yoghurt, qty: 2, grams: 340, kcal: 240, protein: 40 },
-      undo: { kind: 'revert', previous: [{ id: 'log-1', qty: 1, grams: 170, kcal: 120, protein: 20 }] },
+      undo: { kind: 'revert', previous: [{ id: 'log-1', qty: 1, grams: 170, kcal: 120, protein: 20, slot: 'breakfast' }] },
     });
     await renderList({ onChanged });
 
@@ -146,7 +146,7 @@ describe('DayLogList', () => {
     expect(onChanged).toHaveBeenCalledWith({ kcal: 120, protein: 20, entryCountDelta: 0 });
     expect(useUndoToastStore.getState().toast?.token).toEqual({
       kind: 'revert',
-      previous: [{ id: 'log-1', qty: 1, grams: 170, kcal: 120, protein: 20 }],
+      previous: [{ id: 'log-1', qty: 1, grams: 170, kcal: 120, protein: 20, slot: 'breakfast' }],
     });
     expect(screen.queryByTestId('log-portion-sheet-title')).toBeNull();
   });
