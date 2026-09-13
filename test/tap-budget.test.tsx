@@ -39,6 +39,7 @@ import { DbProvider } from '../src/components/db/DbProvider';
 import { ThemeContext } from '../src/components/theme/theme-context';
 import {
   addPortion,
+  dayLog,
   getSettings,
   logFood,
   quickAddCandidates,
@@ -60,6 +61,8 @@ jest.mock('../src/db', () => ({
   weightSummary: jest.fn(),
   logFood: jest.fn(),
   addPortion: jest.fn(),
+  dayLog: jest.fn(),
+  getMeal: jest.fn(),
 }));
 
 const mockCandidates = jest.mocked(quickAddCandidates);
@@ -68,6 +71,7 @@ const mockTodayTotals = jest.mocked(todayTotals);
 const mockWeightSummary = jest.mocked(weightSummary);
 const mockLogFood = jest.mocked(logFood);
 const mockAddPortion = jest.mocked(addPortion);
+const mockDayLog = jest.mocked(dayLog);
 
 /** The one candidate every test taps — a saved food already in the top six, exactly the case the
  * client described ("log a saved food"). */
@@ -129,6 +133,10 @@ beforeEach(() => {
   mockWeightSummary.mockReturnValue({ latest: null, avg7: null, avg7PrevWeek: null, weeklyDelta: null });
   mockLogFood.mockReturnValue(freshReceipt);
   mockAddPortion.mockReturnValue(doubledReceipt);
+  // TodayScreen renders the real `<DayLogList>` (issue #61); the tap-budget assertions don't care
+  // about day-log content, so an empty day is a neutral default. `getMeal` is mocked in the module
+  // factory too, but a row is never present here to trigger it.
+  mockDayLog.mockReturnValue([]);
   // Same reasoning as `app/(tabs)/index.test.tsx`: every test's frozen clock lands on the same
   // instant, so a tile logged by an earlier test in this file never looks like a stale double-tap.
   __resetLogTracker();
