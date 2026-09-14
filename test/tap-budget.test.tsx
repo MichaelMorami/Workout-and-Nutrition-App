@@ -28,10 +28,20 @@
  * itself, kept in the one path this agent owns, so it survives independently of whoever next
  * touches the Today screen or the quick-add grid.
  *
- * The search-and-log tap budgets from the issue's 2026-09-11 update (recent <=2, known <=2 + query,
- * new <=3 + name/numbers) are not covered here: the "Search foods" bar (#24) has not shipped yet —
- * `app/(tabs)/index.tsx` still carries a `TODO(#24)` where it will mount. There is nothing to press
- * yet. Add that budget here once #24 lands.
+ * SEARCH-AND-LOG BUDGETS (issue #23's 2026-09-11 update, added once #69-#71 shipped):
+ *
+ *   - recent (not one of the six)  : bar tap + row tap = 2 taps, zero `fireEvent.changeText` calls
+ *   - known food via search        : bar tap + row tap = 2 taps, plus the query text
+ *   - brand-new via Create "‹q›"   : bar tap + Create tap + Save tap = 3 fixed taps, plus whatever
+ *                                    text/steppers fill in the name and the numbers (the query
+ *                                    pre-fills the name field, so only the numbers need setting) —
+ *                                    and it must end on `createFoodAndLog` (logged), never the plain
+ *                                    `createFood` a "just saved" path would call instead.
+ *
+ * Same throw-not-null discipline as the grid budgets above: every assertion below is `getByTestId`,
+ * never `queryByTestId`, so a future tap added anywhere in this chain — a confirmation step before
+ * the row logs, a second screen between Create and the form, a Save that stops short of logging —
+ * fails the test that owns that step, not a silent pass.
  */
 import { fireEvent, render, screen, within } from '@testing-library/react-native';
 import TodayScreen from '../app/(tabs)/index';
@@ -39,13 +49,17 @@ import { DbProvider } from '../src/components/db/DbProvider';
 import { ThemeContext } from '../src/components/theme/theme-context';
 import {
   addPortion,
+  createFoodAndLog,
   dayLog,
   getSettings,
   logFood,
   quickAddCandidates,
+  recentFoods,
+  searchFoods,
   todayTotals,
   weightSummary,
   type FoodCandidate,
+  type FoodRow,
   type LogReceipt,
 } from '../src/db';
 import { __resetLogTracker } from '../src/store/logTracker';
@@ -63,6 +77,9 @@ jest.mock('../src/db', () => ({
   addPortion: jest.fn(),
   dayLog: jest.fn(),
   getMeal: jest.fn(),
+  recentFoods: jest.fn(),
+  searchFoods: jest.fn(),
+  createFoodAndLog: jest.fn(),
 }));
 
 const mockCandidates = jest.mocked(quickAddCandidates);
@@ -72,6 +89,9 @@ const mockWeightSummary = jest.mocked(weightSummary);
 const mockLogFood = jest.mocked(logFood);
 const mockAddPortion = jest.mocked(addPortion);
 const mockDayLog = jest.mocked(dayLog);
+const mockRecentFoods = jest.mocked(recentFoods);
+const mockSearchFoods = jest.mocked(searchFoods);
+const mockCreateFoodAndLog = jest.mocked(createFoodAndLog);
 
 /** The one candidate every test taps — a saved food already in the top six, exactly the case the
  * client described ("log a saved food"). */
@@ -119,6 +139,64 @@ const doubledReceipt: LogReceipt = {
   undo: { kind: 'revert', previous: [freshReceipt.entries[0]!] },
 };
 
+/** A food that is *not* one of the six on the grid — every search-and-log budget below taps this
+ * one, exactly the case the issue's 2026-09-11 update describes ("recent food, not in the six"). */
+const eggs: FoodCandidate = {
+  kind: 'food',
+  id: 'food-2',
+  name: 'Boiled eggs',
+  brand: null,
+  servingLabel: '2 eggs',
+  servingGrams: 100,
+  kcal: 140,
+  protein: 12,
+  useCount: 1,
+  lastUsedAt: null,
+};
+
+const eggsReceipt: LogReceipt = {
+  target: { kind: 'food', id: 'food-2' },
+  entries: [
+    {
+      id: 'log-2',
+      updatedAt: 0,
+      deleted: 0,
+      loggedAt: 0,
+      localDate: '2025-03-10',
+      localMinute: 415,
+      foodId: 'food-2',
+      mealId: null,
+      qty: 1,
+      grams: null,
+      kcal: 140,
+      protein: 12,
+      slot: 'breakfast',
+    },
+  ],
+  portions: 1,
+  undo: { kind: 'unlog', logIds: ['log-2'] },
+};
+
+function eggsFoodRow(overrides: Partial<FoodRow> = {}): FoodRow {
+  return {
+    id: 'food-2',
+    updatedAt: 0,
+    deleted: 0,
+    name: 'Boiled eggs',
+    brand: null,
+    servingLabel: '2 eggs',
+    servingGrams: 100,
+    kcalPerServing: 140,
+    proteinPerServing: 12,
+    archived: 0,
+    useCount: 0,
+    lastUsedAt: null,
+    hourHistogram: null,
+    searchText: '',
+    ...overrides,
+  };
+}
+
 beforeEach(() => {
   mockCandidates.mockReturnValue([yoghurt]);
   mockGetSettings.mockReturnValue({ kcalTarget: 2400, proteinTarget: 180, weekStart: 1, isDefault: false });
@@ -133,6 +211,9 @@ beforeEach(() => {
   mockWeightSummary.mockReturnValue({ latest: null, avg7: null, avg7PrevWeek: null, weeklyDelta: null });
   mockLogFood.mockReturnValue(freshReceipt);
   mockAddPortion.mockReturnValue(doubledReceipt);
+  // Neutral defaults for the search-and-log budgets below — each test overrides what it needs.
+  mockRecentFoods.mockReturnValue([]);
+  mockSearchFoods.mockReturnValue([]);
   // TodayScreen renders the real `<DayLogList>` (issue #61); the tap-budget assertions don't care
   // about day-log content, so an empty day is a neutral default. `getMeal` is mocked in the module
   // factory too, but a row is never present here to trigger it.
@@ -233,5 +314,146 @@ describe('tap-count budget — the Today screen', () => {
     expect(mockLogFood).not.toHaveBeenCalled();
     expect(mockAddPortion).not.toHaveBeenCalled();
     expect(screen.queryByTestId('today-undo-toast-title')).toBeNull();
+  });
+});
+
+describe('tap-count budget — search and create (issue #23, 2026-09-11 update)', () => {
+  it('recent food, not one of the six: two taps, zero typing, reaches "food logged"', async () => {
+    mockRecentFoods.mockReturnValue([eggs]);
+    mockLogFood.mockReturnValue(eggsReceipt);
+    await renderToday();
+
+    // Tap 1 — open the sheet. `recentFoods` is read the instant it opens, before any query exists.
+    await fireEvent.press(screen.getByTestId('today-search-sheet-bar'));
+    // No `fireEvent.changeText` anywhere in this test — the budget is "no typing", not "little
+    // typing", and a `search-sheet-input` that ever gated this row would make this assertion fail
+    // (the row lives under Recent, never under Results, for an empty query).
+    expect(screen.getByTestId('today-search-sheet-row-food-food-2-name')).toHaveTextContent('Boiled eggs');
+
+    // Tap 2 — the row itself.
+    await fireEvent.press(screen.getByTestId('today-search-sheet-row-food-food-2'));
+
+    expect(mockLogFood).toHaveBeenCalledTimes(1);
+    expect(screen.getByTestId('today-undo-toast-title')).toHaveTextContent('Boiled eggs');
+    const ring = within(screen.getByTestId('today-header-kcal-arc'));
+    expect(ring.getByTestId('arc-value').props.children).toBe('1,140');
+  });
+
+  it('a recent tap that fails to write never raises the toast — no free pass through the 2-tap budget', async () => {
+    mockRecentFoods.mockReturnValue([eggs]);
+    const { VitalsDbError } = jest.requireActual<typeof import('../src/db')>('../src/db');
+    mockLogFood.mockImplementation(() => {
+      throw new VitalsDbError('not_found', 'food gone');
+    });
+    await renderToday();
+
+    await fireEvent.press(screen.getByTestId('today-search-sheet-bar'));
+    await fireEvent.press(screen.getByTestId('today-search-sheet-row-food-food-2'));
+
+    expect(screen.queryByTestId('today-undo-toast-title')).toBeNull();
+    const ring = within(screen.getByTestId('today-header-kcal-arc'));
+    expect(ring.getByTestId('arc-value').props.children).toBe('1,000');
+  });
+
+  it('a known food via search: two taps plus the query text reaches "food logged"', async () => {
+    mockSearchFoods.mockReturnValue([eggs]);
+    mockLogFood.mockReturnValue(eggsReceipt);
+    await renderToday();
+
+    // Tap 1 — open the sheet.
+    await fireEvent.press(screen.getByTestId('today-search-sheet-bar'));
+    // The query text the budget explicitly allows on top of the two taps — not a tap itself.
+    await fireEvent.changeText(screen.getByTestId('today-search-sheet-input'), 'egg');
+    expect(mockSearchFoods).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ query: 'egg' }));
+    expect(screen.getByTestId('today-search-sheet-section-results')).toBeTruthy();
+
+    // Tap 2 — the matched row.
+    await fireEvent.press(screen.getByTestId('today-search-sheet-row-food-food-2'));
+
+    expect(mockLogFood).toHaveBeenCalledTimes(1);
+    expect(screen.getByTestId('today-undo-toast-title')).toHaveTextContent('Boiled eggs');
+    const ring = within(screen.getByTestId('today-header-kcal-arc'));
+    expect(ring.getByTestId('arc-value').props.children).toBe('1,140');
+  });
+
+  it('a brand-new food via Create: three fixed taps plus name/numbers, and it ends logged — not merely saved', async () => {
+    // No results for this query — the trailing Create row is the only way forward, exactly the case
+    // the issue describes ("brand-new food").
+    mockSearchFoods.mockReturnValue([]);
+    const newFoodReceipt: LogReceipt = {
+      target: { kind: 'food', id: 'food-3' },
+      entries: [
+        {
+          id: 'log-3',
+          updatedAt: 0,
+          deleted: 0,
+          loggedAt: 0,
+          localDate: '2025-03-10',
+          localMinute: 415,
+          foodId: 'food-3',
+          mealId: null,
+          qty: 1,
+          grams: null,
+          kcal: 210,
+          protein: 25,
+          slot: 'breakfast',
+        },
+      ],
+      portions: 1,
+      undo: { kind: 'unlog', logIds: ['log-3'] },
+    };
+    mockCreateFoodAndLog.mockReturnValue({ food: eggsFoodRow({ id: 'food-3', name: 'Protein bar' }), receipt: newFoodReceipt });
+    await renderToday();
+
+    // Tap 1 — open the sheet.
+    await fireEvent.press(screen.getByTestId('today-search-sheet-bar'));
+    // Query text, not a tap — and it is what pre-fills the create sheet's name field below.
+    await fireEvent.changeText(screen.getByTestId('today-search-sheet-input'), 'Protein bar');
+
+    // Tap 2 — the trailing Create row.
+    await fireEvent.press(screen.getByTestId('today-search-sheet-create'));
+
+    expect(screen.getByTestId('today-create-food-sheet-form-name').props.value).toBe('Protein bar');
+
+    // Filling in the numbers: steppers and a serving-label field, never a keyboard number field
+    // (`FoodForm`'s own tap doctrine) — none of this counts against the 3 *fixed* taps the issue's
+    // budget allows on top of "name and numbers".
+    await fireEvent.changeText(screen.getByTestId('today-create-food-sheet-form-serving-label'), '1 bar');
+    await fireEvent.press(screen.getByTestId('today-create-food-sheet-form-kcal-increase'));
+    await fireEvent.press(screen.getByTestId('today-create-food-sheet-form-protein-increase'));
+
+    // Tap 3 — Save.
+    await fireEvent.press(screen.getByTestId('today-create-food-sheet-form-save'));
+
+    // "Ends logged, not merely saved": `createFoodAndLog`, the one write that both creates the food
+    // and logs a serving in the same transaction — never a plain `createFood` a "just saved" path
+    // would call instead (there is nothing else mocked here that could satisfy this assertion).
+    expect(mockCreateFoodAndLog).toHaveBeenCalledTimes(1);
+    expect(mockCreateFoodAndLog.mock.calls[0]?.[1]).toMatchObject({ food: expect.objectContaining({ name: 'Protein bar' }) });
+    expect(screen.getByTestId('today-undo-toast-title')).toHaveTextContent('Protein bar');
+    expect(screen.queryByTestId('today-create-food-sheet')).toBeNull();
+
+    const ring = within(screen.getByTestId('today-header-kcal-arc'));
+    expect(ring.getByTestId('arc-value').props.children).toBe('1,210');
+  });
+
+  it('a failed Save on the Create path never closes the sheet or raises the toast — "merely saved" never happens either', async () => {
+    mockSearchFoods.mockReturnValue([]);
+    const { VitalsDbError } = jest.requireActual<typeof import('../src/db')>('../src/db');
+    mockCreateFoodAndLog.mockImplementation(() => {
+      throw new VitalsDbError('invalid_input', 'nope');
+    });
+    await renderToday();
+
+    await fireEvent.press(screen.getByTestId('today-search-sheet-bar'));
+    await fireEvent.changeText(screen.getByTestId('today-search-sheet-input'), 'Protein bar');
+    await fireEvent.press(screen.getByTestId('today-search-sheet-create'));
+    await fireEvent.changeText(screen.getByTestId('today-create-food-sheet-form-serving-label'), '1 bar');
+    await fireEvent.press(screen.getByTestId('today-create-food-sheet-form-save'));
+
+    expect(screen.queryByTestId('today-undo-toast-title')).toBeNull();
+    expect(screen.getByTestId('today-create-food-sheet')).toBeTruthy();
+    const ring = within(screen.getByTestId('today-header-kcal-arc'));
+    expect(ring.getByTestId('arc-value').props.children).toBe('1,000');
   });
 });

@@ -6,7 +6,7 @@ For the sprint-by-sprint plan see [`README.md`](README.md); for open work see th
 
 ## Current sprint
 
-**Sprint 1 — Nutrition core: the Today screen and one-tap food logging.** 23/26 issues closed. Ends at
+**Sprint 1 — Nutrition core: the Today screen and one-tap food logging.** 25/26 issues closed. Ends at
 **Checkpoint 2** (Log real food for 2–3 days on their own phone).
 
 ## Checkpoints
@@ -56,3 +56,4 @@ For the sprint-by-sprint plan see [`README.md`](README.md); for open work see th
 - 2026-09-13  docs: ruling 8 — body_metrics sync resolves on local_date (issue #46)  (PR #72 closes #46)
 - 2026-09-13  feat: SearchSheet — search bar, sheet shell, recent/results rendering (issue #69)  (PR #73 closes #69)
 - 2026-09-14  feat: search row tap-to-log and long-press portion sheet (#70)  (PR #74 closes #70)
+- 2026-09-14  feat: create-from-search — pre-filled add-food form, save creates and logs in one action (issue #71)  (PR #75 closes #71)
