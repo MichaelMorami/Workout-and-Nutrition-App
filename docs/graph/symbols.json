@@ -42,7 +42,7 @@
         "src/store/undoToast.ts",
         "src/theme/tokens.ts"
       ],
-      "loc": 138
+      "loc": 139
     },
     "app/(tabs)/settings.tsx": {
       "exports": [
@@ -531,7 +531,8 @@
       "loc": 516,
       "importedBy": [
         "src/components/day-log/DayLogList.tsx",
-        "src/components/quick-add/QuickAddGrid.tsx"
+        "src/components/quick-add/QuickAddGrid.tsx",
+        "src/components/search/SearchSheet.tsx"
       ]
     },
     "src/components/quick-add/QuickAddGrid.tsx": {
@@ -631,22 +632,26 @@
     },
     "src/components/search/SearchSheet.tsx": {
       "exports": [
-        "function SearchSheet({ db, onSelect, onCreate, locale, theme, testID = 'search-sheet' }: SearchSheetProps): import(\"react\").JSX.Element",
-        "type SearchSheetProps = {\n  readonly db: VitalsDb;\n  /** A result row was tapped. What that means (log it) is issue #70's job — this only reports it. */\n  readonly onSelect?: (candidate: Candidate) => void;\n  /** The trailing Create row was tapped, with the trimmed query that seeded it. Issue #71 wires this\n   * to the pre-filled add-food form. */\n  readonly onCreate?: (query: string) => void;\n..."
+        "function SearchSheet({ db, onLogged, onPortionAdded, onCreate, locale, theme, testID = 'search-sheet' }: SearchSheetProps): import(\"react\").JSX.Element",
+        "type SearchSheetProps = {\n  readonly db: VitalsDb;\n  /** Called after a *fresh* log lands — a row's first tap, or the portion sheet's own Log — with\n   * the receipt (`kcal`/`protein` logged). Mirrors `QuickAddGridProps['onLogged']` exactly, so the\n   * Today screen can feed both into the same running-totals reducer. Never called for a write that\n   * failed, and never called for a repeat tap's..."
       ],
       "imports": [
         "react",
         "react-native",
+        "src/components/quick-add/PortionSheet.tsx",
         "src/db/index.ts",
         "src/hooks/deviceWhen.ts",
+        "src/hooks/useHapticFeedback.ts",
+        "src/store/logTracker.ts",
+        "src/store/undoToast.ts",
         "src/theme/tokens.ts"
       ],
-      "loc": 411
+      "loc": 629
     },
     "src/components/search/index.ts": {
       "exports": [
-        "function SearchSheet({ db, onSelect, onCreate, locale, theme, testID = 'search-sheet' }: SearchSheetProps): import(\"react\").JSX.Element",
-        "type SearchSheetProps = {\n  readonly db: VitalsDb;\n  /** A result row was tapped. What that means (log it) is issue #70's job — this only reports it. */\n  readonly onSelect?: (candidate: Candidate) => void;\n  /** The trailing Create row was tapped, with the trimmed query that seeded it. Issue #71 wires this\n   * to the pre-filled add-food form. */\n  readonly onCreate?: (query: string) => void;\n..."
+        "function SearchSheet({ db, onLogged, onPortionAdded, onCreate, locale, theme, testID = 'search-sheet' }: SearchSheetProps): import(\"react\").JSX.Element",
+        "type SearchSheetProps = {\n  readonly db: VitalsDb;\n  /** Called after a *fresh* log lands — a row's first tap, or the portion sheet's own Log — with\n   * the receipt (`kcal`/`protein` logged). Mirrors `QuickAddGridProps['onLogged']` exactly, so the\n   * Today screen can feed both into the same running-totals reducer. Never called for a write that\n   * failed, and never called for a repeat tap's..."
       ],
       "imports": [],
       "loc": 2,
@@ -1294,7 +1299,8 @@
         "src/components/meals/MealList.tsx",
         "src/components/quick-add/PortionSheet.tsx",
         "src/components/quick-add/QuickAddTile.tsx",
-        "src/components/quick-add/UndoToast.tsx"
+        "src/components/quick-add/UndoToast.tsx",
+        "src/components/search/SearchSheet.tsx"
       ]
     },
     "src/hooks/useTheme.ts": {
@@ -1340,7 +1346,8 @@
         "src/components/day-log/DayLogList.tsx",
         "src/components/meals/MealList.tsx",
         "src/components/quick-add/QuickAddGrid.tsx",
-        "src/components/quick-add/UndoToast.tsx"
+        "src/components/quick-add/UndoToast.tsx",
+        "src/components/search/SearchSheet.tsx"
       ]
     },
     "src/store/theme-preference.ts": {
@@ -1373,7 +1380,8 @@
         "src/components/day-log/DayLogList.tsx",
         "src/components/meals/MealList.tsx",
         "src/components/quick-add/QuickAddGrid.tsx",
-        "src/components/quick-add/UndoToast.tsx"
+        "src/components/quick-add/UndoToast.tsx",
+        "src/components/search/SearchSheet.tsx"
       ]
     },
     "src/theme/tokens.ts": {

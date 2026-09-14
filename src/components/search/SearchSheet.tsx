@@ -4,12 +4,19 @@
  * the sheet it opens — a section header, six ranked tiles is `<QuickAddGrid>`'s job; finding the
  * rest of the library is this one's.
  *
- * SCOPE — SHELL AND LIST RENDERING ONLY. This issue is the sheet chrome (the bar, the field, Recent
- * vs. Results, saved-meal labelling, the two empty states). What a tap on a *result* row does
- * (log with a haptic and an undo toast, sheet closes) is #70; what a tap on the trailing *Create*
- * row does (open the add-food form, pre-filled, save-and-log) is #71. Both are exposed here only as
- * plain callbacks (`onSelect` / `onCreate`) — this component never touches `logFood`/`logMeal`/
- * `createFoodAndLog` itself.
+ * ROWS BEHAVE EXACTLY LIKE TILES (issue #70). A tap goes through the same "one place decides"
+ * bookkeeping `QuickAddGrid` uses (`logTracker`'s module note — it is shared across tile and row on
+ * purpose): a fresh `logFood`/`logMeal` if this candidate was not logged inside
+ * `interaction.repeatWindowMs`, `addPortion` on the same rows if it was. Either way: a haptic, the
+ * undo toast (`useUndoToastStore`, generic across every write this app makes), a brief "Logged" beat
+ * on the row itself (`resultRow.bgLogged`, held `interaction.rowLoggedHoldMs`), then the sheet
+ * closes — no confirmation dialog, no save button, no navigation. A long-press dismisses any toast
+ * still up and opens `<PortionSheet>` (#21) instead of logging; its own Log always writes fresh (a
+ * chosen serving multiple, never an addition) and closes both sheets. A failed write is swallowed,
+ * exactly `QuickAddGrid`'s own doctrine: no dialog, and the sheet stays open, as if the tap simply
+ * did not count. What a tap on the trailing *Create* row does (open the add-food form, pre-filled,
+ * save-and-log) is #71, exposed here only as a plain callback (`onCreate`) — this component never
+ * touches `createFoodAndLog` itself.
  *
  * RECENT EXCLUDES THE SIX ON THE GRID. `quickAddCandidates` is read once per mount, exactly like
  * `<QuickAddGrid>`'s own "ranked once per visit" discipline (its module note) — not to duplicate
@@ -28,11 +35,26 @@
  * NO NEW NATIVE DEPENDENCY: `Modal`'s built-in `animationType="slide"` presents the sheet, the same
  * choice `<PortionSheet>` made and for the same reason.
  */
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { FlatList, Modal, Pressable, StyleSheet, Text, TextInput, View, type TextStyle } from 'react-native';
-import { quickAddCandidates, recentFoods, searchFoods, type Candidate, type VitalsDb } from '../../db';
+import {
+  addPortion,
+  logFood,
+  logMeal,
+  quickAddCandidates,
+  recentFoods,
+  searchFoods,
+  VitalsDbError,
+  type Candidate,
+  type LogReceipt,
+  type VitalsDb,
+} from '../../db';
 import { deviceWhen } from '../../hooks/deviceWhen';
-import { interaction, radius, size, space, type, type Theme, type TypeStyle } from '../../theme/tokens';
+import { useHapticFeedback } from '../../hooks/useHapticFeedback';
+import { forgetLog, logTrackerKey, recentLog, trackLog } from '../../store/logTracker';
+import { useUndoToastStore, type LogDelta } from '../../store/undoToast';
+import { haptics, interaction, radius, size, space, type, type Theme, type TypeStyle } from '../../theme/tokens';
+import { PortionSheet } from '../quick-add/PortionSheet';
 
 /** The layered-plates glyph a saved meal carries — same choice `QuickAddTile` made: plain Unicode,
  * no icon library installed yet (`CLAUDE.md` — raise a native dependency before adding one). */
@@ -43,8 +65,15 @@ const CLEAR_GLYPH = '×';
 
 export type SearchSheetProps = {
   readonly db: VitalsDb;
-  /** A result row was tapped. What that means (log it) is issue #70's job — this only reports it. */
-  readonly onSelect?: (candidate: Candidate) => void;
+  /** Called after a *fresh* log lands — a row's first tap, or the portion sheet's own Log — with
+   * the receipt (`kcal`/`protein` logged). Mirrors `QuickAddGridProps['onLogged']` exactly, so the
+   * Today screen can feed both into the same running-totals reducer. Never called for a write that
+   * failed, and never called for a repeat tap's `addPortion` (see `onPortionAdded`). */
+  readonly onLogged?: (receipt: LogReceipt) => void;
+  /** Called after a repeat tap (within `interaction.repeatWindowMs` of the candidate's last log,
+   * tile or row alike) adds a portion instead of a fresh row. Mirrors
+   * `QuickAddGridProps['onPortionAdded']`. */
+  readonly onPortionAdded?: (delta: LogDelta) => void;
   /** The trailing Create row was tapped, with the trimmed query that seeded it. Issue #71 wires this
    * to the pre-filled add-food form. */
   readonly onCreate?: (query: string) => void;
@@ -78,21 +107,62 @@ function rowAccessibilityLabel(candidate: Candidate, kcal: string, protein: stri
   return `${candidate.name}, ${kind}, ${kcal} kilocalories, ${protein} grams protein`;
 }
 
-function ResultRow({ candidate, theme, locale, onPress, testID }: { candidate: Candidate; theme: Theme; locale?: string; onPress: () => void; testID: string }) {
+function ResultRow({
+  candidate,
+  theme,
+  locale,
+  logged,
+  onPress,
+  onLongPress,
+  testID,
+}: {
+  candidate: Candidate;
+  theme: Theme;
+  locale?: string;
+  /** This row's own brief "Logged" beat (`resultRow.bgLogged`, held `interaction.rowLoggedHoldMs`)
+   * — the tile's `logged` state, mirrored here (`QuickAddTile`'s module note). */
+  logged: boolean;
+  onPress: () => void;
+  onLongPress: () => void;
+  testID: string;
+}) {
   const { resultRow } = theme.color;
   const kcalText = Math.round(candidate.kcal).toLocaleString(locale);
   const proteinText = Math.round(candidate.protein).toLocaleString(locale);
   const isMeal = candidate.kind === 'meal';
+  // Guards the same touch from firing both `onLongPress` and `onPress` when the finger lifts —
+  // `QuickAddTile`'s own guard, same reasoning: opening the portion sheet must never also log.
+  const longPressed = useRef(false);
+
+  const handlePress = (): void => {
+    if (longPressed.current) {
+      longPressed.current = false;
+      return;
+    }
+    onPress();
+  };
+
+  const handleLongPress = (): void => {
+    longPressed.current = true;
+    onLongPress();
+  };
 
   return (
     <Pressable
       testID={testID}
-      onPress={onPress}
+      onPress={handlePress}
+      onLongPress={handleLongPress}
+      delayLongPress={interaction.longPressMs}
       accessibilityRole="button"
       accessibilityLabel={rowAccessibilityLabel(candidate, kcalText, proteinText)}
       style={[
         styles.row,
-        { minHeight: size.resultRow.heightHit, backgroundColor: resultRow.bg, borderBottomColor: resultRow.divider, borderBottomWidth: StyleSheet.hairlineWidth },
+        {
+          minHeight: size.resultRow.heightHit,
+          backgroundColor: logged ? resultRow.bgLogged : resultRow.bg,
+          borderBottomColor: resultRow.divider,
+          borderBottomWidth: StyleSheet.hairlineWidth,
+        },
       ]}
     >
       <View style={styles.rowText}>
@@ -115,10 +185,17 @@ function ResultRow({ candidate, theme, locale, onPress, testID }: { candidate: C
           {servingSummary(candidate)}
         </Text>
       </View>
-      <View style={styles.rowFigures}>
-        <Text style={textStyle(type.numericSm, resultRow.kcalText)}>{`${kcalText} kcal`}</Text>
-        <Text style={textStyle(type.numericSm, resultRow.proteinText)}>{`${proteinText} g`}</Text>
-      </View>
+      {logged ? (
+        <View testID={`${testID}-logged`} style={styles.loggedBeat}>
+          <Text style={{ fontSize: size.icon.sm, color: resultRow.loggedIcon, marginRight: space[1] }}>{'✓'}</Text>
+          <Text style={textStyle(type.numericSm, resultRow.loggedText)}>Logged</Text>
+        </View>
+      ) : (
+        <View style={styles.rowFigures}>
+          <Text style={textStyle(type.numericSm, resultRow.kcalText)}>{`${kcalText} kcal`}</Text>
+          <Text style={textStyle(type.numericSm, resultRow.proteinText)}>{`${proteinText} g`}</Text>
+        </View>
+      )}
     </Pressable>
   );
 }
@@ -147,6 +224,25 @@ function CreateRow({ query, theme, onPress, testID }: { query: string; theme: Th
   );
 }
 
+/** Sums `kcal`/`protein` off any row shape that carries them — mirrors `QuickAddGrid`'s own
+ * `totalsOf`, the same helper both write paths need. */
+function totalsOf(rows: readonly { readonly kcal: number; readonly protein: number }[]): { kcal: number; protein: number } {
+  return rows.reduce((sum, row) => ({ kcal: sum.kcal + row.kcal, protein: sum.protein + row.protein }), { kcal: 0, protein: 0 });
+}
+
+/** "Skyr Pot" once, "Skyr Pot ×2" from the second portion on — mirrors `QuickAddGrid`'s own
+ * `toastTitle`, so a row's undo toast reads exactly like a tile's. */
+function toastTitle(name: string, portions: number): string {
+  return portions > 1 ? `${name} ×${portions}` : name;
+}
+
+/** "240 kcal · 40 g protein" — mirrors `QuickAddGrid`'s own `toastMeta`. */
+function toastMeta(totals: { kcal: number; protein: number }, locale?: string): string {
+  const kcal = Math.round(totals.kcal).toLocaleString(locale);
+  const protein = Math.round(totals.protein).toLocaleString(locale);
+  return `${kcal} kcal · ${protein} g protein`;
+}
+
 function NoLibraryEmptyState({ theme, testID }: { theme: Theme; testID: string }) {
   const { sectionLabel } = theme.color;
   return (
@@ -162,8 +258,9 @@ function NoLibraryEmptyState({ theme, testID }: { theme: Theme; testID: string }
   );
 }
 
-export function SearchSheet({ db, onSelect, onCreate, locale, theme, testID = 'search-sheet' }: SearchSheetProps) {
+export function SearchSheet({ db, onLogged, onPortionAdded, onCreate, locale, theme, testID = 'search-sheet' }: SearchSheetProps) {
   const { searchBar, searchSheet } = theme.color;
+  const fireHaptic = useHapticFeedback();
 
   // Read once per mount — the grid's own "ranked once per visit" discipline (`QuickAddGrid`'s module
   // note), and the only way this component knows which six `recentFoods` must exclude.
@@ -175,6 +272,17 @@ export function SearchSheet({ db, onSelect, onCreate, locale, theme, testID = 's
   const [visible, setVisible] = useState(false);
   const [query, setQuery] = useState('');
   const [recent, setRecent] = useState<Candidate[]>([]);
+  const [sheetCandidate, setSheetCandidate] = useState<Candidate | null>(null);
+  // The row currently showing its "Logged" beat (`logTrackerKey`-shaped), or `null` at rest.
+  const [loggedKey, setLoggedKey] = useState<string | null>(null);
+  const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(
+    () => () => {
+      if (closeTimer.current) clearTimeout(closeTimer.current);
+    },
+    [],
+  );
 
   const openSheet = (): void => {
     setRecent(recentFoods(db, { ...when, days: interaction.recentDays, excludeIds: gridIds }));
@@ -182,7 +290,102 @@ export function SearchSheet({ db, onSelect, onCreate, locale, theme, testID = 's
     setVisible(true);
   };
 
-  const closeSheet = (): void => setVisible(false);
+  const closeSheet = (): void => {
+    if (closeTimer.current) {
+      clearTimeout(closeTimer.current);
+      closeTimer.current = null;
+    }
+    setLoggedKey(null);
+    setVisible(false);
+  };
+
+  const logFreshCandidate = (candidate: Candidate, at: { at: number; timeZone: string }, portions?: number): LogReceipt =>
+    candidate.kind === 'food'
+      ? logFood(db, { ...at, foodId: candidate.id, amount: portions === undefined ? undefined : { servings: portions } })
+      : logMeal(db, { ...at, mealId: candidate.id, portions });
+
+  const publishToast = (candidate: Candidate, receipt: LogReceipt, totals: { kcal: number; protein: number }, delta: LogDelta): void => {
+    useUndoToastStore.getState().show({
+      token: receipt.undo,
+      candidateKey: logTrackerKey(candidate),
+      title: toastTitle(candidate.name, receipt.portions),
+      meta: toastMeta(totals, locale),
+      delta,
+    });
+  };
+
+  // The row's brief "Logged" beat, then the sheet closes — `QuickAddTile`'s hold-then-revert,
+  // ending in a close instead of a revert: a search row's whole job is done the instant its one
+  // write lands, so there is nothing left here to go back to resting figures for.
+  const scheduleClose = (): void => {
+    closeTimer.current = setTimeout(() => {
+      closeTimer.current = null;
+      closeSheet();
+    }, interaction.rowLoggedHoldMs);
+  };
+
+  const handleRowPress = (candidate: Candidate): void => {
+    const key = logTrackerKey(candidate);
+    const now = deviceWhen();
+    try {
+      const previous = recentLog(key, now.at);
+      if (previous) {
+        const next = addPortion(db, { at: now.at, receipt: previous });
+        trackLog(key, next, now.at);
+        const totals = totalsOf(next.entries);
+        const prevTotals = next.undo.kind === 'revert' ? totalsOf(next.undo.previous) : totalsOf(previous.entries);
+        const delta: LogDelta = { kcal: totals.kcal - prevTotals.kcal, protein: totals.protein - prevTotals.protein, entryCountDelta: 0 };
+        fireHaptic(haptics.foodLogged);
+        publishToast(candidate, next, totals, delta);
+        onPortionAdded?.(delta);
+        setLoggedKey(key);
+        scheduleClose();
+        return;
+      }
+
+      const receipt = logFreshCandidate(candidate, now);
+      trackLog(key, receipt, now.at);
+      const totals = totalsOf(receipt.entries);
+      const delta: LogDelta = { kcal: totals.kcal, protein: totals.protein, entryCountDelta: receipt.entries.length };
+      fireHaptic(haptics.foodLogged);
+      publishToast(candidate, receipt, totals, delta);
+      onLogged?.(receipt);
+      setLoggedKey(key);
+      scheduleClose();
+    } catch (err) {
+      // No dialog, no crash — a failed write is not a user-visible event, and the sheet stays open,
+      // exactly as if the tap simply did not count (`QuickAddGrid`'s own doctrine).
+      if (!(err instanceof VitalsDbError)) throw err;
+      forgetLog(key);
+    }
+  };
+
+  const handleRowLongPress = (candidate: Candidate): void => {
+    // `interaction.undoDismissedBy` includes `'sheetOpened'` — a toast from the tap before this
+    // long-press must not survive into a decision the portion sheet is about to make instead.
+    useUndoToastStore.getState().dismiss();
+    setSheetCandidate(candidate);
+  };
+
+  const handlePortionSheetClose = (): void => setSheetCandidate(null);
+
+  const handlePortionSheetLog = (candidate: Candidate, portions: number): void => {
+    const now = deviceWhen();
+    try {
+      const receipt = logFreshCandidate(candidate, now, portions);
+      trackLog(logTrackerKey(candidate), receipt, now.at);
+      const totals = totalsOf(receipt.entries);
+      const delta: LogDelta = { kcal: totals.kcal, protein: totals.protein, entryCountDelta: receipt.entries.length };
+      fireHaptic(haptics.foodLogged);
+      publishToast(candidate, receipt, totals, delta);
+      onLogged?.(receipt);
+      setSheetCandidate(null);
+      closeSheet();
+    } catch (err) {
+      if (!(err instanceof VitalsDbError)) throw err;
+      setSheetCandidate(null);
+    }
+  };
 
   const trimmedQuery = query.trim();
   const results = useMemo<Candidate[]>(
@@ -208,7 +411,9 @@ export function SearchSheet({ db, onSelect, onCreate, locale, theme, testID = 's
         candidate={item.candidate}
         theme={theme}
         locale={locale}
-        onPress={() => onSelect?.(item.candidate)}
+        logged={loggedKey === logTrackerKey(item.candidate)}
+        onPress={() => handleRowPress(item.candidate)}
+        onLongPress={() => handleRowLongPress(item.candidate)}
         testID={`${testID}-row-${item.candidate.kind}-${item.candidate.id}`}
       />
     );
@@ -320,6 +525,15 @@ export function SearchSheet({ db, onSelect, onCreate, locale, theme, testID = 's
           </View>
         </Modal>
       ) : null}
+
+      <PortionSheet
+        candidate={sheetCandidate}
+        theme={theme}
+        locale={locale}
+        onLog={handlePortionSheetLog}
+        onClose={handlePortionSheetClose}
+        testID={`${testID}-portion-sheet`}
+      />
     </View>
   );
 }
@@ -393,6 +607,10 @@ const styles = StyleSheet.create({
   rowFigures: {
     alignItems: 'flex-end',
     gap: space[1],
+  },
+  loggedBeat: {
+    flexDirection: 'row',
+    alignItems: 'center',
   },
   createDisc: {
     alignItems: 'center',
