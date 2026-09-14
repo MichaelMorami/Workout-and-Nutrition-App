@@ -42,6 +42,9 @@ jobs:
       - name: Worktree node_modules protection (scripts/worktree.test.sh)
         run: ./scripts/worktree.test.sh
 
+      - name: Metro blockList excludes test files (scripts/metro-blocklist.test.sh)
+        run: ./scripts/metro-blocklist.test.sh
+
       - name: Test (with coverage)
         run: npx jest --silent --coverage --passWithNoTests
 
