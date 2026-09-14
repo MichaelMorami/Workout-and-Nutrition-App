@@ -29,8 +29,9 @@ import { layout, space } from '../../src/theme/tokens';
  *
  * The "Search foods" bar (#69, decision 4 in `docs/decisions.md`) sits right under the grid, in the
  * same `layout.tileGap` rhythm as the tiles themselves — `<SearchSheet>` owns the bar and the sheet
- * it opens; row *behaviour* (tap-to-log, long-press, create) is #70/#71, so `onSelect`/`onCreate`
- * are left unwired here.
+ * it opens. Row tap-to-log and long-press (#70) write through the exact same `onLogged`/
+ * `onPortionAdded` shape `<QuickAddGrid>` uses, so they feed this screen's rings from the same two
+ * handlers with nothing new to wire; `onCreate` (#71) is still left unwired here.
  *
  * `<UndoToast>` MOUNTS OUTSIDE THE `ScrollView` (issue #21). It floats above the tab bar, clear of
  * the grid's own scrolling content (`docs/decisions.md`, `UndoToast.tsx`'s own module note) — a
@@ -109,7 +110,7 @@ export default function TodayScreen(): React.JSX.Element {
         />
         <View style={styles.quickAddGroup}>
           <QuickAddGrid onLogged={handleLogged} onPortionAdded={handlePortionAdded} />
-          <SearchSheet db={db} theme={theme} testID="today-search-sheet" />
+          <SearchSheet db={db} onLogged={handleLogged} onPortionAdded={handlePortionAdded} theme={theme} testID="today-search-sheet" />
         </View>
         <DayLogList refreshToken={dayLogVersion} onChanged={handlePortionAdded} testID="day-log-list" />
         <WeightChip testID="weight-chip" />

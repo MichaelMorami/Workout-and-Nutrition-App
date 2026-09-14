@@ -22,7 +22,7 @@ jq -r '.modules["src/db/queries/nutrition.ts"].exports[]' docs/graph/symbols.jso
 
 - `function default(): import("react").JSX.Element`
 
-### `app/(tabs)/index.tsx`  <sub>138 lines</sub>
+### `app/(tabs)/index.tsx`  <sub>139 lines</sub>
 
 - `function default(): React.JSX.Element`
 
@@ -544,7 +544,7 @@ jq -r '.modules["src/db/queries/nutrition.ts"].exports[]' docs/graph/symbols.jso
   readonly locale?: string;
   /** A step, or Exact's Log button — always a servings multiple of the candidate's ow...`
 
-<sub>used by: `src/components/day-log/DayLogList.tsx`, `src/components/quick-add/QuickAddGrid.tsx`</sub>
+<sub>used by: `src/components/day-log/DayLogList.tsx`, `src/components/quick-add/QuickAddGrid.tsx`, `src/components/search/SearchSheet.tsx`</sub>
 
 ### `src/components/quick-add/QuickAddGrid.tsx`  <sub>274 lines</sub>
 
@@ -644,29 +644,25 @@ jq -r '.modules["src/db/queries/nutrition.ts"].exports[]' docs/graph/symbols.jso
 
 ## `src/components/search/`
 
-### `src/components/search/SearchSheet.tsx`  <sub>411 lines</sub>
+### `src/components/search/SearchSheet.tsx`  <sub>629 lines</sub>
 
-- `function SearchSheet({ db, onSelect, onCreate, locale, theme, testID = 'search-sheet' }: SearchSheetProps): import("react").JSX.Element`
+- `function SearchSheet({ db, onLogged, onPortionAdded, onCreate, locale, theme, testID = 'search-sheet' }: SearchSheetProps): import("react").JSX.Element`
 - `type SearchSheetProps = {
   readonly db: VitalsDb;
-  /** A result row was tapped. What that means (log it) is issue #70's job — this only reports it. */
-  readonly onSelect?: (candidate: Candidate) => void;
-  /** The trailing Create row was tapped, with the trimmed query that seeded it. Issue #71 wires this
-   * to the pre-filled add-food form. */
-  readonly onCreate?: (query: string) => void;
-...`
+  /** Called after a *fresh* log lands — a row's first tap, or the portion sheet's own Log — with
+   * the receipt (`kcal`/`protein` logged). Mirrors `QuickAddGridProps['onLogged']` exactly, so the
+   * Today screen can feed both into the same running-totals reducer. Never called for a write that
+   * failed, and never called for a repeat tap's...`
 
 ### `src/components/search/index.ts`  <sub>2 lines</sub>
 
-- `function SearchSheet({ db, onSelect, onCreate, locale, theme, testID = 'search-sheet' }: SearchSheetProps): import("react").JSX.Element`
+- `function SearchSheet({ db, onLogged, onPortionAdded, onCreate, locale, theme, testID = 'search-sheet' }: SearchSheetProps): import("react").JSX.Element`
 - `type SearchSheetProps = {
   readonly db: VitalsDb;
-  /** A result row was tapped. What that means (log it) is issue #70's job — this only reports it. */
-  readonly onSelect?: (candidate: Candidate) => void;
-  /** The trailing Create row was tapped, with the trimmed query that seeded it. Issue #71 wires this
-   * to the pre-filled add-food form. */
-  readonly onCreate?: (query: string) => void;
-...`
+  /** Called after a *fresh* log lands — a row's first tap, or the portion sheet's own Log — with
+   * the receipt (`kcal`/`protein` logged). Mirrors `QuickAddGridProps['onLogged']` exactly, so the
+   * Today screen can feed both into the same running-totals reducer. Never called for a write that
+   * failed, and never called for a repeat tap's...`
 
 <sub>used by: `app/(tabs)/index.tsx`</sub>
 
@@ -1083,7 +1079,7 @@ _no exports_
 
 - `function useHapticFeedback(): (haptic: Haptic) => void`
 
-<sub>used by: `src/components/meals/MealList.tsx`, `src/components/quick-add/PortionSheet.tsx`, `src/components/quick-add/QuickAddTile.tsx`, `src/components/quick-add/UndoToast.tsx`</sub>
+<sub>used by: `src/components/meals/MealList.tsx`, `src/components/quick-add/PortionSheet.tsx`, `src/components/quick-add/QuickAddTile.tsx`, `src/components/quick-add/UndoToast.tsx`, `src/components/search/SearchSheet.tsx`</sub>
 
 ### `src/hooks/useTheme.ts`  <sub>14 lines</sub>
 
@@ -1101,7 +1097,7 @@ _no exports_
 - `function recentLog(key: string, now: number): LogReceipt | undefined`
 - `function trackLog(key: string, receipt: LogReceipt, at: number): void`
 
-<sub>used by: `src/components/day-log/DayLogList.tsx`, `src/components/meals/MealList.tsx`, `src/components/quick-add/QuickAddGrid.tsx`, `src/components/quick-add/UndoToast.tsx`</sub>
+<sub>used by: `src/components/day-log/DayLogList.tsx`, `src/components/meals/MealList.tsx`, `src/components/quick-add/QuickAddGrid.tsx`, `src/components/quick-add/UndoToast.tsx`, `src/components/search/SearchSheet.tsx`</sub>
 
 ### `src/store/theme-preference.ts`  <sub>19 lines</sub>
 
@@ -1115,7 +1111,7 @@ _no exports_
 - `interface LogDelta`
 - `interface UndoToastPayload`
 
-<sub>used by: `app/(tabs)/index.tsx`, `src/components/day-log/DayLogList.tsx`, `src/components/meals/MealList.tsx`, `src/components/quick-add/QuickAddGrid.tsx`, `src/components/quick-add/UndoToast.tsx`</sub>
+<sub>used by: `app/(tabs)/index.tsx`, `src/components/day-log/DayLogList.tsx`, `src/components/meals/MealList.tsx`, `src/components/quick-add/QuickAddGrid.tsx`, `src/components/quick-add/UndoToast.tsx`, `src/components/search/SearchSheet.tsx`</sub>
 
 ## `src/theme/`
 
