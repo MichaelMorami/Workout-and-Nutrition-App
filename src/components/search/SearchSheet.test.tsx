@@ -1,12 +1,16 @@
 /**
- * `<SearchSheet>` — issue #69: the search sheet shell, the search bar, and list rendering only.
- * Row *behaviour* (tap-to-log, long-press, create) is #70/#71 — this file only asserts the bar,
- * the sheet opening with the field focused, Recent vs. Results rendering, saved-meal labelling, and
- * the two empty states.
+ * `<SearchSheet>` — issue #69 built the shell, the bar, and list rendering (Recent vs. Results,
+ * saved-meal labelling, the two empty states — asserted below, unchanged). Issue #70 adds row
+ * *behaviour*: a tap logs one serving (fresh, or `addPortion` on a repeat tap within
+ * `interaction.repeatWindowMs` — the same `logTracker` bookkeeping `QuickAddGrid` uses, shared
+ * across tile and row on purpose) with a haptic and an undo toast, then the sheet closes; a
+ * long-press opens `<PortionSheet>` (#21) instead. Create's own behaviour is #71.
  */
-import { fireEvent, render, screen, within } from '@testing-library/react-native';
-import type { FoodCandidate, MealCandidate } from '../../db';
-import { quickAddCandidates, recentFoods, searchFoods } from '../../db';
+import { act, fireEvent, render, screen, within } from '@testing-library/react-native';
+import type { FoodCandidate, LogReceipt, MealCandidate } from '../../db';
+import { addPortion, logFood, logMeal, quickAddCandidates, recentFoods, searchFoods, VitalsDbError } from '../../db';
+import { __resetLogTracker } from '../../store/logTracker';
+import { useUndoToastStore } from '../../store/undoToast';
 import { interaction, themes } from '../../theme/tokens';
 import { SearchSheet } from './SearchSheet';
 
@@ -15,11 +19,17 @@ jest.mock('../../db', () => ({
   quickAddCandidates: jest.fn(),
   recentFoods: jest.fn(),
   searchFoods: jest.fn(),
+  logFood: jest.fn(),
+  logMeal: jest.fn(),
+  addPortion: jest.fn(),
 }));
 
 const mockQuickAdd = jest.mocked(quickAddCandidates);
 const mockRecent = jest.mocked(recentFoods);
 const mockSearch = jest.mocked(searchFoods);
+const mockLogFood = jest.mocked(logFood);
+const mockLogMeal = jest.mocked(logMeal);
+const mockAddPortion = jest.mocked(addPortion);
 
 const theme = themes.dark;
 
@@ -72,10 +82,37 @@ const sixOnGrid = [
 const renderSheet = (props: Partial<React.ComponentProps<typeof SearchSheet>> = {}) =>
   render(<SearchSheet db={{} as never} theme={theme} testID="search-sheet" {...props} />);
 
+/** Mirrors `QuickAddGrid.test.tsx`'s own `receiptFor` — the two components share the exact write
+ * contract (`logFood`/`logMeal`/`addPortion`), so the same fixture shape proves it out here. */
+const receiptFor = (candidate: FoodCandidate | MealCandidate): LogReceipt => ({
+  target: { kind: candidate.kind, id: candidate.id },
+  entries: [
+    {
+      id: 'log-1',
+      updatedAt: 0,
+      deleted: 0,
+      loggedAt: 0,
+      localDate: '2025-03-10',
+      localMinute: 415,
+      foodId: candidate.kind === 'food' ? candidate.id : null,
+      mealId: candidate.kind === 'meal' ? candidate.id : null,
+      qty: 1,
+      grams: null,
+      kcal: candidate.kcal,
+      protein: candidate.protein,
+      slot: 'breakfast',
+    },
+  ],
+  portions: 1,
+  undo: { kind: 'unlog', logIds: ['log-1'] },
+});
+
 beforeEach(() => {
   mockQuickAdd.mockReturnValue(sixOnGrid);
   mockRecent.mockReturnValue([]);
   mockSearch.mockReturnValue([]);
+  __resetLogTracker();
+  useUndoToastStore.getState().dismiss();
 });
 
 describe('SearchSheet — the bar', () => {
@@ -198,18 +235,156 @@ describe('SearchSheet — typing', () => {
   });
 });
 
-describe('SearchSheet — row selection and create (wiring only; behaviour is #70/#71)', () => {
-  it('tapping a result calls onSelect with that candidate', async () => {
-    mockRecent.mockReturnValue([eggs]);
-    const onSelect = jest.fn();
-    await renderSheet({ onSelect });
+describe('SearchSheet — row tap-to-log', () => {
+  it('tapping a food result calls logFood, reports the receipt, and closes the sheet after the logged beat', async () => {
+    mockSearch.mockReturnValue([eggs]);
+    const onLogged = jest.fn();
+    const receipt = receiptFor(eggs);
+    mockLogFood.mockReturnValue(receipt);
+    await renderSheet({ onLogged });
     await fireEvent.press(screen.getByTestId('search-sheet-bar'));
+    await fireEvent.changeText(screen.getByTestId('search-sheet-input'), 'egg');
 
     await fireEvent.press(screen.getByTestId('search-sheet-row-food-food-2'));
 
-    expect(onSelect).toHaveBeenCalledWith(eggs);
+    expect(mockLogFood).toHaveBeenCalledTimes(1);
+    expect(mockLogFood.mock.calls[0]?.[1]).toMatchObject({ foodId: 'food-2' });
+    expect(onLogged).toHaveBeenCalledWith(receipt);
+    expect(receipt.entries[0]?.kcal).toBe(140);
+    expect(receipt.entries[0]?.protein).toBe(12);
+    // The row's own "Logged" beat, still visible — the sheet has not closed yet.
+    expect(screen.getByTestId('search-sheet-input')).toBeTruthy();
+
+    await act(async () => {
+      jest.advanceTimersByTime(interaction.rowLoggedHoldMs);
+    });
+
+    expect(screen.queryByTestId('search-sheet-input')).toBeNull();
   });
 
+  it('tapping a meal result calls logMeal', async () => {
+    mockSearch.mockReturnValue([shake]);
+    const receipt = receiptFor(shake);
+    mockLogMeal.mockReturnValue(receipt);
+    await renderSheet();
+    await fireEvent.press(screen.getByTestId('search-sheet-bar'));
+    await fireEvent.changeText(screen.getByTestId('search-sheet-input'), 'shake');
+
+    await fireEvent.press(screen.getByTestId('search-sheet-row-meal-meal-1'));
+
+    expect(mockLogMeal).toHaveBeenCalledTimes(1);
+    expect(mockLogMeal.mock.calls[0]?.[1]).toMatchObject({ mealId: 'meal-1' });
+  });
+
+  it('shows the undo toast, keyed to the candidate, carrying the write token', async () => {
+    mockSearch.mockReturnValue([eggs]);
+    const receipt = receiptFor(eggs);
+    mockLogFood.mockReturnValue(receipt);
+    await renderSheet();
+    await fireEvent.press(screen.getByTestId('search-sheet-bar'));
+    await fireEvent.changeText(screen.getByTestId('search-sheet-input'), 'egg');
+
+    await fireEvent.press(screen.getByTestId('search-sheet-row-food-food-2'));
+
+    const toast = useUndoToastStore.getState().toast;
+    expect(toast?.token).toEqual(receipt.undo);
+    expect(toast?.candidateKey).toBe('food-food-2');
+    expect(toast?.title).toBe('Boiled eggs');
+    expect(toast?.meta).toBe('140 kcal · 12 g protein');
+  });
+
+  it('a repeat tap on the same candidate within the repeat window calls addPortion, not a second logFood', async () => {
+    mockSearch.mockReturnValue([eggs]);
+    const onLogged = jest.fn();
+    const onPortionAdded = jest.fn();
+    const first = receiptFor(eggs);
+    mockLogFood.mockReturnValue(first);
+    const second = {
+      ...first,
+      entries: [{ ...first.entries[0]!, kcal: 280, protein: 24 }],
+      portions: 2,
+      undo: { kind: 'revert' as const, previous: [first.entries[0]!] },
+    };
+    mockAddPortion.mockReturnValue(second);
+    await renderSheet({ onLogged, onPortionAdded });
+
+    await fireEvent.press(screen.getByTestId('search-sheet-bar'));
+    await fireEvent.changeText(screen.getByTestId('search-sheet-input'), 'egg');
+    await fireEvent.press(screen.getByTestId('search-sheet-row-food-food-2'));
+    await act(async () => {
+      jest.advanceTimersByTime(interaction.rowLoggedHoldMs);
+    });
+
+    await fireEvent.press(screen.getByTestId('search-sheet-bar'));
+    await fireEvent.changeText(screen.getByTestId('search-sheet-input'), 'egg');
+    await fireEvent.press(screen.getByTestId('search-sheet-row-food-food-2'));
+
+    expect(mockLogFood).toHaveBeenCalledTimes(1);
+    expect(mockAddPortion).toHaveBeenCalledTimes(1);
+    expect(mockAddPortion.mock.calls[0]?.[1]).toMatchObject({ receipt: first });
+    expect(onLogged).toHaveBeenCalledTimes(1);
+    expect(onPortionAdded).toHaveBeenCalledWith({ kcal: 140, protein: 12, entryCountDelta: 0 });
+  });
+
+  it('swallows a failed write instead of throwing past the tap, and leaves the sheet open', async () => {
+    mockSearch.mockReturnValue([eggs]);
+    mockLogFood.mockImplementation(() => {
+      throw new VitalsDbError('not_found', 'food gone');
+    });
+    const onLogged = jest.fn();
+    await renderSheet({ onLogged });
+    await fireEvent.press(screen.getByTestId('search-sheet-bar'));
+    await fireEvent.changeText(screen.getByTestId('search-sheet-input'), 'egg');
+
+    await expect(fireEvent.press(screen.getByTestId('search-sheet-row-food-food-2'))).resolves.not.toThrow();
+
+    expect(onLogged).not.toHaveBeenCalled();
+    expect(screen.getByTestId('search-sheet-input')).toBeTruthy();
+  });
+
+  it('long-pressing a result row opens the portion sheet and dismisses any toast already showing', async () => {
+    mockSearch.mockReturnValue([eggs]);
+    const receipt = receiptFor(eggs);
+    mockLogFood.mockReturnValue(receipt);
+    await renderSheet();
+    await fireEvent.press(screen.getByTestId('search-sheet-bar'));
+    await fireEvent.changeText(screen.getByTestId('search-sheet-input'), 'egg');
+    await fireEvent.press(screen.getByTestId('search-sheet-row-food-food-2'));
+    expect(useUndoToastStore.getState().toast).not.toBeNull();
+    await act(async () => {
+      jest.advanceTimersByTime(interaction.rowLoggedHoldMs);
+    });
+
+    await fireEvent.press(screen.getByTestId('search-sheet-bar'));
+    await fireEvent.changeText(screen.getByTestId('search-sheet-input'), 'egg');
+    await fireEvent(screen.getByTestId('search-sheet-row-food-food-2'), 'longPress');
+
+    expect(useUndoToastStore.getState().toast).toBeNull();
+    expect(screen.getByTestId('search-sheet-portion-sheet-title')).toHaveTextContent('Boiled eggs');
+  });
+
+  it("the portion sheet's preset logs fresh (not addPortion) with the chosen multiple, and closes both sheets", async () => {
+    mockSearch.mockReturnValue([eggs]);
+    const onLogged = jest.fn();
+    const receipt = receiptFor(eggs);
+    mockLogFood.mockReturnValue(receipt);
+    await renderSheet({ onLogged });
+    await fireEvent.press(screen.getByTestId('search-sheet-bar'));
+    await fireEvent.changeText(screen.getByTestId('search-sheet-input'), 'egg');
+
+    await fireEvent(screen.getByTestId('search-sheet-row-food-food-2'), 'longPress');
+    await fireEvent.press(screen.getByTestId('search-sheet-portion-sheet-step-2'));
+
+    expect(mockLogFood).toHaveBeenCalledTimes(1);
+    expect(mockLogFood.mock.calls[0]?.[1]).toMatchObject({ foodId: 'food-2', amount: { servings: 2 } });
+    expect(mockAddPortion).not.toHaveBeenCalled();
+    expect(onLogged).toHaveBeenCalledWith(receipt);
+    expect(screen.queryByTestId('search-sheet-portion-sheet-title')).toBeNull();
+    expect(screen.queryByTestId('search-sheet-input')).toBeNull();
+  });
+});
+
+describe('SearchSheet — create', () => {
   it('tapping Create calls onCreate with the trimmed query', async () => {
     mockSearch.mockReturnValue([]);
     const onCreate = jest.fn();
