@@ -1,6 +1,6 @@
 {
   "generated": "scripts/graph-gen.mjs — do not edit by hand",
-  "moduleCount": 76,
+  "moduleCount": 77,
   "modules": {
     "app/(tabs)/_layout.tsx": {
       "exports": [
@@ -42,7 +42,7 @@
         "src/store/undoToast.ts",
         "src/theme/tokens.ts"
       ],
-      "loc": 139
+      "loc": 166
     },
     "app/(tabs)/settings.tsx": {
       "exports": [
@@ -413,7 +413,8 @@
       "importedBy": [
         "app/foods/[id].tsx",
         "app/foods/new.tsx",
-        "src/components/meals/MealForm.tsx"
+        "src/components/meals/MealForm.tsx",
+        "src/components/search/CreateFoodSheet.tsx"
       ]
     },
     "src/components/food-list/FoodList.tsx": {
@@ -630,6 +631,23 @@
       ],
       "loc": 79
     },
+    "src/components/search/CreateFoodSheet.tsx": {
+      "exports": [
+        "function CreateFoodSheet({ db, query, onLogged, onClose, locale, theme, testID = 'create-food-sheet' }: CreateFoodSheetProps): import(\"react\").JSX.Element | null",
+        "type CreateFoodSheetProps = {\n  readonly db: VitalsDb;\n  /** The trimmed query that seeded this sheet — `SearchSheet`'s own `onCreate(query)`. `null`\n   * closes the sheet; a non-empty string opens it with `FoodForm`'s `name` pre-filled from it. */\n  readonly query: string | null;\n  /** Fires with the fresh log's receipt after a successful save — the same shape `QuickAddGrid`/\n   * `SearchSheet..."
+      ],
+      "imports": [
+        "react",
+        "react-native",
+        "src/components/food-form/index.ts",
+        "src/db/index.ts",
+        "src/hooks/deviceWhen.ts",
+        "src/hooks/useHapticFeedback.ts",
+        "src/store/undoToast.ts",
+        "src/theme/tokens.ts"
+      ],
+      "loc": 173
+    },
     "src/components/search/SearchSheet.tsx": {
       "exports": [
         "function SearchSheet({ db, onLogged, onPortionAdded, onCreate, locale, theme, testID = 'search-sheet' }: SearchSheetProps): import(\"react\").JSX.Element",
@@ -650,11 +668,13 @@
     },
     "src/components/search/index.ts": {
       "exports": [
+        "function CreateFoodSheet({ db, query, onLogged, onClose, locale, theme, testID = 'create-food-sheet' }: CreateFoodSheetProps): import(\"react\").JSX.Element | null",
         "function SearchSheet({ db, onLogged, onPortionAdded, onCreate, locale, theme, testID = 'search-sheet' }: SearchSheetProps): import(\"react\").JSX.Element",
+        "type CreateFoodSheetProps = {\n  readonly db: VitalsDb;\n  /** The trimmed query that seeded this sheet — `SearchSheet`'s own `onCreate(query)`. `null`\n   * closes the sheet; a non-empty string opens it with `FoodForm`'s `name` pre-filled from it. */\n  readonly query: string | null;\n  /** Fires with the fresh log's receipt after a successful save — the same shape `QuickAddGrid`/\n   * `SearchSheet...",
         "type SearchSheetProps = {\n  readonly db: VitalsDb;\n  /** Called after a *fresh* log lands — a row's first tap, or the portion sheet's own Log — with\n   * the receipt (`kcal`/`protein` logged). Mirrors `QuickAddGridProps['onLogged']` exactly, so the\n   * Today screen can feed both into the same running-totals reducer. Never called for a write that\n   * failed, and never called for a repeat tap's..."
       ],
       "imports": [],
-      "loc": 2,
+      "loc": 3,
       "importedBy": [
         "app/(tabs)/index.tsx"
       ]
@@ -963,6 +983,7 @@
         "src/components/quick-add/QuickAddGrid.tsx",
         "src/components/quick-add/QuickAddTile.tsx",
         "src/components/quick-add/UndoToast.tsx",
+        "src/components/search/CreateFoodSheet.tsx",
         "src/components/search/SearchSheet.tsx",
         "src/components/settings/TargetsGroup.tsx",
         "src/components/today/WeightChip.tsx",
@@ -1256,6 +1277,7 @@
         "src/components/meals/MealList.tsx",
         "src/components/quick-add/QuickAddGrid.tsx",
         "src/components/quick-add/UndoToast.tsx",
+        "src/components/search/CreateFoodSheet.tsx",
         "src/components/search/SearchSheet.tsx",
         "src/components/settings/TargetsGroup.tsx",
         "src/components/today/WeightChip.tsx"
@@ -1300,6 +1322,7 @@
         "src/components/quick-add/PortionSheet.tsx",
         "src/components/quick-add/QuickAddTile.tsx",
         "src/components/quick-add/UndoToast.tsx",
+        "src/components/search/CreateFoodSheet.tsx",
         "src/components/search/SearchSheet.tsx"
       ]
     },
@@ -1381,6 +1404,7 @@
         "src/components/meals/MealList.tsx",
         "src/components/quick-add/QuickAddGrid.tsx",
         "src/components/quick-add/UndoToast.tsx",
+        "src/components/search/CreateFoodSheet.tsx",
         "src/components/search/SearchSheet.tsx"
       ]
     },
@@ -1442,6 +1466,7 @@
         "src/components/quick-add/QuickAddGrid.tsx",
         "src/components/quick-add/QuickAddTile.tsx",
         "src/components/quick-add/UndoToast.tsx",
+        "src/components/search/CreateFoodSheet.tsx",
         "src/components/search/SearchSheet.tsx",
         "src/components/settings/TargetsGroup.tsx",
         "src/components/theme/ThemeProvider.tsx",
