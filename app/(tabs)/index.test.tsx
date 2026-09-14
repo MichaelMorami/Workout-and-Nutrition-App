@@ -8,6 +8,7 @@ import { act, fireEvent, render, screen, within } from '@testing-library/react-n
 import { DbProvider } from '../../src/components/db/DbProvider';
 import { ThemeContext } from '../../src/components/theme/theme-context';
 import {
+  createFoodAndLog,
   dayLog,
   getSettings,
   logFood,
@@ -40,6 +41,7 @@ jest.mock('../../src/db', () => ({
   dayLog: jest.fn().mockReturnValue([]),
   updateLogEntry: jest.fn(),
   softDeleteLogEntries: jest.fn(),
+  createFoodAndLog: jest.fn(),
 }));
 
 const mockGetSettings = jest.mocked(getSettings);
@@ -50,6 +52,7 @@ const mockUndo = jest.mocked(undo);
 const mockDayLog = jest.mocked(dayLog);
 const mockUpdateLogEntry = jest.mocked(updateLogEntry);
 const mockSoftDelete = jest.mocked(softDeleteLogEntries);
+const mockCreateFoodAndLog = jest.mocked(createFoodAndLog);
 
 const yoghurt: FoodCandidate = {
   kind: 'food',
@@ -253,5 +256,65 @@ describe('TodayScreen', () => {
 
     expect(mockUpdateLogEntry).toHaveBeenCalledTimes(1);
     expect(ring.getByTestId('arc-value').props.children).toBe('1,360');
+  });
+
+  it('creating a food from search pre-fills the name, logs one serving on save, and moves the ring (issue #71)', async () => {
+    mockDayLog.mockReturnValue([]);
+    mockCreateFoodAndLog.mockReturnValue({
+      food: {
+        id: 'food-9',
+        updatedAt: 0,
+        deleted: 0,
+        name: 'Boiled eggs',
+        brand: null,
+        servingLabel: '2 eggs',
+        servingGrams: null,
+        kcalPerServing: 140,
+        proteinPerServing: 12,
+        archived: 0,
+        useCount: 0,
+        lastUsedAt: null,
+        hourHistogram: null,
+        searchText: '',
+      },
+      receipt: {
+        target: { kind: 'food', id: 'food-9' },
+        entries: [
+          {
+            id: 'log-9',
+            updatedAt: 0,
+            deleted: 0,
+            loggedAt: 0,
+            localDate: '2025-03-10',
+            localMinute: 415,
+            foodId: 'food-9',
+            mealId: null,
+            qty: 1,
+            grams: null,
+            kcal: 140,
+            protein: 12,
+            slot: 'breakfast',
+          },
+        ],
+        portions: 1,
+        undo: { kind: 'unlog', logIds: ['log-9'] },
+      },
+    });
+    await renderScreen();
+    const ring = within(screen.getByTestId('today-header-kcal-arc'));
+
+    await fireEvent.press(screen.getByTestId('today-search-sheet-bar'));
+    await fireEvent.changeText(screen.getByTestId('today-search-sheet-input'), 'Boiled eggs');
+    await fireEvent.press(screen.getByTestId('today-search-sheet-create'));
+
+    expect(screen.getByTestId('today-create-food-sheet-form-name').props.value).toBe('Boiled eggs');
+
+    await fireEvent.changeText(screen.getByTestId('today-create-food-sheet-form-serving-label'), '2 eggs');
+    await fireEvent.press(screen.getByTestId('today-create-food-sheet-form-save'));
+
+    expect(mockCreateFoodAndLog).toHaveBeenCalledTimes(1);
+    expect(mockCreateFoodAndLog.mock.calls[0]?.[1]).toMatchObject({ food: expect.objectContaining({ name: 'Boiled eggs' }) });
+    expect(ring.getByTestId('arc-value').props.children).toBe('1,380');
+    expect(screen.queryByTestId('today-create-food-sheet')).toBeNull();
   });
 });
