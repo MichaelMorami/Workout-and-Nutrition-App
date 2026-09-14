@@ -3,7 +3,7 @@ import { ScrollView, StyleSheet, View } from 'react-native';
 import { getSettings, localDateOf, todayTotals, type DayTotals, type LogReceipt, type SettingsView } from '../../src/db';
 import { DayLogList } from '../../src/components/day-log';
 import { QuickAddGrid, UndoToast } from '../../src/components/quick-add';
-import { SearchSheet } from '../../src/components/search';
+import { CreateFoodSheet, SearchSheet } from '../../src/components/search';
 import { TodayHeader, WeightChip } from '../../src/components/today';
 import { deviceWhen } from '../../src/hooks/deviceWhen';
 import { useDb } from '../../src/hooks/useDb';
@@ -47,6 +47,15 @@ import { layout, space } from '../../src/theme/tokens';
  * handlers already fires on exactly those writes (a grid tap, a portion add, an undo of either —
  * and now the day log's own edits/deletes, routed back through the same `handlePortionAdded` via
  * `onChanged`), so bumping it there costs nothing new to wire up.
+ *
+ * `onCreate` (#71) IS WIRED HERE, NOT INSIDE `<SearchSheet>`. That component's own module note is
+ * explicit that it never touches `createFoodAndLog` itself — `createQuery` is this screen's own
+ * state, set by `SearchSheet`'s `onCreate(query)` and cleared by `<CreateFoodSheet>`'s `onClose`,
+ * the same sibling-not-child shape `<UndoToast>` already uses. `<CreateFoodSheet>` feeds the same
+ * `handleLogged` every other logging path does, so a created-and-logged food moves the rings the
+ * same frame it lands, with no second database read. `<SearchSheet>`'s own sheet is left open
+ * underneath — a second stacked `Modal`, the same shape a long-press already produces with
+ * `<PortionSheet>`.
  */
 export default function TodayScreen(): React.JSX.Element {
   const db = useDb();
@@ -57,6 +66,9 @@ export default function TodayScreen(): React.JSX.Element {
   const [totals, setTotals] = useState<DayTotals>(() => todayTotals(db, localDateOf(when.at, when.timeZone)));
   // Bumped by every handler below — `<DayLogList>`'s cue to re-read `dayLog` (see the module note).
   const [dayLogVersion, setDayLogVersion] = useState(0);
+  // `null` closes `<CreateFoodSheet>`; a trimmed query (from `SearchSheet`'s `onCreate`) opens it
+  // pre-filled with that query (see the module note above).
+  const [createQuery, setCreateQuery] = useState<string | null>(null);
 
   const handleLogged = (receipt: LogReceipt): void => {
     const kcal = receipt.entries.reduce((sum, entry) => sum + entry.kcal, 0);
@@ -110,11 +122,26 @@ export default function TodayScreen(): React.JSX.Element {
         />
         <View style={styles.quickAddGroup}>
           <QuickAddGrid onLogged={handleLogged} onPortionAdded={handlePortionAdded} />
-          <SearchSheet db={db} onLogged={handleLogged} onPortionAdded={handlePortionAdded} theme={theme} testID="today-search-sheet" />
+          <SearchSheet
+            db={db}
+            onLogged={handleLogged}
+            onPortionAdded={handlePortionAdded}
+            onCreate={setCreateQuery}
+            theme={theme}
+            testID="today-search-sheet"
+          />
         </View>
         <DayLogList refreshToken={dayLogVersion} onChanged={handlePortionAdded} testID="day-log-list" />
         <WeightChip testID="weight-chip" />
       </ScrollView>
+      <CreateFoodSheet
+        db={db}
+        query={createQuery}
+        onLogged={handleLogged}
+        onClose={() => setCreateQuery(null)}
+        theme={theme}
+        testID="today-create-food-sheet"
+      />
       <UndoToast onUndo={handleUndo} testID="today-undo-toast" />
     </View>
   );
