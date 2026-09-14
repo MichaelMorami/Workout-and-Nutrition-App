@@ -6,15 +6,15 @@ For the sprint-by-sprint plan see [`README.md`](README.md); for open work see th
 
 ## Current sprint
 
-**Sprint 1 — Nutrition core: the Today screen and one-tap food logging.** 25/26 issues closed. Ends at
-**Checkpoint 2** (Log real food for 2–3 days on their own phone).
+**Sprint 2 — Body metrics and the Charts tab.** 0/0 issues closed. Ends at
+**Checkpoint 3** (Judge the charts against a year of data).
 
 ## Checkpoints
 
 | # | When | What the client does | State |
 | --- | --- | --- | --- |
 | 1 | end of Sprint 0 | Review the design canvas of all four screens | signed off |
-| 2 | end of Sprint 1 | Log real food for 2–3 days on their own phone | in progress |
+| 2 | end of Sprint 1 | Log real food for 2–3 days on their own phone | signed off |
 | 3 | end of Sprint 2 | Judge the charts against a year of data | planned |
 | 4 | end of Sprint 3 | Log real gym sessions | planned |
 | 5 | end of Sprint 4 | Verify sync and data safety across two phones | planned |
@@ -57,3 +57,4 @@ For the sprint-by-sprint plan see [`README.md`](README.md); for open work see th
 - 2026-09-13  feat: SearchSheet — search bar, sheet shell, recent/results rendering (issue #69)  (PR #73 closes #69)
 - 2026-09-14  feat: search row tap-to-log and long-press portion sheet (#70)  (PR #74 closes #70)
 - 2026-09-14  feat: create-from-search — pre-filled add-food form, save creates and logs in one action (issue #71)  (PR #75 closes #71)
+- 2026-09-14  test: search-and-log tap budgets — recent, known, and brand-new via Create (issue #23)  (PR #76 closes #23)
