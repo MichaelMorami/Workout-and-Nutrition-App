@@ -524,7 +524,7 @@ jq -r '.modules["src/db/queries/nutrition.ts"].exports[]' docs/graph/symbols.jso
 
 ## `src/components/quick-add/`
 
-### `src/components/quick-add/PortionSheet.tsx`  <sub>516 lines</sub>
+### `src/components/quick-add/PortionSheet.tsx`  <sub>616 lines</sub>
 
 - `function PortionSheet({
   candidate,
