@@ -5,7 +5,7 @@
  * Catalogue CRUD, meals CRUD, `updateSettings` and `weightSummary` are issue #36; search, recents
  * and create-and-log are issue #37. Neither is imported here.
  */
-import { and, asc, eq, inArray } from 'drizzle-orm';
+import { and, desc, eq, inArray } from 'drizzle-orm';
 import type { VitalsDb } from '../db';
 import { VitalsDbError } from '../errors';
 import { newId } from '../ids';
@@ -201,13 +201,13 @@ export function todayTotals(db: VitalsDb, localDate: LocalDate): DayTotals {
   };
 }
 
-/** Live rows for `localDate`, `logged_at` ascending then `id`, with current catalogue labels for display. */
+/** Live rows for `localDate`, `logged_at` descending then `id` descending (newest first), with current catalogue labels for display. */
 export function dayLog(db: VitalsDb, localDate: LocalDate): DayLogEntry[] {
   const rows = db
     .select()
     .from(foodLog)
     .where(and(eq(foodLog.localDate, localDate), eq(foodLog.deleted, 0)))
-    .orderBy(asc(foodLog.loggedAt), asc(foodLog.id))
+    .orderBy(desc(foodLog.loggedAt), desc(foodLog.id))
     .all();
 
   if (rows.length === 0) return [];

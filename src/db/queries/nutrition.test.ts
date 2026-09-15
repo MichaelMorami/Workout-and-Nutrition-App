@@ -428,7 +428,7 @@ describe('dayLog', () => {
     expect(dayLog(db, '2025-03-09')).toEqual([]);
   });
 
-  it('orders by logged_at ascending, then id', () => {
+  it('orders by logged_at descending, then id descending — newest first', () => {
     const { db } = setup();
     const foodId = seedFood(db);
     logFood(db, { at: AT_2025_03_09 + 3_000, timeZone: LA, foodId });
@@ -436,7 +436,20 @@ describe('dayLog', () => {
     logFood(db, { at: AT_2025_03_09 + 2_000, timeZone: LA, foodId });
 
     const entries = dayLog(db, '2025-03-09');
-    expect(entries.map((e) => e.loggedAt)).toEqual([AT_2025_03_09 + 1_000, AT_2025_03_09 + 2_000, AT_2025_03_09 + 3_000]);
+    expect(entries.map((e) => e.loggedAt)).toEqual([AT_2025_03_09 + 3_000, AT_2025_03_09 + 2_000, AT_2025_03_09 + 1_000]);
+  });
+
+  it('breaks equal-timestamp ties by id descending, deterministically', () => {
+    const { db } = setup();
+    const foodId = seedFood(db);
+    logFood(db, { at: AT_2025_03_09, timeZone: LA, foodId });
+    logFood(db, { at: AT_2025_03_09, timeZone: LA, foodId });
+    logFood(db, { at: AT_2025_03_09, timeZone: LA, foodId });
+
+    const entries = dayLog(db, '2025-03-09');
+    expect(entries).toHaveLength(3);
+    const ids = entries.map((e) => e.id);
+    expect(ids).toEqual([...ids].sort().reverse());
   });
 
   it('excludes soft-deleted rows', () => {
