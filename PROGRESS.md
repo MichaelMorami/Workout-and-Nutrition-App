@@ -58,3 +58,4 @@ For the sprint-by-sprint plan see [`README.md`](README.md); for open work see th
 - 2026-09-14  feat: search row tap-to-log and long-press portion sheet (#70)  (PR #74 closes #70)
 - 2026-09-14  feat: create-from-search — pre-filled add-food form, save creates and logs in one action (issue #71)  (PR #75 closes #71)
 - 2026-09-14  test: search-and-log tap budgets — recent, known, and brand-new via Create (issue #23)  (PR #76 closes #23)
+- 2026-09-14  feat: exclude colocated test files from Metro's bundle (issue #77)  (PR #78 closes #77)
