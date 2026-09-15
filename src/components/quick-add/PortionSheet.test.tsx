@@ -5,8 +5,9 @@
  */
 import { fireEvent, render, screen } from '@testing-library/react-native';
 import type { ComponentProps } from 'react';
+import { StyleSheet } from 'react-native';
 import type { FoodCandidate, MealCandidate } from '../../db';
-import { interaction, themes } from '../../theme/tokens';
+import { interaction, size, themes } from '../../theme/tokens';
 import { PortionSheet } from './PortionSheet';
 
 const food: FoodCandidate = {
@@ -35,6 +36,18 @@ const meal: MealCandidate = {
 
 const renderSheet = (props: Partial<ComponentProps<typeof PortionSheet>> = {}) =>
   render(<PortionSheet candidate={food} theme={themes.dark} onLog={jest.fn()} onClose={jest.fn()} testID="sheet" {...props} />);
+
+/**
+ * `PanResponder`'s `onResponderMove`/`onResponderRelease` read `event.touchHistory` (a sibling of
+ * `nativeEvent`, not nested inside it) purely to gate duplicate dispatches and feed `gestureState` —
+ * `SliderTrack` reads neither, only `event.nativeEvent.locationX`, so `numberActiveTouches: 0` (an
+ * empty touch bank RN's own centroid maths tolerates) is enough to satisfy it without modelling a
+ * real touch.
+ */
+const responderEvent = (locationX: number, timeStamp: number) => ({
+  touchHistory: { indexOfSingleActiveTouch: 0, mostRecentTimeStamp: timeStamp, numberActiveTouches: 0, touchBank: [] },
+  nativeEvent: { locationX },
+});
 
 describe('PortionSheet', () => {
   it('renders nothing when candidate is null', async () => {
@@ -93,7 +106,34 @@ describe('PortionSheet', () => {
     expect(screen.getByTestId('sheet-exact-readout')).toHaveTextContent('170 g');
   });
 
-  it('the + nudge increases the readout by sliderNudgeG, clamped to the max', async () => {
+  it('issue #92: Exact mode renders a thumb dot with a >=44pt hit area, positioned by the current value', async () => {
+    await renderSheet();
+    await fireEvent.press(screen.getByTestId('sheet-mode-exact'));
+
+    expect(size.slider.thumbHit).toBeGreaterThanOrEqual(44);
+    const track = screen.getByTestId('sheet-exact-track');
+    expect(StyleSheet.flatten(track.props.style).minHeight).toBe(size.slider.thumbHit);
+
+    await fireEvent(track, 'layout', { nativeEvent: { layout: { width: 400, height: 44, x: 0, y: 0 } } });
+    const thumb = screen.getByTestId('sheet-exact-track-thumb');
+    const leftBefore = StyleSheet.flatten(thumb.props.style).left as number;
+
+    await fireEvent.press(screen.getByTestId('sheet-exact-nudge-up'));
+
+    const leftAfter = StyleSheet.flatten(screen.getByTestId('sheet-exact-track-thumb').props.style).left as number;
+    expect(leftAfter).toBeGreaterThan(leftBefore);
+  });
+
+  it('issue #92: the slider track is an accessible adjustable control', async () => {
+    await renderSheet();
+    await fireEvent.press(screen.getByTestId('sheet-mode-exact'));
+
+    const track = screen.getByTestId('sheet-exact-track');
+    expect(track.props.accessibilityRole).toBe('adjustable');
+    expect(track.props.accessibilityLabel).toBeTruthy();
+  });
+
+  it('the + nudge increases the readout by sliderNudgeG', async () => {
     await renderSheet();
     await fireEvent.press(screen.getByTestId('sheet-mode-exact'));
 
@@ -113,16 +153,70 @@ describe('PortionSheet', () => {
     expect(screen.getByTestId('sheet-exact-readout')).toHaveTextContent('0 g');
   });
 
-  it('the nudge cannot push the amount above sliderMaxServings worth of grams', async () => {
+  it('issue #92: the + nudge keeps increasing past the initial range — no hard cap', async () => {
     await renderSheet();
     await fireEvent.press(screen.getByTestId('sheet-mode-exact'));
 
-    const pressesToOverflow = Math.ceil((170 * interaction.sliderMaxServings) / interaction.sliderNudgeG) + 5;
-    for (let i = 0; i < pressesToOverflow; i += 1) {
+    const initialRange = 170 * interaction.sliderMaxServings;
+    const pressesPastInitialRange = Math.ceil(initialRange / interaction.sliderNudgeG) + 5;
+    for (let i = 0; i < pressesPastInitialRange; i += 1) {
       await fireEvent.press(screen.getByTestId('sheet-exact-nudge-up'));
     }
 
-    expect(screen.getByTestId('sheet-exact-readout')).toHaveTextContent(`${170 * interaction.sliderMaxServings} g`);
+    const expected = 170 + pressesPastInitialRange * interaction.sliderNudgeG;
+    expect(expected).toBeGreaterThan(initialRange);
+    expect(screen.getByTestId('sheet-exact-readout')).toHaveTextContent(`${expected} g`);
+  });
+
+  it('issue #92: once the value has grown past the initial range, dragging to the far end of the track reaches the grown range, not the old max', async () => {
+    await renderSheet();
+    await fireEvent.press(screen.getByTestId('sheet-mode-exact'));
+
+    const initialRange = 170 * interaction.sliderMaxServings;
+    const pressesPastInitialRange = Math.ceil(initialRange / interaction.sliderNudgeG) + 5;
+    for (let i = 0; i < pressesPastInitialRange; i += 1) {
+      await fireEvent.press(screen.getByTestId('sheet-exact-nudge-up'));
+    }
+
+    const track = screen.getByTestId('sheet-exact-track');
+    await fireEvent(track, 'layout', { nativeEvent: { layout: { width: 300, height: 44, x: 0, y: 0 } } });
+    await fireEvent(track, 'responderMove', responderEvent(300, 1));
+
+    // A drag to the far right always lands on the *current* range's ceiling. If touching the track
+    // still reset the value to the old 680 g cap, this would read 680 g instead.
+    const readoutText = screen.getByTestId('sheet-exact-readout').props.children as string;
+    const grownValue = Number(readoutText.replace(/\D/g, ''));
+    expect(grownValue).toBeGreaterThan(initialRange);
+  });
+
+  it('issue #92: a move sequence produces monotonically increasing values as the finger moves right, with no backward jump', async () => {
+    await renderSheet();
+    await fireEvent.press(screen.getByTestId('sheet-mode-exact'));
+
+    const track = screen.getByTestId('sheet-exact-track');
+    await fireEvent(track, 'layout', { nativeEvent: { layout: { width: 400, height: 44, x: 0, y: 0 } } });
+
+    // `SliderTrack` reads `locationX` off this same outer view for the whole gesture — `trackFill`
+    // and the thumb are both `pointerEvents="none"` precisely so neither can ever become the touch
+    // target and shift `locationX` into a different child's frame mid-drag (the reported jump).
+    // `fireEvent` dispatches straight to the element we name, so it cannot reproduce the native
+    // hit-test itself; this asserts the handler's own mapping is a pure, monotonic function of
+    // `locationX`, which is what that fix guarantees holds for every event RN ever delivers here.
+    const readoutValue = (): number => Number((screen.getByTestId('sheet-exact-readout').props.children as string).replace(/\D/g, ''));
+
+    const values: number[] = [];
+    let timeStamp = 1;
+    for (const locationX of [40, 90, 160, 250, 360]) {
+      await fireEvent(track, 'responderMove', responderEvent(locationX, timeStamp));
+      timeStamp += 1;
+      values.push(readoutValue());
+    }
+
+    for (let i = 1; i < values.length; i += 1) {
+      const previous = values[i - 1] ?? 0;
+      const current = values[i] ?? 0;
+      expect(current).toBeGreaterThanOrEqual(previous);
+    }
   });
 
   it("Exact mode's Log button logs the grams converted back to a servings multiple, and closes", async () => {
