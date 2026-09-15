@@ -15,15 +15,13 @@
  * commit point. Cancel (`FoodForm`'s own button) calls `onClose` and writes nothing, same as
  * cancelling `/foods/new`.
  *
- * MOUNTED AS A SIBLING OF `<SearchSheet>`, NOT INSIDE IT. `SearchSheet`'s own module note is
- * explicit: `onCreate` is "exposed here only as a plain callback ... this component never touches
- * `createFoodAndLog` itself" — the screen that renders both (`app/(tabs)/index.tsx`) owns the
- * `query` state that opens this sheet, the same sibling-not-child shape `<UndoToast>` already uses
- * and for the same reason. Deliberately no `visible` flag separate from `query` (`<PortionSheet>`'s
- * own `candidate` pattern) — `null` closes it, a string opens it pre-filled with that string.
- * `SearchSheet`'s own sheet is left exactly as `onCreate` left it (open, still showing the query and
- * results) rather than reached into to close — a second stacked sheet is the same shape a long-press
- * already produces (`<PortionSheet>` over `<SearchSheet>`'s own modal).
+ * DRAWN INSIDE `<SearchSheet>`'S MODAL, NOT AS A SECOND ONE (issue #79). The Today screen passes
+ * this component to `SearchSheet`'s `renderCreate` with `presentation="overlay"`: iOS presents one
+ * `Modal` per view controller, so a second `Modal` mounted beside the search sheet's never appeared
+ * on an iPhone. `SearchSheet` owns the query that opens it and closes both on a successful save;
+ * this component still never knows it is inside a search — it only writes and reports. Deliberately
+ * no `visible` flag separate from `query` (`<PortionSheet>`'s own `candidate` pattern) — `null`
+ * closes it, a string opens it pre-filled with that string.
  *
  * TAP COUNT: open the search bar (1) + tap Create (2) + tap Save (3) — three fixed taps for a
  * brand-new food logged once, whatever it takes to edit the name (pre-filled already) and set the
@@ -50,6 +48,10 @@ export type CreateFoodSheetProps = {
   readonly onClose: () => void;
   /** Formatting locale, forwarded to the undo toast's figures. Defaults to the device's. */
   readonly locale?: string;
+  /** `'modal'` (default) presents in its own native `Modal`; `'overlay'` draws the same scrim and
+   * sheet as a full-bleed view, for use inside a host that is already a `Modal` (issue #79 —
+   * `PortionSheetProps['presentation']`). */
+  readonly presentation?: 'modal' | 'overlay';
   readonly theme: Theme;
   readonly testID?: string;
 };
@@ -77,7 +79,7 @@ function toastMeta(totals: { kcal: number; protein: number }, locale?: string): 
   return `${kcal} kcal · ${protein} g protein`;
 }
 
-export function CreateFoodSheet({ db, query, onLogged, onClose, locale, theme, testID = 'create-food-sheet' }: CreateFoodSheetProps) {
+export function CreateFoodSheet({ db, query, onLogged, onClose, locale, presentation = 'modal', theme, testID = 'create-food-sheet' }: CreateFoodSheetProps) {
   const { portionSheet } = theme.color;
   const fireHaptic = useHapticFeedback();
   const open = query !== null;
@@ -122,8 +124,8 @@ export function CreateFoodSheet({ db, query, onLogged, onClose, locale, theme, t
     }
   };
 
-  return (
-    <Modal visible transparent animationType="slide" onRequestClose={onClose} testID={testID}>
+  const content = (
+    <>
       <Pressable
         testID={`${testID}-scrim`}
         accessibilityRole="button"
@@ -148,6 +150,16 @@ export function CreateFoodSheet({ db, query, onLogged, onClose, locale, theme, t
           <FoodForm initial={initial} onSave={handleSave} onCancel={onClose} theme={theme} testID={`${testID}-form`} />
         </View>
       </View>
+    </>
+  );
+
+  return presentation === 'overlay' ? (
+    <View testID={testID} style={StyleSheet.absoluteFill}>
+      {content}
+    </View>
+  ) : (
+    <Modal visible transparent animationType="slide" onRequestClose={onClose} testID={testID}>
+      {content}
     </Modal>
   );
 }

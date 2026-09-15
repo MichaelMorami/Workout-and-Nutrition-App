@@ -158,7 +158,8 @@ beforeEach(() => {
   jest.mocked(todayTotals).mockReturnValue({ localDate: '2025-03-10', kcal: 1240, protein: 96, kcalTarget: 2400, proteinTarget: 180, entryCount: 3 });
   jest.mocked(weightSummary).mockReturnValue({ latest: null, avg7: null, avg7PrevWeek: null, weeklyDelta: null });
   jest.mocked(dayLog).mockReturnValue([]);
-  jest.mocked(quickAddCandidates).mockReturnValue([]);
+  // One saved food on the grid, so the sheet shows Recent rather than the day-one empty state.
+  jest.mocked(quickAddCandidates).mockReturnValue([{ ...oats, id: 'food-1', name: 'Greek yoghurt' }]);
   jest.mocked(recentFoods).mockReturnValue([oats]);
   __resetLogTracker();
   useUndoToastStore.getState().dismiss();

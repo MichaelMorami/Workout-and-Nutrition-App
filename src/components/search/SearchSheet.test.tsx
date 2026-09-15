@@ -134,14 +134,15 @@ describe('SearchSheet — the bar', () => {
 });
 
 describe('SearchSheet — opening', () => {
-  it('opens the sheet with the query field already focused, keyboard up', async () => {
+  it('opens the sheet with the query field focused, keyboard up, the moment the sheet is shown', async () => {
+    const focus = jest.spyOn(TextInput.prototype, 'focus');
     await renderSheet();
 
     await fireEvent.press(screen.getByTestId('search-sheet-bar'));
+    await fireEvent(screen.getByTestId('search-sheet-modal'), 'show');
 
-    const input = screen.getByTestId('search-sheet-input');
-    expect(input).toBeTruthy();
-    expect(input.props.autoFocus).toBe(true);
+    expect(screen.getByTestId('search-sheet-input')).toBeTruthy();
+    expect(focus).toHaveBeenCalledTimes(1);
   });
 
   it('Cancel closes the sheet', async () => {
