@@ -34,8 +34,18 @@
  *
  * NO NEW NATIVE DEPENDENCY: `Modal`'s built-in `animationType="slide"` presents the sheet, the same
  * choice `<PortionSheet>` made and for the same reason.
+ *
+ * ONE NATIVE MODAL, AND FOCUS ONLY ONCE IT IS UP (issue #79 — the iPhone freeze). iOS presents a
+ * `Modal` from the nearest view controller, and a controller that is already presenting silently
+ * refuses a second one — so `<PortionSheet>` and the create form (`renderCreate`) are drawn *inside*
+ * this sheet's `Modal` with `presentation="overlay"`, never beside it. Android's back button closes
+ * the top overlay first. The field is focused from `onShow` (the presentation's completion) rather
+ * than `autoFocus`, so the keyboard never asks for first responder mid-transition. A host that puts
+ * this component inside a `ScrollView` must give that `ScrollView` `keyboardShouldPersistTaps=
+ * "handled"`: the responder system walks React ancestry across the `Modal`, and the default
+ * (`'never'`) spends the first tap on every row, Cancel and Create dismissing the keyboard.
  */
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { FlatList, Modal, Pressable, StyleSheet, Text, TextInput, View, type TextStyle } from 'react-native';
 import {
   addPortion,
@@ -63,6 +73,9 @@ const MEAL_GLYPH = '▤';
 const SEARCH_GLYPH = '⌕';
 const CLEAR_GLYPH = '×';
 
+/** What `SearchSheetProps['renderCreate']` receives. */
+export type CreateSlotArgs = { query: string; onLogged: (receipt: LogReceipt) => void; onClose: () => void };
+
 export type SearchSheetProps = {
   readonly db: VitalsDb;
   /** Called after a *fresh* log lands — a row's first tap, or the portion sheet's own Log — with
@@ -74,9 +87,16 @@ export type SearchSheetProps = {
    * tile or row alike) adds a portion instead of a fresh row. Mirrors
    * `QuickAddGridProps['onPortionAdded']`. */
   readonly onPortionAdded?: (delta: LogDelta) => void;
-  /** The trailing Create row was tapped, with the trimmed query that seeded it. Issue #71 wires this
-   * to the pre-filled add-food form. */
+  /** The trailing Create row was tapped, with the trimmed query that seeded it. */
   readonly onCreate?: (query: string) => void;
+  /**
+   * Draws the add-food form for a Create tap, inside this sheet's own `Modal` (issue #79 — iOS
+   * cannot present a second `Modal` beside it). Render it with `presentation="overlay"`. `onLogged`
+   * forwards the receipt to this sheet's own `onLogged` and closes the form and the sheet (back to
+   * Today); `onClose` closes the form only, leaving the search as it was. This component still never
+   * touches `createFoodAndLog` — whatever is rendered here does.
+   */
+  readonly renderCreate?: (create: CreateSlotArgs) => ReactNode;
   /** Formatting locale, forwarded to every figure. Defaults to the device's. */
   readonly locale?: string;
   readonly theme: Theme;
@@ -258,7 +278,13 @@ function NoLibraryEmptyState({ theme, testID }: { theme: Theme; testID: string }
   );
 }
 
-export function SearchSheet({ db, onLogged, onPortionAdded, onCreate, locale, theme, testID = 'search-sheet' }: SearchSheetProps) {
+/** Calls `renderCreate` as its own component render, so the sheet's handlers (which touch refs)
+ * are passed as props rather than invoked during `SearchSheet`'s render. */
+function CreateSlot({ render, ...create }: CreateSlotArgs & { readonly render: (create: CreateSlotArgs) => ReactNode }) {
+  return <>{render(create)}</>;
+}
+
+export function SearchSheet({ db, onLogged, onPortionAdded, onCreate, renderCreate, locale, theme, testID = 'search-sheet' }: SearchSheetProps) {
   const { searchBar, searchSheet } = theme.color;
   const fireHaptic = useHapticFeedback();
 
@@ -273,6 +299,9 @@ export function SearchSheet({ db, onLogged, onPortionAdded, onCreate, locale, th
   const [query, setQuery] = useState('');
   const [recent, setRecent] = useState<Candidate[]>([]);
   const [sheetCandidate, setSheetCandidate] = useState<Candidate | null>(null);
+  // The query the create form was opened with, or `null` while it is closed.
+  const [createQuery, setCreateQuery] = useState<string | null>(null);
+  const inputRef = useRef<TextInput>(null);
   // The row currently showing its "Logged" beat (`logTrackerKey`-shaped), or `null` at rest.
   const [loggedKey, setLoggedKey] = useState<string | null>(null);
   const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -296,7 +325,26 @@ export function SearchSheet({ db, onLogged, onPortionAdded, onCreate, locale, th
       closeTimer.current = null;
     }
     setLoggedKey(null);
+    setSheetCandidate(null);
+    setCreateQuery(null);
     setVisible(false);
+  };
+
+  // Android's back button closes whatever is on top: an overlay first, then the sheet itself.
+  const handleRequestClose = (): void => {
+    if (sheetCandidate) setSheetCandidate(null);
+    else if (createQuery !== null) setCreateQuery(null);
+    else closeSheet();
+  };
+
+  // Focus only once the Modal has finished presenting (issue #79) — see the module note.
+  const handleShow = (): void => {
+    inputRef.current?.focus();
+  };
+
+  const handleCreateLogged = (receipt: LogReceipt): void => {
+    onLogged?.(receipt);
+    closeSheet();
   };
 
   const logFreshCandidate = (candidate: Candidate, at: { at: number; timeZone: string }, portions?: number): LogReceipt =>
@@ -388,6 +436,11 @@ export function SearchSheet({ db, onLogged, onPortionAdded, onCreate, locale, th
   };
 
   const trimmedQuery = query.trim();
+
+  const handleCreatePress = (): void => {
+    onCreate?.(trimmedQuery);
+    if (renderCreate) setCreateQuery(trimmedQuery);
+  };
   const results = useMemo<Candidate[]>(
     () => (trimmedQuery.length === 0 ? [] : searchFoods(db, { ...when, query: trimmedQuery })),
     [db, when, trimmedQuery],
@@ -405,7 +458,7 @@ export function SearchSheet({ db, onLogged, onPortionAdded, onCreate, locale, th
 
   const renderRow = ({ item }: { item: Row }) =>
     item.kind === 'create' ? (
-      <CreateRow query={trimmedQuery} theme={theme} onPress={() => onCreate?.(trimmedQuery)} testID={`${testID}-create`} />
+      <CreateRow query={trimmedQuery} theme={theme} onPress={handleCreatePress} testID={`${testID}-create`} />
     ) : (
       <ResultRow
         candidate={item.candidate}
@@ -452,7 +505,14 @@ export function SearchSheet({ db, onLogged, onPortionAdded, onCreate, locale, th
       </Pressable>
 
       {visible ? (
-        <Modal visible transparent animationType="slide" onRequestClose={closeSheet} testID={`${testID}-modal`}>
+        <Modal
+          visible
+          transparent
+          animationType="slide"
+          onRequestClose={handleRequestClose}
+          onShow={handleShow}
+          testID={`${testID}-modal`}
+        >
           <Pressable
             testID={`${testID}-scrim`}
             accessibilityRole="button"
@@ -469,13 +529,13 @@ export function SearchSheet({ db, onLogged, onPortionAdded, onCreate, locale, th
               <View style={[styles.field, { height: size.searchSheet.fieldHeight, borderRadius: radius.md, backgroundColor: searchSheet.fieldBg, borderColor: searchSheet.fieldBorderFocus }]}>
                 <Text style={{ fontSize: size.icon.md, color: searchSheet.fieldIcon, marginRight: space[2] }}>{SEARCH_GLYPH}</Text>
                 <TextInput
+                  ref={inputRef}
                   testID={`${testID}-input`}
                   value={query}
                   onChangeText={setQuery}
                   placeholder="Search foods"
                   placeholderTextColor={searchSheet.placeholderText}
                   selectionColor={searchSheet.caret}
-                  autoFocus
                   style={[textStyle(type.input, searchSheet.queryText), styles.input]}
                   accessibilityLabel="Search foods"
                 />
@@ -523,17 +583,21 @@ export function SearchSheet({ db, onLogged, onPortionAdded, onCreate, locale, th
               />
             )}
           </View>
+
+          {createQuery !== null && renderCreate ? (
+            <CreateSlot render={renderCreate} query={createQuery} onLogged={handleCreateLogged} onClose={() => setCreateQuery(null)} />
+          ) : null}
+          <PortionSheet
+            presentation="overlay"
+            candidate={sheetCandidate}
+            theme={theme}
+            locale={locale}
+            onLog={handlePortionSheetLog}
+            onClose={handlePortionSheetClose}
+            testID={`${testID}-portion-sheet`}
+          />
         </Modal>
       ) : null}
-
-      <PortionSheet
-        candidate={sheetCandidate}
-        theme={theme}
-        locale={locale}
-        onLog={handlePortionSheetLog}
-        onClose={handlePortionSheetClose}
-        testID={`${testID}-portion-sheet`}
-      />
     </View>
   );
 }
