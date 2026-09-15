@@ -657,9 +657,10 @@ jq -r '.modules["src/db/queries/nutrition.ts"].exports[]' docs/graph/symbols.jso
   /** Fires with the fresh log's receipt after a successful save — the same shape `QuickAddGrid`/
    * `SearchSheet...`
 
-### `src/components/search/SearchSheet.tsx`  <sub>677 lines</sub>
+### `src/components/search/SearchSheet.tsx`  <sub>693 lines</sub>
 
 - `function SearchSheet({ db, onLogged, onPortionAdded, onCreate, renderCreate, locale, theme, testID = 'search-sheet' }: SearchSheetProps): import("react").JSX.Element`
+- `type CreateSlotArgs = { query: string; onLogged: (receipt: LogReceipt) => void; onClose: () => void }`
 - `type SearchSheetProps = {
   readonly db: VitalsDb;
   /** Called after a *fresh* log lands — a row's first tap, or the portion sheet's own Log — with

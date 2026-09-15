@@ -651,6 +651,7 @@
     "src/components/search/SearchSheet.tsx": {
       "exports": [
         "function SearchSheet({ db, onLogged, onPortionAdded, onCreate, renderCreate, locale, theme, testID = 'search-sheet' }: SearchSheetProps): import(\"react\").JSX.Element",
+        "type CreateSlotArgs = { query: string; onLogged: (receipt: LogReceipt) => void; onClose: () => void }",
         "type SearchSheetProps = {\n  readonly db: VitalsDb;\n  /** Called after a *fresh* log lands — a row's first tap, or the portion sheet's own Log — with\n   * the receipt (`kcal`/`protein` logged). Mirrors `QuickAddGridProps['onLogged']` exactly, so the\n   * Today screen can feed both into the same running-totals reducer. Never called for a write that\n   * failed, and never called for a repeat tap's..."
       ],
       "imports": [
@@ -664,7 +665,7 @@
         "src/store/undoToast.ts",
         "src/theme/tokens.ts"
       ],
-      "loc": 677
+      "loc": 693
     },
     "src/components/search/index.ts": {
       "exports": [

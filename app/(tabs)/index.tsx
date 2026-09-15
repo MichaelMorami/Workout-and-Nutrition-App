@@ -31,7 +31,7 @@ import { layout, space } from '../../src/theme/tokens';
  * same `layout.tileGap` rhythm as the tiles themselves — `<SearchSheet>` owns the bar and the sheet
  * it opens. Row tap-to-log and long-press (#70) write through the exact same `onLogged`/
  * `onPortionAdded` shape `<QuickAddGrid>` uses, so they feed this screen's rings from the same two
- * handlers with nothing new to wire; `onCreate` (#71) is still left unwired here.
+ * handlers with nothing new to wire. Create (#71) is wired through `renderCreate` (below).
  *
  * `<UndoToast>` MOUNTS OUTSIDE THE `ScrollView` (issue #21). It floats above the tab bar, clear of
  * the grid's own scrolling content (`docs/decisions.md`, `UndoToast.tsx`'s own module note) — a

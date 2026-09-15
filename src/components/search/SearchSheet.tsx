@@ -73,6 +73,9 @@ const MEAL_GLYPH = '▤';
 const SEARCH_GLYPH = '⌕';
 const CLEAR_GLYPH = '×';
 
+/** What `SearchSheetProps['renderCreate']` receives. */
+export type CreateSlotArgs = { query: string; onLogged: (receipt: LogReceipt) => void; onClose: () => void };
+
 export type SearchSheetProps = {
   readonly db: VitalsDb;
   /** Called after a *fresh* log lands — a row's first tap, or the portion sheet's own Log — with
@@ -93,7 +96,7 @@ export type SearchSheetProps = {
    * Today); `onClose` closes the form only, leaving the search as it was. This component still never
    * touches `createFoodAndLog` — whatever is rendered here does.
    */
-  readonly renderCreate?: (create: { query: string; onLogged: (receipt: LogReceipt) => void; onClose: () => void }) => ReactNode;
+  readonly renderCreate?: (create: CreateSlotArgs) => ReactNode;
   /** Formatting locale, forwarded to every figure. Defaults to the device's. */
   readonly locale?: string;
   readonly theme: Theme;
@@ -275,6 +278,12 @@ function NoLibraryEmptyState({ theme, testID }: { theme: Theme; testID: string }
   );
 }
 
+/** Calls `renderCreate` as its own component render, so the sheet's handlers (which touch refs)
+ * are passed as props rather than invoked during `SearchSheet`'s render. */
+function CreateSlot({ render, ...create }: CreateSlotArgs & { readonly render: (create: CreateSlotArgs) => ReactNode }) {
+  return <>{render(create)}</>;
+}
+
 export function SearchSheet({ db, onLogged, onPortionAdded, onCreate, renderCreate, locale, theme, testID = 'search-sheet' }: SearchSheetProps) {
   const { searchBar, searchSheet } = theme.color;
   const fireHaptic = useHapticFeedback();
@@ -326,6 +335,11 @@ export function SearchSheet({ db, onLogged, onPortionAdded, onCreate, renderCrea
     if (sheetCandidate) setSheetCandidate(null);
     else if (createQuery !== null) setCreateQuery(null);
     else closeSheet();
+  };
+
+  // Focus only once the Modal has finished presenting (issue #79) — see the module note.
+  const handleShow = (): void => {
+    inputRef.current?.focus();
   };
 
   const handleCreateLogged = (receipt: LogReceipt): void => {
@@ -496,7 +510,7 @@ export function SearchSheet({ db, onLogged, onPortionAdded, onCreate, renderCrea
           transparent
           animationType="slide"
           onRequestClose={handleRequestClose}
-          onShow={() => inputRef.current?.focus()}
+          onShow={handleShow}
           testID={`${testID}-modal`}
         >
           <Pressable
@@ -570,7 +584,9 @@ export function SearchSheet({ db, onLogged, onPortionAdded, onCreate, renderCrea
             )}
           </View>
 
-          {createQuery !== null && renderCreate ? renderCreate({ query: createQuery, onLogged: handleCreateLogged, onClose: () => setCreateQuery(null) }) : null}
+          {createQuery !== null && renderCreate ? (
+            <CreateSlot render={renderCreate} query={createQuery} onLogged={handleCreateLogged} onClose={() => setCreateQuery(null)} />
+          ) : null}
           <PortionSheet
             presentation="overlay"
             candidate={sheetCandidate}
