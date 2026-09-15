@@ -22,7 +22,7 @@ jq -r '.modules["src/db/queries/nutrition.ts"].exports[]' docs/graph/symbols.jso
 
 - `function default(): import("react").JSX.Element`
 
-### `app/(tabs)/index.tsx`  <sub>166 lines</sub>
+### `app/(tabs)/index.tsx`  <sub>161 lines</sub>
 
 - `function default(): React.JSX.Element`
 
@@ -341,7 +341,7 @@ jq -r '.modules["src/db/queries/nutrition.ts"].exports[]' docs/graph/symbols.jso
 
 ## `src/components/food-form/`
 
-### `src/components/food-form/FoodForm.tsx`  <sub>218 lines</sub>
+### `src/components/food-form/FoodForm.tsx`  <sub>220 lines</sub>
 
 - `function FoodForm({ initial = null, onSave, onCancel, theme, testID = 'food-form' }: FoodFormProps): import("react").JSX.Element`
 - `type FoodFormProps = {
@@ -524,7 +524,7 @@ jq -r '.modules["src/db/queries/nutrition.ts"].exports[]' docs/graph/symbols.jso
 
 ## `src/components/quick-add/`
 
-### `src/components/quick-add/PortionSheet.tsx`  <sub>516 lines</sub>
+### `src/components/quick-add/PortionSheet.tsx`  <sub>534 lines</sub>
 
 - `function PortionSheet({
   candidate,
@@ -534,6 +534,7 @@ jq -r '.modules["src/db/queries/nutrition.ts"].exports[]' docs/graph/symbols.jso
   onClose,
   initialMode = 'presets',
   initialPortions = 1,
+  presentation = 'modal',
   testID = 'portion-sheet',
 }: PortionSheetProps): import("react").JSX.Element | null`
 - `type PortionSheetProps = {
@@ -591,6 +592,7 @@ jq -r '.modules["src/db/queries/nutrition.ts"].exports[]' docs/graph/symbols.jso
   onClose,
   initialMode = 'presets',
   initialPortions = 1,
+  presentation = 'modal',
   testID = 'portion-sheet',
 }: PortionSheetProps): import("react").JSX.Element | null`
 - `function QuickAddGrid({ onLogged, onPortionAdded, locale, testID = 'quick-add-grid' }: QuickAddGridProps): import("react").JSX.Element`
@@ -644,9 +646,9 @@ jq -r '.modules["src/db/queries/nutrition.ts"].exports[]' docs/graph/symbols.jso
 
 ## `src/components/search/`
 
-### `src/components/search/CreateFoodSheet.tsx`  <sub>173 lines</sub>
+### `src/components/search/CreateFoodSheet.tsx`  <sub>185 lines</sub>
 
-- `function CreateFoodSheet({ db, query, onLogged, onClose, locale, theme, testID = 'create-food-sheet' }: CreateFoodSheetProps): import("react").JSX.Element | null`
+- `function CreateFoodSheet({ db, query, onLogged, onClose, locale, presentation = 'modal', theme, testID = 'create-food-sheet' }: CreateFoodSheetProps): import("react").JSX.Element | null`
 - `type CreateFoodSheetProps = {
   readonly db: VitalsDb;
   /** The trimmed query that seeded this sheet — `SearchSheet`'s own `onCreate(query)`. `null`
@@ -655,9 +657,9 @@ jq -r '.modules["src/db/queries/nutrition.ts"].exports[]' docs/graph/symbols.jso
   /** Fires with the fresh log's receipt after a successful save — the same shape `QuickAddGrid`/
    * `SearchSheet...`
 
-### `src/components/search/SearchSheet.tsx`  <sub>629 lines</sub>
+### `src/components/search/SearchSheet.tsx`  <sub>677 lines</sub>
 
-- `function SearchSheet({ db, onLogged, onPortionAdded, onCreate, locale, theme, testID = 'search-sheet' }: SearchSheetProps): import("react").JSX.Element`
+- `function SearchSheet({ db, onLogged, onPortionAdded, onCreate, renderCreate, locale, theme, testID = 'search-sheet' }: SearchSheetProps): import("react").JSX.Element`
 - `type SearchSheetProps = {
   readonly db: VitalsDb;
   /** Called after a *fresh* log lands — a row's first tap, or the portion sheet's own Log — with
@@ -667,8 +669,8 @@ jq -r '.modules["src/db/queries/nutrition.ts"].exports[]' docs/graph/symbols.jso
 
 ### `src/components/search/index.ts`  <sub>3 lines</sub>
 
-- `function CreateFoodSheet({ db, query, onLogged, onClose, locale, theme, testID = 'create-food-sheet' }: CreateFoodSheetProps): import("react").JSX.Element | null`
-- `function SearchSheet({ db, onLogged, onPortionAdded, onCreate, locale, theme, testID = 'search-sheet' }: SearchSheetProps): import("react").JSX.Element`
+- `function CreateFoodSheet({ db, query, onLogged, onClose, locale, presentation = 'modal', theme, testID = 'create-food-sheet' }: CreateFoodSheetProps): import("react").JSX.Element | null`
+- `function SearchSheet({ db, onLogged, onPortionAdded, onCreate, renderCreate, locale, theme, testID = 'search-sheet' }: SearchSheetProps): import("react").JSX.Element`
 - `type CreateFoodSheetProps = {
   readonly db: VitalsDb;
   /** The trimmed query that seeded this sheet — `SearchSheet`'s own `onCreate(query)`. `null`
