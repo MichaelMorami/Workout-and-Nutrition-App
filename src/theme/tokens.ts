@@ -449,9 +449,9 @@ function withComponents(c: BaseColors) {
       detentIcon: c.text.tertiary,
       /** The label under a detent tick. */
       detentText: c.text.tertiary,
-      /** "0 g" and the maximum at the track ends. */
+      /** "0 g" at the left end and the current range top at the right — the top grows, it is not a max. */
       rangeText: c.text.tertiary,
-      /** The −5 g / +5 g nudge buttons either side. */
+      /** The −1 g / +1 g nudge buttons either side (step: `interaction.sliderNudgeG`). */
       nudgeBg: c.bg.tile,
       /** A nudge button while pressed. */
       nudgeBgPress: c.bg.press,
@@ -1130,7 +1130,7 @@ export const size = {
     detentWidth: 2,
     /** Detent tick height. */
     detentHeight: 10,
-    /** −5 g / +5 g nudge width. */
+    /** −1 g / +1 g nudge width (step: `interaction.sliderNudgeG`). */
     nudgeWidth: 56,
     /** Nudge touch height. */
     nudgeHit: 48,
@@ -1323,11 +1323,21 @@ export const interaction = {
   stepperRepeatDelayMs: 400,
   /** Exact-mode slider resolution, grams. Food is stored in grams. */
   sliderStepG: 1,
-  /** The −/+ nudge either side of the slider, grams. */
-  sliderNudgeG: 5,
+  /**
+   * The −/+ nudge either side of the slider, grams. One gram per press: the nudges exist to land
+   * an exact number after a drag has got you close, so they step at the slider's own resolution
+   * (`sliderStepG`) rather than in coarse hops. Holding auto-repeats after `stepperRepeatDelayMs`,
+   * which is what covers a large correction.
+   */
+  sliderNudgeG: 1,
   /** Releasing within this many grams of a preset snaps onto it (selection haptic on arrival). */
   sliderDetentSnapG: 3,
-  /** The slider runs from 0 to this many default servings. */
+  /**
+   * The slider's *initial* range: 0 to this many of the food's default servings. It is an opening
+   * width, not a ceiling — push the value past the right-hand end with the −/+ nudges and the range
+   * grows by another whole multiple of this width (issue #92). It never shrinks back while the
+   * sheet is open, so the thumb never jumps out from under a finger mid-edit. There is no hard max.
+   */
   sliderMaxServings: 4,
   /** Search's Recent list: foods and meals logged within this many days that are not in the six. */
   recentDays: 14,
