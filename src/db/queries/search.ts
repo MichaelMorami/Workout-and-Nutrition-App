@@ -152,15 +152,13 @@ export function searchFoods(db: VitalsDb, opts: When & { query: string; limit?: 
  * last-log first, then name, then id. Archived or tombstoned foods, tombstoned meals and meals with
  * no live item are excluded. Per the issue #95 ruling, Recent is **never** filtered against the
  * quick-add grid — a food or meal that is also one of the six tiles still appears here.
- * `excludeIds` is accepted but ignored: it is kept only so the current `SearchSheet` call site
- * (issue #95's ui half, tracked separately) still typechecks while it stops being passed; remove
- * it once that caller is updated. `limit` is not in the contract's stated defaults; it defaults to
+ * `limit` is not in the contract's stated defaults; it defaults to
  * 20 for consistency with `searchFoods` — announced on issue #37 alongside the rest of this
  * module, per the issue #17 contract's rule that an additive default is announced before it lands.
  */
 export function recentFoods(
   db: VitalsDb,
-  opts: When & { days: number; excludeIds?: readonly string[]; limit?: number },
+  opts: When & { days: number; limit?: number },
 ): Candidate[] {
   const limit = opts.limit ?? 20;
   const endDate = localDateOf(opts.at, opts.timeZone);
