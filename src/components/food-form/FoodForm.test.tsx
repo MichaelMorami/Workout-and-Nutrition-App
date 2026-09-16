@@ -107,6 +107,14 @@ describe('FoodForm', () => {
     expect(onCancel).toHaveBeenCalledTimes(1);
   });
 
+  it('keeps Save reachable with the keyboard up — taps persist and the scroll view insets for the keyboard (issue #79)', async () => {
+    await render(<FoodForm theme={theme} onSave={jest.fn()} onCancel={jest.fn()} testID="food-form" />);
+
+    const form = screen.getByTestId('food-form');
+    expect(form.props.keyboardShouldPersistTaps).toBe('handled');
+    expect(form.props.automaticallyAdjustKeyboardInsets).toBe(true);
+  });
+
   it('every stepper and button carries an accessibility label, and Save/Cancel are ≥44pt targets', async () => {
     await render(<FoodForm theme={theme} onSave={jest.fn()} onCancel={jest.fn()} testID="food-form" />);
 

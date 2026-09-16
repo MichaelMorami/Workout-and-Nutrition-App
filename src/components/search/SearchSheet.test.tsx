@@ -427,6 +427,44 @@ describe('SearchSheet — iPhone presentation (issue #79)', () => {
     expect(screen.container.queryAll((node) => node.type === 'Modal')).toHaveLength(1);
   });
 
+  it('long-press drops the keyboard before the portion sheet opens — the sheet sits at the bottom, where the keyboard was', async () => {
+    mockRecent.mockReturnValue([eggs]);
+    const blur = jest.spyOn(TextInput.prototype, 'blur');
+    await renderSheet();
+    await fireEvent.press(screen.getByTestId('search-sheet-bar'));
+    await fireEvent(screen.getByTestId('search-sheet-modal'), 'show');
+
+    await fireEvent(screen.getByTestId('search-sheet-row-food-food-2'), 'longPress');
+
+    expect(blur).toHaveBeenCalled();
+    expect(screen.getByTestId('search-sheet-portion-sheet-title')).toBeTruthy();
+  });
+
+  it('Create drops the keyboard before the create form opens, so its Save is never behind it', async () => {
+    const blur = jest.spyOn(TextInput.prototype, 'blur');
+    await renderSheet({ renderCreate: ({ query }) => <Text testID="create-query">{query}</Text> });
+    await fireEvent.press(screen.getByTestId('search-sheet-bar'));
+    await fireEvent(screen.getByTestId('search-sheet-modal'), 'show');
+    await fireEvent.changeText(screen.getByTestId('search-sheet-input'), 'Protein bar');
+
+    await fireEvent.press(screen.getByTestId('search-sheet-create'));
+
+    expect(blur).toHaveBeenCalled();
+    expect(screen.getByTestId('create-query')).toBeTruthy();
+  });
+
+  it('Android back with the create form up closes only the create form', async () => {
+    await renderSheet({ renderCreate: ({ query }) => <Text testID="create-query">{query}</Text> });
+    await fireEvent.press(screen.getByTestId('search-sheet-bar'));
+    await fireEvent.changeText(screen.getByTestId('search-sheet-input'), 'Protein bar');
+    await fireEvent.press(screen.getByTestId('search-sheet-create'));
+
+    await fireEvent(screen.getByTestId('search-sheet-modal'), 'requestClose');
+
+    expect(screen.queryByTestId('create-query')).toBeNull();
+    expect(screen.getByTestId('search-sheet-input').props.value).toBe('Protein bar');
+  });
+
   it('Android back with the portion sheet up closes only the portion sheet', async () => {
     mockRecent.mockReturnValue([eggs]);
     await renderSheet();
