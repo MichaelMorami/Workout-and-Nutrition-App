@@ -122,7 +122,7 @@
         "src/hooks/useTheme.ts",
         "src/theme/tokens.ts"
       ],
-      "loc": 83
+      "loc": 87
     },
     "app/foods/index.tsx": {
       "exports": [
@@ -323,7 +323,7 @@
       "imports": [
         "src/db/index.ts"
       ],
-      "loc": 46,
+      "loc": 68,
       "importedBy": [
         "src/components/day-log/DayLogList.tsx"
       ]
@@ -384,7 +384,7 @@
         "src/db/index.ts",
         "src/theme/tokens.ts"
       ],
-      "loc": 227
+      "loc": 381
     },
     "src/components/food-form/Stepper.tsx": {
       "exports": [
@@ -648,7 +648,7 @@
         "src/store/undoToast.ts",
         "src/theme/tokens.ts"
       ],
-      "loc": 190
+      "loc": 191
     },
     "src/components/search/SearchSheet.tsx": {
       "exports": [

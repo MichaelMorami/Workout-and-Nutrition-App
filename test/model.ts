@@ -29,13 +29,32 @@ export type MuscleGroup =
   | 'core'
   | 'full body';
 
+/**
+ * How a food is measured (issue #86): `'weight'` means grams, `'volume'` means millilitres — the
+ * two canonical food units. Kept independent of `src/db/schema.ts`'s own `FoodBasis`, for the same
+ * reason the rest of this file is: this is the contract, not a re-export of the implementation.
+ */
+export type FoodBasis = 'weight' | 'volume';
+
+/**
+ * A catalogue food, stored per 100 g or per 100 ml (issue #86, client ruling 1). There is no
+ * per-serving field here on purpose — `kcalPerServing`/`proteinPerServing`/`servingGrams` are
+ * derived at read time (`src/db/servings.ts`) and never stored, so nothing in this contract can
+ * drift from the number a correction just changed.
+ */
 export interface Food extends SyncFields {
   name: string;
   brand: string | null;
+  /** Which canonical unit this food is measured in: grams or millilitres. */
+  basis: FoodBasis;
+  /** What one serving is called: "1 pot", "1 scoop", "100 g". */
   servingLabel: string;
-  servingGrams: number | null;
-  kcalPerServing: number;
-  proteinPerServing: number;
+  /** One serving in the canonical unit of `basis`. Always > 0. */
+  servingAmount: number;
+  /** kcal per 100 g, or per 100 ml — whichever `basis` says. */
+  kcalPer100: number;
+  /** Protein (g) per 100 g, or per 100 ml. */
+  proteinPer100: number;
   useCount: number;
   lastUsedAt: number | null;
   /** 24 counts, one per hour — the quick-add grid ranks on it. */

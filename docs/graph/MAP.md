@@ -51,7 +51,7 @@ jq -r '.modules["src/db/queries/nutrition.ts"].exports[]' docs/graph/symbols.jso
 
 ## `app/foods/`
 
-### `app/foods/[id].tsx`  <sub>83 lines</sub>
+### `app/foods/[id].tsx`  <sub>87 lines</sub>
 
 - `function default(): React.JSX.Element`
 
@@ -293,7 +293,7 @@ jq -r '.modules["src/db/queries/nutrition.ts"].exports[]' docs/graph/symbols.jso
 
 <sub>used by: `src/components/day-log/DayLogList.tsx`</sub>
 
-### `src/components/day-log/entry-candidate.ts`  <sub>46 lines</sub>
+### `src/components/day-log/entry-candidate.ts`  <sub>68 lines</sub>
 
 - `function candidateForEntry(entry: DayLogEntry, meal: MealDetail | null): Candidate`
 
@@ -341,7 +341,7 @@ jq -r '.modules["src/db/queries/nutrition.ts"].exports[]' docs/graph/symbols.jso
 
 ## `src/components/food-form/`
 
-### `src/components/food-form/FoodForm.tsx`  <sub>227 lines</sub>
+### `src/components/food-form/FoodForm.tsx`  <sub>381 lines</sub>
 
 - `function FoodForm({ initial = null, onSave, onCancel, theme, testID = 'food-form' }: FoodFormProps): import("react").JSX.Element`
 - `type FoodFormProps = {
@@ -647,7 +647,7 @@ jq -r '.modules["src/db/queries/nutrition.ts"].exports[]' docs/graph/symbols.jso
 
 ## `src/components/search/`
 
-### `src/components/search/CreateFoodSheet.tsx`  <sub>190 lines</sub>
+### `src/components/search/CreateFoodSheet.tsx`  <sub>191 lines</sub>
 
 - `function CreateFoodSheet({ db, query, onLogged, onClose, locale, presentation = 'modal', theme, testID = 'create-food-sheet' }: CreateFoodSheetProps): import("react").JSX.Element | null`
 - `type CreateFoodSheetProps = {
