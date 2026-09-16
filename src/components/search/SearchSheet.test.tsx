@@ -157,18 +157,51 @@ describe('SearchSheet — opening', () => {
 });
 
 describe('SearchSheet — recent', () => {
-  it('lists recentFoods for an empty query, excluding the six on the grid', async () => {
+  it('lists recentFoods for an empty query, without excluding the six on the grid (issue #95)', async () => {
     mockRecent.mockReturnValue([eggs]);
     await renderSheet();
 
     await fireEvent.press(screen.getByTestId('search-sheet-bar'));
 
-    expect(mockRecent).toHaveBeenCalledWith(
-      expect.anything(),
-      expect.objectContaining({ days: interaction.recentDays, excludeIds: sixOnGrid.map((c) => c.id) }),
-    );
+    expect(mockRecent).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ days: interaction.recentDays }));
+    expect(mockRecent.mock.calls[0]?.[1]).not.toHaveProperty('excludeIds');
     expect(screen.getByTestId('search-sheet-row-food-food-2-name')).toHaveTextContent('Boiled eggs');
     expect(screen.getByTestId('search-sheet-section-recent')).toHaveTextContent('Recent', { exact: false });
+  });
+
+  it('reads Recent fresh each time the sheet opens: a food logged a moment ago appears at the top on reopen, no reload needed (issue #95)', async () => {
+    // First open: nothing recent yet.
+    mockRecent.mockReturnValue([]);
+    await renderSheet();
+    await fireEvent.press(screen.getByTestId('search-sheet-bar'));
+    expect(screen.queryByTestId('search-sheet-row-food-food-1-name')).toBeNull();
+
+    // Close the sheet, log yoghurt (as if via the grid), then the very next call to `recentFoods`
+    // reflects it — simulated here by changing the mock's return value between opens.
+    await fireEvent.press(screen.getByTestId('search-sheet-cancel'));
+    mockRecent.mockReturnValue([yoghurt]);
+
+    await fireEvent.press(screen.getByTestId('search-sheet-bar'));
+
+    expect(screen.getByTestId('search-sheet-row-food-food-1-name')).toHaveTextContent('Greek yoghurt');
+  });
+
+  it('still lists a food logged before an app reload (component remount), first in Recent (issue #95)', async () => {
+    mockRecent.mockReturnValue([yoghurt, eggs]);
+    const first = await renderSheet();
+    await fireEvent.press(screen.getByTestId('search-sheet-bar'));
+    expect(screen.getByTestId('search-sheet-row-food-food-1-name')).toHaveTextContent('Greek yoghurt');
+    await act(async () => {
+      first.unmount();
+    });
+
+    // Simulated reload: a fresh mount, exactly like Today being reopened after `gear -> reload`.
+    await renderSheet();
+    await fireEvent.press(screen.getByTestId('search-sheet-bar'));
+
+    const rows = screen.getAllByText(/Greek yoghurt|Boiled eggs/);
+    expect(rows[0]).toHaveTextContent('Greek yoghurt');
+    expect(screen.getByTestId('search-sheet-row-food-food-2-name')).toHaveTextContent('Boiled eggs');
   });
 
   it('shows the "no library yet" empty state, leading to Create, when there is nothing recent', async () => {
