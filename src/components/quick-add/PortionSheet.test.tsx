@@ -198,7 +198,11 @@ describe('PortionSheet', () => {
     await renderSheet();
     await fireEvent.press(screen.getByTestId('sheet-mode-exact'));
 
-    for (let i = 0; i < 40; i += 1) {
+    // Enough presses to cross 170 g at whatever `sliderNudgeG` currently is, plus a few more to
+    // prove the floor holds rather than going negative. Never a literal press count: the step is a
+    // token (#107 moved it 5 → 1) and this test asserts the floor, not the step size.
+    const pressesPastZero = Math.ceil(170 / interaction.sliderNudgeG) + 5;
+    for (let i = 0; i < pressesPastZero; i += 1) {
       await fireEvent.press(screen.getByTestId('sheet-exact-nudge-down'));
     }
 

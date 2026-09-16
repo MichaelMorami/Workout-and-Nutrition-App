@@ -45,8 +45,19 @@ the phone is on the bench mid-set.*
 
 No lb/in in v1. That removes a settings section and a class of conversion bugs.
 
-**But storage is canonical from day one:** weight in kg, lengths in cm, food in grams. Never store
-the number as typed alongside a unit tag.
+**But storage is canonical from day one:** weight in kg, lengths in cm, food in grams — or in
+millilitres for a volume-basis food. Never store the number as typed alongside a unit tag.
+
+**Amended 2026-09-16 (see #86): food has two canonical units, not one.** Most labels give their
+facts per 100 g *or* per 100 ml, and a scoop or a cup is a volume, so forcing everything into grams
+would mean storing a density the user does not have. A food therefore declares a `basis` of
+`'weight'` or `'volume'`, and that basis fixes the unit of every amount on it: grams throughout, or
+millilitres throughout. A `food_log` row fills `grams` or `ml` accordingly, never both.
+
+This is still canonical storage, not a unit tag. A unit tag would mean one column holding a number
+whose meaning varies row by row, so every query has to ask what the number means. Here the column
+*is* the unit: `ml` is always millilitres, `grams` is always grams, and `basis` says which one a
+food uses. Metric only — a cup is 250 ml, and no imperial volumes appear anywhere.
 
 This is what keeps lb/in cheap to add later, and it costs nothing now because it is the right design
 regardless. With canonical storage, adding a unit switch converts nothing — it *renders* the same
@@ -86,7 +97,7 @@ the sixth tile (costs a quick-add food every day to save a tap on the rare one).
 
 | Situation | Behaviour |
 | --- | --- |
-| Before typing | **Recent**: foods and meals logged in the last 14 days that are not already in the six |
+| Before typing | **Recent**: every food and meal logged in the last 14 days, newest first — including the ones already on the six quick-add tiles (amended 2026-09-16, see #95) |
 | Typing | Filters the whole library, meals included; ignores case and accents; word-prefix matches first |
 | Tap a row | Log one serving — haptic, undo toast, sheet closes |
 | Long-press a row | The portion sheet, exact control included |

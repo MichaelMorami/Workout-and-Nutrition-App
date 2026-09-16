@@ -1447,7 +1447,7 @@
         "type TypeStyle = {\n  readonly fontFamily: FontFamily;\n  readonly fontSize: number;\n  readonly lineHeight: number;\n  readonly letterSpacing: number;\n  readonly textTransform?: 'uppercase';\n  readonly fontVariant?: readonly ['tabular-nums'];\n}"
       ],
       "imports": [],
-      "loc": 1357,
+      "loc": 1367,
       "importedBy": [
         "app/(tabs)/_layout.tsx",
         "app/(tabs)/index.tsx",
