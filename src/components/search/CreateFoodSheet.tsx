@@ -21,7 +21,10 @@
  * on an iPhone. `SearchSheet` owns the query that opens it and closes both on a successful save;
  * this component still never knows it is inside a search — it only writes and reports. Deliberately
  * no `visible` flag separate from `query` (`<PortionSheet>`'s own `candidate` pattern) — `null`
- * closes it, a string opens it pre-filled with that string.
+ * closes it, a string opens it pre-filled with that string. That string may be `''` (issue #97's
+ * pinned blank-query create row on `<SearchSheet>`): the form still opens, with a blank name field
+ * exactly as `FoodForm`'s own no-`initial` default; only the title swaps `Create "‹query›"` for the
+ * plain "Create new food" so nothing renders a dangling `Create ""`.
  *
  * TAP COUNT: open the search bar (1) + tap Create (2) + tap Save (3) — three fixed taps for a
  * brand-new food logged once, whatever it takes to edit the name (pre-filled already) and set the
@@ -145,7 +148,9 @@ export function CreateFoodSheet({ db, query, onLogged, onClose, locale, presenta
             { width: size.searchSheet.grabberWidth, height: size.searchSheet.grabberHeight, backgroundColor: portionSheet.grabber, borderRadius: radius.pill },
           ]}
         />
-        <Text testID={`${testID}-title`} style={textStyle(type.title, portionSheet.titleText)}>{`Create "${query}"`}</Text>
+        <Text testID={`${testID}-title`} style={textStyle(type.title, portionSheet.titleText)}>
+          {query.length > 0 ? `Create "${query}"` : 'Create new food'}
+        </Text>
         <View style={styles.formArea}>
           <FoodForm initial={initial} onSave={handleSave} onCancel={onClose} theme={theme} testID={`${testID}-form`} />
         </View>
