@@ -26,9 +26,14 @@
  *      hidden behind that sheet's modal at that instant, so re-ranking then is invisible, and by
  *      the time the sheet's own close animation finishes the grid is already showing the result.
  *
- * A refetch never remounts a surviving tile — `key={`${candidate.kind}-${candidate.id}`}` below is
- * unchanged, so `QuickAddTile`'s own "Logged" wash and portion badge (`QuickAddTile`'s local state)
- * stay with the right candidate even if its position in the row shifts.
+ * A refetch never remounts a surviving tile, even across two levels of nesting. Each tile still
+ * keys on `${candidate.kind}-${candidate.id}`, but the ROW around a pair of tiles keys on both
+ * members' ids too, sorted — not the row's index. A reorder can move a pair to a different row
+ * position, or swap which of the two sits first within it; an index key would see that as "this row
+ * position's children changed" and remount both tiles under it, dropping whichever one was
+ * mid-"Logged" wash or showing a portion badge. The sorted, content-based row key means React
+ * recognises the same pair moving as a move, not a replace, so `QuickAddTile`'s own local state
+ * (the wash, the badge) survives regardless of where the pair lands.
  *
  * ONLY SIX ITEMS, NEVER AN UNBOUNDED LIST. `quickAddCandidates(..., { limit: 6 })` guarantees a
  * fixed, small array — this is a bounded grid, not a scrolling list, so a plain `View`/`map` is the
@@ -278,10 +283,14 @@ export function QuickAddGrid({ onLogged, onPortionAdded, refreshToken, locale, t
         <EmptyState theme={theme} testID={`${testID}-empty`} />
       ) : (
         <View style={styles.rows}>
-          {pairs(candidates).map((row, i) => (
-            // Rows are order-stable within one mount (candidates are fetched once); the index is a
-            // safe key here, and each candidate below keys on its own id.
-            <View key={i} style={styles.row}>
+          {pairs(candidates).map((row) => (
+            // Keyed by the row's own two members, sorted — NOT the row's index (issue #103). A
+            // refetch can move a pair to a different row position, or swap which of the two sits
+            // first; an index key would see that as "row 0's children changed" and remount both
+            // tiles underneath, losing whichever one was mid-"Logged" wash. A sorted, content-based
+            // key means React recognises the same pair moving and preserves the subtree — each
+            // tile's own key (below) still carries its own identity within that reused row.
+            <View key={row.map((c) => `${c.kind}-${c.id}`).sort().join('|')} style={styles.row}>
               {row.map((candidate) => (
                 <View key={`${candidate.kind}-${candidate.id}`} style={styles.cell}>
                   <QuickAddTile

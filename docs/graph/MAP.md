@@ -548,7 +548,7 @@ jq -r '.modules["src/db/queries/nutrition.ts"].exports[]' docs/graph/symbols.jso
 
 <sub>used by: `src/components/day-log/DayLogList.tsx`, `src/components/quick-add/QuickAddGrid.tsx`, `src/components/search/SearchSheet.tsx`</sub>
 
-### `src/components/quick-add/QuickAddGrid.tsx`  <sub>344 lines</sub>
+### `src/components/quick-add/QuickAddGrid.tsx`  <sub>353 lines</sub>
 
 - `function QuickAddGrid({ onLogged, onPortionAdded, refreshToken, locale, testID = 'quick-add-grid' }: QuickAddGridProps): import("react").JSX.Element`
 - `type QuickAddGridProps = {

@@ -556,7 +556,7 @@
         "src/store/undoToast.ts",
         "src/theme/tokens.ts"
       ],
-      "loc": 344
+      "loc": 353
     },
     "src/components/quick-add/QuickAddTile.tsx": {
       "exports": [
