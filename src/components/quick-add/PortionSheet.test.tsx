@@ -314,4 +314,15 @@ describe('PortionSheet', () => {
     expect(scrim.props.accessibilityRole).toBe('button');
     expect(scrim.props.accessibilityLabel).toBe('Close');
   });
+
+  it("presentation='overlay' draws the same sheet without a native Modal of its own — for use inside another Modal (issue #79)", async () => {
+    const onClose = jest.fn();
+    await renderSheet({ presentation: 'overlay', onClose });
+
+    expect(screen.container.queryAll((node) => node.type === 'Modal')).toHaveLength(0);
+    expect(screen.getByTestId('sheet-title')).toHaveTextContent('Greek yoghurt');
+
+    await fireEvent.press(screen.getByTestId('sheet-scrim'));
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
 });

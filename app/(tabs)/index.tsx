@@ -31,7 +31,7 @@ import { layout, space } from '../../src/theme/tokens';
  * same `layout.tileGap` rhythm as the tiles themselves — `<SearchSheet>` owns the bar and the sheet
  * it opens. Row tap-to-log and long-press (#70) write through the exact same `onLogged`/
  * `onPortionAdded` shape `<QuickAddGrid>` uses, so they feed this screen's rings from the same two
- * handlers with nothing new to wire; `onCreate` (#71) is still left unwired here.
+ * handlers with nothing new to wire. Create (#71) is wired through `renderCreate` (below).
  *
  * `<UndoToast>` MOUNTS OUTSIDE THE `ScrollView` (issue #21). It floats above the tab bar, clear of
  * the grid's own scrolling content (`docs/decisions.md`, `UndoToast.tsx`'s own module note) — a
@@ -48,14 +48,17 @@ import { layout, space } from '../../src/theme/tokens';
  * and now the day log's own edits/deletes, routed back through the same `handlePortionAdded` via
  * `onChanged`), so bumping it there costs nothing new to wire up.
  *
- * `onCreate` (#71) IS WIRED HERE, NOT INSIDE `<SearchSheet>`. That component's own module note is
- * explicit that it never touches `createFoodAndLog` itself — `createQuery` is this screen's own
- * state, set by `SearchSheet`'s `onCreate(query)` and cleared by `<CreateFoodSheet>`'s `onClose`,
- * the same sibling-not-child shape `<UndoToast>` already uses. `<CreateFoodSheet>` feeds the same
- * `handleLogged` every other logging path does, so a created-and-logged food moves the rings the
- * same frame it lands, with no second database read. `<SearchSheet>`'s own sheet is left open
- * underneath — a second stacked `Modal`, the same shape a long-press already produces with
- * `<PortionSheet>`.
+ * `<CreateFoodSheet>` (#71) IS SUPPLIED HERE, DRAWN INSIDE `<SearchSheet>`'S MODAL (issue #79).
+ * `SearchSheet` never touches `createFoodAndLog` itself, so this screen hands it the form through
+ * `renderCreate`, as an overlay: an iPhone refuses to present a second `Modal` beside the search
+ * sheet's, which is what left Create "doing nothing". The form's receipt goes through
+ * `SearchSheet`'s own `onLogged` — the same `handleLogged` every other logging path uses — so a
+ * created-and-logged food moves the rings the same frame it lands, and the sheet closes back here.
+ *
+ * `keyboardShouldPersistTaps="handled"` ON THE SCROLLVIEW (issue #79). The search sheet's `Modal`
+ * is a React child of this `ScrollView`, and the touch responder follows React ancestry. With the
+ * default (`'never'`), every tap inside the sheet while its keyboard was up went to this
+ * `ScrollView` to dismiss the keyboard instead of to Cancel, a row or Create.
  */
 export default function TodayScreen(): React.JSX.Element {
   const db = useDb();
@@ -66,9 +69,6 @@ export default function TodayScreen(): React.JSX.Element {
   const [totals, setTotals] = useState<DayTotals>(() => todayTotals(db, localDateOf(when.at, when.timeZone)));
   // Bumped by every handler below — `<DayLogList>`'s cue to re-read `dayLog` (see the module note).
   const [dayLogVersion, setDayLogVersion] = useState(0);
-  // `null` closes `<CreateFoodSheet>`; a trimmed query (from `SearchSheet`'s `onCreate`) opens it
-  // pre-filled with that query (see the module note above).
-  const [createQuery, setCreateQuery] = useState<string | null>(null);
 
   const handleLogged = (receipt: LogReceipt): void => {
     const kcal = receipt.entries.reduce((sum, entry) => sum + entry.kcal, 0);
@@ -107,6 +107,7 @@ export default function TodayScreen(): React.JSX.Element {
       <ScrollView
         style={{ backgroundColor: theme.color.bg.canvas }}
         contentContainerStyle={styles.content}
+        keyboardShouldPersistTaps="handled"
         testID="today-screen"
       >
         <TodayHeader
@@ -126,7 +127,9 @@ export default function TodayScreen(): React.JSX.Element {
             db={db}
             onLogged={handleLogged}
             onPortionAdded={handlePortionAdded}
-            onCreate={setCreateQuery}
+            renderCreate={(create) => (
+              <CreateFoodSheet {...create} presentation="overlay" db={db} theme={theme} testID="today-create-food-sheet" />
+            )}
             theme={theme}
             testID="today-search-sheet"
           />
@@ -134,14 +137,6 @@ export default function TodayScreen(): React.JSX.Element {
         <DayLogList refreshToken={dayLogVersion} onChanged={handlePortionAdded} testID="day-log-list" />
         <WeightChip testID="weight-chip" />
       </ScrollView>
-      <CreateFoodSheet
-        db={db}
-        query={createQuery}
-        onLogged={handleLogged}
-        onClose={() => setCreateQuery(null)}
-        theme={theme}
-        testID="today-create-food-sheet"
-      />
       <UndoToast onUndo={handleUndo} testID="today-undo-toast" />
     </View>
   );

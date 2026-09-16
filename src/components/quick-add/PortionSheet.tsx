@@ -72,6 +72,13 @@ export type PortionSheetProps = {
    * to 1 (fresh logging's "usual serving" start). Ignored by Presets, which has no notion of a
    * current amount. */
   readonly initialPortions?: number;
+  /**
+   * `'modal'` (default) presents the sheet in its own native `Modal`. `'overlay'` draws the same
+   * scrim and sheet as a full-bleed view instead, for a host that is itself already inside a
+   * `Modal` — iOS presents one `Modal` from a given view controller at a time, so a second one
+   * mounted beside `<SearchSheet>`'s never appears (issue #79).
+   */
+  readonly presentation?: 'modal' | 'overlay';
   readonly testID?: string;
 };
 
@@ -471,6 +478,7 @@ export function PortionSheet({
   onClose,
   initialMode = 'presets',
   initialPortions = 1,
+  presentation = 'modal',
   testID = 'portion-sheet',
 }: PortionSheetProps) {
   const { bg, portionSheet } = theme.color;
@@ -497,8 +505,8 @@ export function PortionSheet({
   const proteinText = Math.round(candidate.protein).toLocaleString(locale);
   const unit = servingUnitLabel(candidate);
 
-  return (
-    <Modal visible transparent animationType="slide" onRequestClose={onClose} testID={testID}>
+  const content = (
+    <>
       <Pressable
         testID={`${testID}-scrim`}
         accessibilityLabel="Close"
@@ -538,6 +546,16 @@ export function PortionSheet({
           />
         )}
       </View>
+    </>
+  );
+
+  return presentation === 'overlay' ? (
+    <View testID={testID} style={StyleSheet.absoluteFill}>
+      {content}
+    </View>
+  ) : (
+    <Modal visible transparent animationType="slide" onRequestClose={onClose} testID={testID}>
+      {content}
     </Modal>
   );
 }
