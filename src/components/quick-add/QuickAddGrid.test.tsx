@@ -5,7 +5,8 @@
  * failed write never throws past the tap, and an empty catalogue shows the teaching empty state
  * instead of six blank tiles.
  */
-import { fireEvent, render, screen } from '@testing-library/react-native';
+import { act, fireEvent, render, screen } from '@testing-library/react-native';
+import { AppState } from 'react-native';
 import type { FoodCandidate, LogReceipt, MealCandidate } from '../../db';
 import { addPortion, logFood, logMeal, quickAddCandidates, VitalsDbError } from '../../db';
 import { DbProvider } from '../db/DbProvider';
@@ -25,6 +26,31 @@ jest.mock('../../db', () => {
     logMeal: jest.fn(),
     addPortion: jest.fn(),
   };
+});
+
+// A minimal stand-in for expo-router's `useFocusEffect`, mirroring `app/foods/index.test.tsx`'s
+// own mock: runs the callback once on mount (real "focus on first appearance" behaviour) and
+// exposes it via `focusCallback` so a test can call it again to simulate a later refocus, without
+// pulling in a full navigation container.
+let focusCallback: (() => void) | undefined;
+jest.mock('expo-router', () => {
+  const react = jest.requireActual<typeof import('react')>('react');
+  return {
+    useFocusEffect: (cb: () => void) => {
+      focusCallback = cb;
+      react.useEffect(() => {
+        cb();
+      }, []);
+    },
+  };
+});
+
+// A stand-in for `AppState.addEventListener('change', ...)`, capturing the handler so a test can
+// fire it directly instead of driving RN's real native `AppState` module (unavailable under Jest).
+let appStateHandler: ((state: string) => void) | undefined;
+jest.spyOn(AppState, 'addEventListener').mockImplementation((type, handler) => {
+  if (type === 'change') appStateHandler = handler as (state: string) => void;
+  return { remove: () => { appStateHandler = undefined; } };
 });
 
 const mockCandidates = jest.mocked(quickAddCandidates);
@@ -101,6 +127,8 @@ beforeEach(() => {
   mockCandidates.mockReturnValue(six);
   __resetLogTracker();
   useUndoToastStore.getState().dismiss();
+  focusCallback = undefined;
+  appStateHandler = undefined;
 });
 
 describe('QuickAddGrid', () => {
@@ -222,5 +250,67 @@ describe('QuickAddGrid', () => {
     expect(mockAddPortion).not.toHaveBeenCalled();
     expect(onLogged).toHaveBeenCalledWith(receipt);
     expect(screen.queryByTestId('grid-portion-sheet-title')).toBeNull();
+  });
+
+  describe('refresh points (issue #103)', () => {
+    it('re-ranks when the Today tab regains focus', async () => {
+      await renderGrid();
+      expect(mockCandidates).toHaveBeenCalledTimes(1);
+
+      const reordered = [...six].reverse();
+      mockCandidates.mockReturnValue(reordered);
+      await act(async () => focusCallback?.());
+
+      expect(mockCandidates).toHaveBeenCalledTimes(2);
+      const names = reordered.map((c) => screen.getByTestId(`grid-tile-${c.id}-name`).props.children);
+      expect(names).toEqual(reordered.map((c) => c.name));
+    });
+
+    it('re-ranks when the app returns to the foreground', async () => {
+      await renderGrid();
+      expect(mockCandidates).toHaveBeenCalledTimes(1);
+
+      const reordered = [...six].reverse();
+      mockCandidates.mockReturnValue(reordered);
+      await act(async () => appStateHandler?.('active'));
+
+      expect(mockCandidates).toHaveBeenCalledTimes(2);
+    });
+
+    it('re-ranks when refreshToken changes (the search sheet or create-food sheet closing after a log), but not on the first mount', async () => {
+      const { rerender } = await renderGrid({ refreshToken: 0 });
+      expect(mockCandidates).toHaveBeenCalledTimes(1);
+
+      const reordered = [...six].reverse();
+      mockCandidates.mockReturnValue(reordered);
+      await act(async () => {
+        rerender(
+          <DbProvider db={{} as never}>
+            <ThemeContext.Provider value={themes.dark}>
+              <QuickAddGrid testID="grid" refreshToken={1} />
+            </ThemeContext.Provider>
+          </DbProvider>,
+        );
+      });
+
+      expect(mockCandidates).toHaveBeenCalledTimes(2);
+    });
+
+    it('does not re-rank after a tile tap, a double-tap portion add, or an undo while Today stays focused', async () => {
+      const receipt = receiptFor(yoghurt);
+      mockLogFood.mockReturnValue(receipt);
+      const second = { ...receipt, entries: [{ ...receipt.entries[0]!, kcal: 240, protein: 40 }], portions: 2, undo: { kind: 'revert' as const, previous: [receipt.entries[0]!] } };
+      mockAddPortion.mockReturnValue(second);
+      await renderGrid();
+      expect(mockCandidates).toHaveBeenCalledTimes(1);
+
+      await fireEvent.press(screen.getByTestId('grid-tile-food-1'));
+      await fireEvent.press(screen.getByTestId('grid-tile-food-1'));
+      useUndoToastStore.getState().dismiss();
+
+      expect(mockCandidates).toHaveBeenCalledTimes(1);
+      const names = six.map((c) => screen.getByTestId(`grid-tile-${c.id}-name`).props.children);
+      expect(names).toEqual(six.map((c) => c.name));
+    });
   });
 });

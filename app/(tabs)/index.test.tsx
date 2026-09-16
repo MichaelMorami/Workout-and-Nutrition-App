@@ -13,6 +13,7 @@ import {
   getSettings,
   logFood,
   quickAddCandidates,
+  recentFoods,
   softDeleteLogEntries,
   todayTotals,
   undo,
@@ -27,7 +28,18 @@ import { motion, themes } from '../../src/theme/tokens';
 import TodayScreen from './index';
 
 jest.mock('react-native-reanimated', () => jest.requireActual('../../src/components/today/test-support/reanimated-mock'));
-jest.mock('expo-router', () => ({ useRouter: () => ({ push: jest.fn() }) }));
+// `useFocusEffect` (issue #103's grid refocus) just needs to not throw here — the focus/AppState
+// refresh points themselves are asserted at `<QuickAddGrid>`'s own level
+// (`src/components/quick-add/QuickAddGrid.test.tsx`); this screen only owns the search-sheet seam.
+jest.mock('expo-router', () => ({
+  useRouter: () => ({ push: jest.fn() }),
+  useFocusEffect: (cb: () => void) => {
+    const react = jest.requireActual<typeof import('react')>('react');
+    react.useEffect(() => {
+      cb();
+    }, []);
+  },
+}));
 jest.mock('../../src/db', () => ({
   ...jest.requireActual<typeof import('../../src/db')>('../../src/db'),
   quickAddCandidates: jest.fn().mockReturnValue([]),
@@ -53,6 +65,8 @@ const mockDayLog = jest.mocked(dayLog);
 const mockUpdateLogEntry = jest.mocked(updateLogEntry);
 const mockSoftDelete = jest.mocked(softDeleteLogEntries);
 const mockCreateFoodAndLog = jest.mocked(createFoodAndLog);
+const mockRecentFoods = jest.mocked(recentFoods);
+const mockQuickAddCandidates = jest.mocked(quickAddCandidates);
 
 const yoghurt: FoodCandidate = {
   kind: 'food',
@@ -316,5 +330,32 @@ describe('TodayScreen', () => {
     expect(mockCreateFoodAndLog.mock.calls[0]?.[1]).toMatchObject({ food: expect.objectContaining({ name: 'Boiled eggs' }) });
     expect(ring.getByTestId('arc-value').props.children).toBe('1,380');
     expect(screen.queryByTestId('today-create-food-sheet')).toBeNull();
+  });
+
+  it("a quick-add tile tap does not re-rank the grid — Today stays focused (issue #103)", async () => {
+    mockQuickAddCandidates.mockReturnValue([yoghurt]);
+    mockLogFood.mockReturnValue(receipt);
+    await renderScreen();
+    // Baseline, not a literal `1`: `<SearchSheet>` reads `quickAddCandidates` once too, to know
+    // which ids `recentFoods` must exclude — see its own module note.
+    const callsAtMount = mockQuickAddCandidates.mock.calls.length;
+
+    await fireEvent.press(screen.getByTestId('quick-add-grid-tile-food-1'));
+
+    expect(mockQuickAddCandidates).toHaveBeenCalledTimes(callsAtMount);
+  });
+
+  it('logging from the search sheet re-ranks the quick-add grid — the sheet closing after a log is its own refresh point (issue #103)', async () => {
+    const oats: FoodCandidate = { ...yoghurt, id: 'food-2', name: 'Oats' };
+    mockQuickAddCandidates.mockReturnValue([yoghurt]);
+    mockRecentFoods.mockReturnValue([oats]);
+    mockLogFood.mockReturnValue({ ...receipt, target: { kind: 'food', id: 'food-2' } });
+    await renderScreen();
+    const callsAtMount = mockQuickAddCandidates.mock.calls.length;
+
+    await fireEvent.press(screen.getByTestId('today-search-sheet-bar'));
+    await fireEvent.press(screen.getByTestId('today-search-sheet-row-food-food-2'));
+
+    expect(mockQuickAddCandidates).toHaveBeenCalledTimes(callsAtMount + 1);
   });
 });
