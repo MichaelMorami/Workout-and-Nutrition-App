@@ -1113,7 +1113,7 @@
         "src/db/types.ts",
         "src/db/usage.ts"
       ],
-      "loc": 309
+      "loc": 311
     },
     "src/db/queries/settings.ts": {
       "exports": [

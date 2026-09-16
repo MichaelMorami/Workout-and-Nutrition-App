@@ -149,18 +149,20 @@ export function searchFoods(db: VitalsDb, opts: When & { query: string; limit?: 
 /**
  * Distinct foods (direct logs) and meals (meal-logging actions) with a live log in the last `days`
  * calendar days by `local_date` — `[localDateOf(at) - (days - 1), localDateOf(at)]` — newest
- * last-log first, then name, then id. Archived or tombstoned foods, tombstoned meals, meals with
- * no live item and anything in `excludeIds` (the grid's six) are excluded. `limit` is not in the
- * contract's stated defaults; it defaults to 20 for consistency with `searchFoods` — announced on
- * issue #37 alongside the rest of this module, per the issue #17 contract's rule that an additive
- * default is announced before it lands.
+ * last-log first, then name, then id. Archived or tombstoned foods, tombstoned meals and meals with
+ * no live item are excluded. Per the issue #95 ruling, Recent is **never** filtered against the
+ * quick-add grid — a food or meal that is also one of the six tiles still appears here.
+ * `excludeIds` is accepted but ignored: it is kept only so the current `SearchSheet` call site
+ * (issue #95's ui half, tracked separately) still typechecks while it stops being passed; remove
+ * it once that caller is updated. `limit` is not in the contract's stated defaults; it defaults to
+ * 20 for consistency with `searchFoods` — announced on issue #37 alongside the rest of this
+ * module, per the issue #17 contract's rule that an additive default is announced before it lands.
  */
 export function recentFoods(
   db: VitalsDb,
   opts: When & { days: number; excludeIds?: readonly string[]; limit?: number },
 ): Candidate[] {
   const limit = opts.limit ?? 20;
-  const excludeIds = new Set(opts.excludeIds ?? []);
   const endDate = localDateOf(opts.at, opts.timeZone);
   const startDate = addLocalDays(endDate, -(opts.days - 1));
 
@@ -184,8 +186,8 @@ export function recentFoods(
     }
   }
 
-  const foodIds = [...lastLoggedFood.keys()].filter((id) => !excludeIds.has(id));
-  const mealIds = [...lastLoggedMeal.keys()].filter((id) => !excludeIds.has(id));
+  const foodIds = [...lastLoggedFood.keys()];
+  const mealIds = [...lastLoggedMeal.keys()];
 
   const results: { c: Candidate; lastLog: number }[] = [];
 
