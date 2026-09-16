@@ -76,15 +76,21 @@ describe('every table in the data model', () => {
 
 describe('factory defaults', () => {
   it('describe a plausible food rather than lorem ipsum', () => {
-    // Defaults get read in failure output. "Greek yoghurt, 133 kcal" tells you something;
-    // "string-1, 0" does not.
-    expect(makeFood()).toMatchObject({
+    // Defaults get read in failure output. "Greek yoghurt, 1 pot, 170 g" tells you something;
+    // "string-1, 0" does not. The stored numbers are per-100 (issue #86); asserting the serving
+    // they came from — 133 kcal / 17 g protein over a 170 g pot — round-trips through
+    // `src/db/servings.ts`'s own formula rather than pinning a long decimal here.
+    const food = makeFood();
+    expect(food).toMatchObject({
       name: 'Greek yoghurt',
+      brand: null,
+      basis: 'weight',
       servingLabel: '1 pot',
-      kcalPerServing: 133,
-      proteinPerServing: 17,
+      servingAmount: 170,
       archived: 0,
     });
+    expect((food.kcalPer100 * food.servingAmount) / 100).toBeCloseTo(133, 6);
+    expect((food.proteinPer100 * food.servingAmount) / 100).toBeCloseTo(17, 6);
   });
 
   it('put a log entry on the user’s calendar day, derived from its own timestamp', () => {

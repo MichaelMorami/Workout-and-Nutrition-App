@@ -16,6 +16,7 @@ const foodEntry: DayLogEntry = {
   mealId: null,
   qty: 2,
   grams: 340,
+  ml: null,
   kcal: 240,
   protein: 40,
   slot: 'breakfast',
@@ -36,6 +37,7 @@ const mealEntry: DayLogEntry = {
   mealId: 'meal-1',
   qty: 1.5,
   grams: null,
+  ml: null,
   kcal: 615,
   protein: 57,
   slot: 'lunch',
@@ -64,16 +66,31 @@ describe('candidateForEntry', () => {
       name: 'Greek yoghurt',
       brand: 'Fage',
       servingLabel: '1 pot',
+      basis: 'weight',
+      servingAmount: 170, // 340g / qty 2
       servingGrams: 170, // 340g / qty 2
+      servingMl: null,
       kcal: 120, // 240 kcal / qty 2
       protein: 20, // 40g / qty 2
     });
   });
 
-  it('a food with no grams (servings-only) carries servingGrams: null through', () => {
+  it('a volume entry derives basis: volume and servingMl, with servingGrams: null', () => {
+    const candidate = candidateForEntry({ ...foodEntry, grams: null, ml: 50 }, null);
+    expect(candidate).toMatchObject({
+      kind: 'food',
+      basis: 'volume',
+      servingAmount: 25, // 50ml / qty 2
+      servingMl: 25,
+      servingGrams: null,
+    });
+  });
+
+  it('a food with neither grams nor ml (servings-only) carries servingGrams: null through', () => {
     const candidate = candidateForEntry({ ...foodEntry, grams: null }, null);
     expect(candidate.kind).toBe('food');
     expect((candidate as { servingGrams: number | null }).servingGrams).toBeNull();
+    expect((candidate as { servingMl: number | null }).servingMl).toBeNull();
   });
 
   it('derives a meal candidate at its per-portion figures, using the live itemCount when available', () => {

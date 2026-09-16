@@ -4,7 +4,7 @@
  * what includes the food, so there is no separate checkbox to keep in sync with the quantity.
  */
 import { fireEvent, render, screen } from '@testing-library/react-native';
-import type { FoodRow } from '../../db';
+import { withServing, type FoodRow } from '../../db';
 import { themes } from '../../theme/tokens';
 import { MealForm } from './MealForm';
 
@@ -17,17 +17,20 @@ const yoghurt: FoodRow = {
   name: 'Greek yoghurt',
   brand: null,
   servingLabel: '1 pot',
-  servingGrams: 170,
-  kcalPerServing: 120,
-  proteinPerServing: 20,
   archived: 0,
   useCount: 0,
   lastUsedAt: null,
   hourHistogram: null,
   searchText: 'greek yoghurt',
+  ...withServing({ basis: 'weight', servingAmount: 170, kcalPer100: (120 * 100) / 170, proteinPer100: (20 * 100) / 170 }),
 };
 
-const granola: FoodRow = { ...yoghurt, id: 'food-2', name: 'Granola', kcalPerServing: 200, proteinPerServing: 5 };
+const granola: FoodRow = {
+  ...yoghurt,
+  id: 'food-2',
+  name: 'Granola',
+  ...withServing({ basis: 'weight', servingAmount: 170, kcalPer100: (200 * 100) / 170, proteinPer100: (5 * 100) / 170 }),
+};
 
 describe('MealForm', () => {
   it('starts with the name empty and every food at zero servings', async () => {

@@ -13,6 +13,11 @@
  * row using whichever columns existed at that version, migrates to the current one and asserts that
  * not a single value moved. A future migration that rebuilds a table and drops history fails here
  * without anyone having to remember to write a test for it.
+ *
+ * `0002_foods_basis` is the one migration that drops history on purpose (issue #86, client ruling 1:
+ * the food rows are test data and are wiped, not converted). It is declared as such in `WIPED_BY`
+ * below and asserted the other way round — the tables it clears must come out *empty*. Declaring it
+ * is the point: a second migration that quietly drops rows still fails this test.
  */
 import fs from 'node:fs';
 import os from 'node:os';
@@ -82,12 +87,20 @@ function ddlOf(sqlite: Database.Database): { type: string; name: string; sql: st
     .all() as { type: string; name: string; sql: string | null }[];
 }
 
-/** A full row per table, one value per current column. Older versions insert the subset they have. */
+/**
+ * A full row per table. Each carries the columns of *every* version — the old per-serving trio and
+ * the new basis columns, `grams` and `ml` — and the loop below inserts whichever subset the version
+ * under test actually has. That is what lets one fixture seed a v0 database and a v2 one.
+ */
 const HISTORY: Record<string, Record<string, unknown>[]> = {
   foods: [
     {
-      id: 'food-1', name: 'Crème fraîche', brand: 'Président', serving_label: '30 g', serving_grams: 30,
-      kcal_per_serving: 87, protein_per_serving: 0.7, archived: 0, use_count: 1, last_used_at: 1_741_589_700_000,
+      id: 'food-1', name: 'Crème fraîche', brand: 'Président', serving_label: '30 g',
+      // before 0002
+      serving_grams: 30, kcal_per_serving: 87, protein_per_serving: 0.7,
+      // 0002 onwards
+      basis: 'weight', serving_amount: 30, kcal_per_100: 290, protein_per_100: 2.3,
+      archived: 0, use_count: 1, last_used_at: 1_741_589_700_000,
       hour_histogram: JSON.stringify([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1]),
       updated_at: 1_700_000_000_000, deleted: 0,
     },
@@ -97,7 +110,7 @@ const HISTORY: Record<string, Record<string, unknown>[]> = {
   food_log: [
     {
       id: 'log-1', logged_at: 1_741_589_700_000, local_date: '2025-03-09', local_minute: 1435, food_id: 'food-1',
-      meal_id: null, qty: 1, grams: 30, kcal: 87, protein: 0.7, slot: 'snack', updated_at: 1_741_589_700_000, deleted: 0,
+      meal_id: null, qty: 1, grams: 30, ml: null, kcal: 87, protein: 0.7, slot: 'snack', updated_at: 1_741_589_700_000, deleted: 0,
     },
   ],
   body_metrics: [
@@ -111,6 +124,14 @@ const HISTORY: Record<string, Record<string, unknown>[]> = {
 
 /** Parents before children, so the history inserts with foreign keys on. */
 const INSERT_ORDER = ['foods', 'meals', 'meal_items', 'food_log', 'body_metrics', 'settings'];
+
+/**
+ * Tables a migration deliberately empties, and the journal index of the migration that does it.
+ * A database that has not yet run that migration — `version` counts the migrations already applied,
+ * so that is `version <= idx` — must come out of the upgrade with **no rows** in the table. After it,
+ * every value is preserved like anywhere else.
+ */
+const WIPED_BY: Record<string, number> = { foods: 2, meals: 2, meal_items: 2, food_log: 2 };
 
 describe('the migrations', () => {
   it('are drizzle-kit sqlite output, with a .sql file for every journal entry', () => {
@@ -134,6 +155,10 @@ describe('the migrations', () => {
   it.each(journal.entries.map((_, i) => i))(
     'carry a database at version %i forward to the current version without moving a single value',
     (version) => {
+      const wiped = (table: string): boolean => {
+        const idx = WIPED_BY[table];
+        return idx !== undefined && version <= idx;
+      };
       const previous = folderAtVersion(version);
       const sqlite = migrated(previous);
       sqlite.pragma('foreign_keys = ON');
@@ -157,13 +182,15 @@ describe('the migrations', () => {
       expect(appliedMigrations(sqlite)).toHaveLength(journal.entries.length);
       for (const [table, rows] of Object.entries(written)) {
         const after = sqlite.prepare(`select * from "${table}" order by id`).all() as Record<string, unknown>[];
+        const expected = wiped(table) ? [] : rows;
         expect([table, after.map((row, i) => Object.fromEntries(Object.keys(rows[i] ?? {}).map((k) => [k, row[k]])))]).toEqual([
           table,
-          rows,
+          expected,
         ]);
       }
-      // A food that existed before search_text was maintained is searchable after the update.
-      if (written['foods']) {
+      // A food that existed before search_text was maintained is searchable after the update — and
+      // after 0002 rebuilt `foods`, a food inserted into the new table still is.
+      if (written['foods'] && !wiped('foods')) {
         expect(sqlite.prepare(`select search_text from foods where id = 'food-1'`).get()).toEqual({
           search_text: 'creme fraiche president',
         });

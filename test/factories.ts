@@ -13,6 +13,7 @@ import type {
   BodyMetric,
   Exercise,
   Food,
+  FoodBasis,
   FoodLogEntry,
   Meal,
   MealItem,
@@ -65,20 +66,70 @@ function sync(prefix: string, overrides: Partial<SyncFields> = {}): SyncFields {
   };
 }
 
-export const makeFood: Factory<Food> = (overrides = {}) => ({
-  ...sync('food', overrides),
-  name: 'Greek yoghurt',
-  brand: null,
-  servingLabel: '1 pot',
-  servingGrams: 170,
-  kcalPerServing: 133,
-  proteinPerServing: 17,
-  useCount: 0,
-  lastUsedAt: null,
-  hourHistogram: null,
-  archived: 0,
-  ...overrides,
-});
+/**
+ * `makeFood`'s overrides, expressed **per serving** as well as per-100 — a human describes a food
+ * as "a 170 g pot, 133 kcal", not "78.24 kcal per 100 g", and every existing data test reads that
+ * way. The per-100 numbers the table actually stores (issue #86) are derived here, the same way
+ * `FoodForm` derives them in reverse. A test that cares about the stored numbers passes
+ * `kcalPer100` / `proteinPer100` directly — it wins over the per-serving form.
+ *
+ * Mirrors `src/db/test-support/foods.ts`'s `FoodOverrides` on purpose: that module exists only
+ * because db-engineer cannot write here, and it is the shape this one settled on.
+ */
+export interface FoodOverrides extends Partial<SyncFields> {
+  name?: string;
+  brand?: string | null;
+  basis?: FoodBasis;
+  servingLabel?: string;
+  /** One serving in the canonical unit of `basis`. */
+  servingAmount?: number;
+  /** Sugar for `{ basis: 'weight', servingAmount }`. */
+  servingGrams?: number;
+  /** Sugar for `{ basis: 'volume', servingAmount }`. */
+  servingMl?: number;
+  /** Nutrition per serving — converted to per-100 against the resolved serving amount. */
+  kcalPerServing?: number;
+  proteinPerServing?: number;
+  /** Nutrition as stored. Wins over the per-serving form. */
+  kcalPer100?: number;
+  proteinPer100?: number;
+  useCount?: number;
+  lastUsedAt?: number | null;
+  hourHistogram?: string | null;
+  archived?: number;
+}
+
+const DEFAULT_SERVING_GRAMS = 170;
+const DEFAULT_KCAL_PER_SERVING = 133;
+const DEFAULT_PROTEIN_PER_SERVING = 17;
+
+/**
+ * Not typed as `Factory<Food>` like the rest of this file: that alias would pin call sites to
+ * `Partial<Food>` and hide the per-serving sugar above from every caller, which defeats the point
+ * of it. `ALL_FACTORIES` in `factories.test.ts` still covers this via a cast.
+ */
+export function makeFood(overrides: FoodOverrides = {}): Food {
+  const basis: FoodBasis = overrides.basis ?? (overrides.servingMl !== undefined ? 'volume' : 'weight');
+  const servingAmount =
+    overrides.servingAmount ?? overrides.servingGrams ?? overrides.servingMl ?? DEFAULT_SERVING_GRAMS;
+  const per100 = (perServing: number): number => (perServing * 100) / servingAmount;
+
+  return {
+    ...sync('food', overrides),
+    name: overrides.name ?? 'Greek yoghurt',
+    brand: overrides.brand ?? null,
+    basis,
+    servingLabel: overrides.servingLabel ?? '1 pot',
+    servingAmount,
+    kcalPer100: overrides.kcalPer100 ?? per100(overrides.kcalPerServing ?? DEFAULT_KCAL_PER_SERVING),
+    proteinPer100:
+      overrides.proteinPer100 ?? per100(overrides.proteinPerServing ?? DEFAULT_PROTEIN_PER_SERVING),
+    useCount: overrides.useCount ?? 0,
+    lastUsedAt: overrides.lastUsedAt ?? null,
+    hourHistogram: overrides.hourHistogram ?? null,
+    archived: overrides.archived ?? 0,
+  };
+}
 
 export const makeMeal: Factory<Meal> = (overrides = {}) => ({
   ...sync('meal', overrides),

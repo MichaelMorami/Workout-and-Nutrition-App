@@ -7,10 +7,11 @@
 import { eq } from 'drizzle-orm';
 import { performance } from 'node:perf_hooks';
 import { makeTestDb } from '../../../test/db';
-import { makeFood, makeMeal, makeMealItem } from '../../../test/factories';
+import { makeMeal, makeMealItem } from '../../../test/factories';
+import { makeFood } from '../test-support/foods';
 import { VitalsDbError, type VitalsDbErrorCode } from '../errors';
 import * as schema from '../schema';
-import type { MealCandidate } from '../types';
+import type { FoodInput, MealCandidate } from '../types';
 import { undo } from './nutrition';
 import { createFoodAndLog, recentFoods, searchFoods } from './search';
 
@@ -459,19 +460,22 @@ describe('recentFoods', () => {
 // -------------------------------------------------------------------------------------------
 
 describe('createFoodAndLog', () => {
-  const VALID_FOOD = {
+  // 2 cakes = 18 g, 70 kcal and 1.5 g protein a serving — expressed per 100 g, the way the packet
+  // prints it and the way `foods` now stores it (#86).
+  const VALID_FOOD: FoodInput = {
     name: 'Rice cakes',
+    basis: 'weight',
     servingLabel: '2 cakes',
-    servingGrams: 18,
-    kcalPerServing: 70,
-    proteinPerServing: 1.5,
+    servingAmount: 18,
+    kcalPer100: (70 * 100) / 18,
+    proteinPer100: (1.5 * 100) / 18,
   };
 
   it('inserts the food and logs one serving by default', () => {
     const { db } = setup();
     const { food, receipt } = createFoodAndLog(db, { at: AT, timeZone: LA, food: VALID_FOOD });
 
-    expect(food).toMatchObject(VALID_FOOD);
+    expect(food).toMatchObject({ ...VALID_FOOD, kcalPerServing: 70, proteinPerServing: 1.5 });
     expect(receipt.entries).toHaveLength(1);
     expect(receipt.entries[0]).toMatchObject({ foodId: food.id, qty: 1, kcal: 70, protein: 1.5 });
     expect(receipt.undo).toEqual({ kind: 'unlog', logIds: [receipt.entries[0]?.id] });
@@ -509,10 +513,10 @@ describe('createFoodAndLog', () => {
 
   it('is atomic: an invalid amount throws invalid_input and leaves no orphan food', () => {
     const { db } = setup();
-    // The food has no serving_grams, so logging it by grams is invalid.
-    const noGrams = { ...VALID_FOOD, servingGrams: null };
+    // A volume food cannot be logged in grams — `resolveAmount` rejects it before anything is written.
+    const byVolume: FoodInput = { ...VALID_FOOD, basis: 'volume' };
     expectDbError(
-      () => createFoodAndLog(db, { at: AT, timeZone: LA, food: noGrams, amount: { grams: 50 } }),
+      () => createFoodAndLog(db, { at: AT, timeZone: LA, food: byVolume, amount: { grams: 50 } }),
       'invalid_input',
     );
     expect(db.select().from(schema.foods).all()).toEqual([]);

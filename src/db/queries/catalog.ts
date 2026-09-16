@@ -9,8 +9,9 @@ import type { VitalsDb } from '../db';
 import { VitalsDbError } from '../errors';
 import { newId } from '../ids';
 import type { Stamp } from '../local-time';
-import { foods, mealItems, meals, type FoodRow, type MealItemRow, type MealRow, type NewFoodRow, type NewMealRow } from '../schema';
-import type { FoodInput, MealDetail, MealItemInput, MealSummary } from '../types';
+import { foods, mealItems, meals, type MealItemRow, type MealRow, type NewFoodRow, type NewMealRow } from '../schema';
+import { servingOf, withServing } from '../servings';
+import type { FoodInput, FoodRow, MealDetail, MealItemInput, MealSummary } from '../types';
 
 // ---------------------------------------------------------------------------------------------
 // Foods — createFood, updateFood, setFoodArchived, getFood, listFoods.
@@ -23,17 +24,18 @@ import type { FoodInput, MealDetail, MealItemInput, MealSummary } from '../types
 export function validateFoodInput(input: FoodInput): void {
   if (input.name.trim().length === 0) throw new VitalsDbError('invalid_input', 'name must not be empty');
   if (input.servingLabel.trim().length === 0) throw new VitalsDbError('invalid_input', 'servingLabel must not be empty');
-  if (input.servingGrams != null && input.servingGrams <= 0) {
-    throw new VitalsDbError('invalid_input', 'servingGrams must be > 0 when given');
+  if (input.basis !== 'weight' && input.basis !== 'volume') {
+    throw new VitalsDbError('invalid_input', `basis must be 'weight' or 'volume'`);
   }
-  if (input.kcalPerServing < 0) throw new VitalsDbError('invalid_input', 'kcalPerServing must be >= 0');
-  if (input.proteinPerServing < 0) throw new VitalsDbError('invalid_input', 'proteinPerServing must be >= 0');
+  if (!(input.servingAmount > 0)) throw new VitalsDbError('invalid_input', 'servingAmount must be > 0');
+  if (input.kcalPer100 < 0) throw new VitalsDbError('invalid_input', 'kcalPer100 must be >= 0');
+  if (input.proteinPer100 < 0) throw new VitalsDbError('invalid_input', 'proteinPer100 must be >= 0');
 }
 
 function mustGetFood(db: VitalsDb, id: string): FoodRow {
   const row = db.select().from(foods).where(eq(foods.id, id)).get();
   if (!row) throw new VitalsDbError('not_found', `food ${id} not found`);
-  return row;
+  return withServing(row);
 }
 
 /** Inserts a new catalogue food. `search_text` comes back from the insert trigger (issue #17 §1.5). */
@@ -47,10 +49,11 @@ export function createFood(db: VitalsDb, opts: Stamp & { food: FoodInput }): Foo
       deleted: 0,
       name: opts.food.name,
       brand: opts.food.brand ?? null,
+      basis: opts.food.basis,
       servingLabel: opts.food.servingLabel,
-      servingGrams: opts.food.servingGrams ?? null,
-      kcalPerServing: opts.food.kcalPerServing,
-      proteinPerServing: opts.food.proteinPerServing,
+      servingAmount: opts.food.servingAmount,
+      kcalPer100: opts.food.kcalPer100,
+      proteinPer100: opts.food.proteinPer100,
       archived: 0,
     };
     tx.insert(foods).values(row).run();
@@ -72,10 +75,11 @@ export function updateFood(db: VitalsDb, opts: Stamp & { id: string; patch: Part
     const next: FoodInput = {
       name: patch.name ?? current.name,
       brand: 'brand' in patch ? (patch.brand ?? null) : current.brand,
+      basis: patch.basis ?? current.basis,
       servingLabel: patch.servingLabel ?? current.servingLabel,
-      servingGrams: 'servingGrams' in patch ? (patch.servingGrams ?? null) : current.servingGrams,
-      kcalPerServing: patch.kcalPerServing ?? current.kcalPerServing,
-      proteinPerServing: patch.proteinPerServing ?? current.proteinPerServing,
+      servingAmount: patch.servingAmount ?? current.servingAmount,
+      kcalPer100: patch.kcalPer100 ?? current.kcalPer100,
+      proteinPer100: patch.proteinPer100 ?? current.proteinPer100,
     };
     validateFoodInput(next);
 
@@ -106,11 +110,12 @@ export function setFoodArchived(db: VitalsDb, opts: Stamp & { id: string; archiv
 
 /** A live food by id, or `null` — a tombstoned or missing food reads back as not there. */
 export function getFood(db: VitalsDb, id: string): FoodRow | null {
-  return db
+  const row = db
     .select()
     .from(foods)
     .where(and(eq(foods.id, id), eq(foods.deleted, 0)))
-    .get() ?? null;
+    .get();
+  return row ? withServing(row) : null;
 }
 
 /** Live foods, name order (then id). Archived foods are excluded unless `includeArchived`. */
@@ -121,7 +126,8 @@ export function listFoods(db: VitalsDb, opts: { includeArchived?: boolean } = {}
     .from(foods)
     .where(and(...conditions))
     .orderBy(asc(foods.name), asc(foods.id))
-    .all();
+    .all()
+    .map(withServing);
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -142,7 +148,8 @@ function liveMealItemsWithFood(db: VitalsDb, mealId: string): MealItemWithFood[]
     .innerJoin(foods, eq(mealItems.foodId, foods.id))
     .where(and(eq(mealItems.mealId, mealId), eq(mealItems.deleted, 0), eq(foods.deleted, 0)))
     .orderBy(asc(foods.name), asc(mealItems.id))
-    .all();
+    .all()
+    .map(({ item, food }) => ({ item, food: withServing(food) }));
 }
 
 function summaryOf(meal: MealRow, items: readonly MealItemWithFood[]): MealSummary {
@@ -202,8 +209,10 @@ export function listMeals(db: VitalsDb): MealSummary[] {
     .select({
       mealId: mealItems.mealId,
       qty: mealItems.qty,
-      kcalPerServing: foods.kcalPerServing,
-      proteinPerServing: foods.proteinPerServing,
+      basis: foods.basis,
+      servingAmount: foods.servingAmount,
+      kcalPer100: foods.kcalPer100,
+      proteinPer100: foods.proteinPer100,
     })
     .from(mealItems)
     .innerJoin(foods, eq(mealItems.foodId, foods.id))
@@ -213,10 +222,11 @@ export function listMeals(db: VitalsDb): MealSummary[] {
   const agg = new Map<string, { itemCount: number; kcal: number; protein: number }>();
   for (const row of itemRows) {
     const prev = agg.get(row.mealId) ?? { itemCount: 0, kcal: 0, protein: 0 };
+    const serving = servingOf(row);
     agg.set(row.mealId, {
       itemCount: prev.itemCount + 1,
-      kcal: prev.kcal + row.qty * row.kcalPerServing,
-      protein: prev.protein + row.qty * row.proteinPerServing,
+      kcal: prev.kcal + row.qty * serving.kcalPerServing,
+      protein: prev.protein + row.qty * serving.proteinPerServing,
     });
   }
 

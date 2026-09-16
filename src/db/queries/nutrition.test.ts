@@ -7,7 +7,8 @@
 import { eq } from 'drizzle-orm';
 import { performance } from 'node:perf_hooks';
 import { makeTestDb } from '../../../test/db';
-import { makeFood, makeMeal, makeMealItem } from '../../../test/factories';
+import { makeMeal, makeMealItem } from '../../../test/factories';
+import { makeFood } from '../test-support/foods';
 import { makeSeededTestDb } from '../../../test/seed';
 import { VitalsDbError, type VitalsDbErrorCode } from '../errors';
 import * as schema from '../schema';
@@ -488,7 +489,7 @@ describe('dayLog', () => {
     db.insert(schema.foods).values(food).run();
     logFood(db, { at: AT_2025_03_09, timeZone: LA, foodId: food.id });
     db.update(schema.foods)
-      .set({ kcalPerServing: 999, proteinPerServing: 999, updatedAt: AT_2025_03_09 + 1_000 })
+      .set({ kcalPer100: 999, proteinPer100: 999, updatedAt: AT_2025_03_09 + 1_000 })
       .where(eq(schema.foods.id, food.id))
       .run();
 
@@ -570,18 +571,19 @@ describe('logFood', () => {
     expect(receipt.entries[0]?.kcal).toBeCloseTo(133 * (137 / 170), 10);
   });
 
-  it('grams is null when the food has no serving_grams', () => {
+  it('grams is null and ml carries the amount when the food is measured by volume', () => {
     const { db } = setup();
-    const food = makeFood({ servingGrams: null });
+    const food = makeFood({ servingMl: 250 });
     db.insert(schema.foods).values(food).run();
 
     const receipt = logFood(db, { at: 1_000, timeZone: LA, foodId: food.id, amount: { servings: 2 } });
     expect(receipt.entries[0]?.grams).toBeNull();
+    expect(receipt.entries[0]?.ml).toBe(500);
   });
 
-  it('a food with no serving_grams cannot be logged by grams — invalid_input', () => {
+  it('a volume food cannot be logged by grams — invalid_input', () => {
     const { db } = setup();
-    const food = makeFood({ servingGrams: null });
+    const food = makeFood({ servingMl: 250 });
     db.insert(schema.foods).values(food).run();
 
     expectDbError(() => logFood(db, { at: 1_000, timeZone: LA, foodId: food.id, amount: { grams: 100 } }), 'invalid_input');
@@ -920,7 +922,7 @@ describe('updateLogEntry', () => {
     const food = makeFood({ servingGrams: 100, kcalPerServing: 200, proteinPerServing: 20 });
     db.insert(schema.foods).values(food).run();
     const receipt = logFood(db, { at: 1_000, timeZone: LA, foodId: food.id }); // qty 1, kcal 200, protein 20, grams 100
-    db.update(schema.foods).set({ kcalPerServing: 999, proteinPerServing: 999, updatedAt: 1_500 }).where(eq(schema.foods.id, food.id)).run();
+    db.update(schema.foods).set({ kcalPer100: 999, proteinPer100: 999, updatedAt: 1_500 }).where(eq(schema.foods.id, food.id)).run();
 
     const { entry } = updateLogEntry(db, { at: 2_000, id: receipt.entries[0]!.id, amount: { servings: 2 } });
     expect(entry).toMatchObject({ qty: 2, kcal: 400, protein: 40, grams: 200 });
@@ -948,7 +950,8 @@ describe('updateLogEntry', () => {
 
   it('throws invalid_input updating by grams on an entry with no grams ratio', () => {
     const { db } = setup();
-    const food = makeFood({ servingGrams: null });
+    // A volume entry has `ml`, never `grams` — there is no grams ratio to rescale from.
+    const food = makeFood({ servingMl: 250 });
     db.insert(schema.foods).values(food).run();
     const receipt = logFood(db, { at: 1_000, timeZone: LA, foodId: food.id });
 
@@ -1155,7 +1158,7 @@ describe('undo', () => {
     const before = { ...receipt.entries[0]! };
     updateLogEntry(db, { at: 2_000, id: before.id, amount: { servings: 5 } });
 
-    undo(db, { at: 3_000, token: { kind: 'revert', previous: [{ id: before.id, qty: before.qty, grams: before.grams, kcal: before.kcal, protein: before.protein, slot: before.slot }] } });
+    undo(db, { at: 3_000, token: { kind: 'revert', previous: [{ id: before.id, qty: before.qty, grams: before.grams, ml: before.ml, kcal: before.kcal, protein: before.protein, slot: before.slot }] } });
 
     const row = db.select().from(schema.foodLog).where(eq(schema.foodLog.id, before.id)).get();
     expect(row).toMatchObject({ qty: before.qty, grams: before.grams, kcal: before.kcal, protein: before.protein, slot: before.slot });

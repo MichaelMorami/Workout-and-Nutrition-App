@@ -6,9 +6,11 @@
  */
 import { eq } from 'drizzle-orm';
 import { makeTestDb } from '../../../test/db';
-import { makeFood, makeMeal, makeMealItem } from '../../../test/factories';
+import { makeMeal, makeMealItem } from '../../../test/factories';
+import { makeFood } from '../test-support/foods';
 import { VitalsDbError, type VitalsDbErrorCode } from '../errors';
 import * as schema from '../schema';
+import type { FoodBasis } from '../schema';
 import { dayLog, logFood } from './nutrition';
 import {
   createFood,
@@ -47,14 +49,26 @@ describe('createFood', () => {
     const { db } = setup();
     const row = createFood(db, {
       at: 1_000,
-      food: { name: 'Skyr', brand: 'Arla', servingLabel: '1 pot', servingGrams: 170, kcalPerServing: 120, proteinPerServing: 15 },
+      food: {
+        name: 'Skyr',
+        brand: 'Arla',
+        basis: 'weight',
+        servingLabel: '1 pot',
+        servingAmount: 170,
+        kcalPer100: (120 * 100) / 170,
+        proteinPer100: (15 * 100) / 170,
+      },
     });
 
     expect(row).toMatchObject({
       name: 'Skyr',
       brand: 'Arla',
+      basis: 'weight',
       servingLabel: '1 pot',
+      servingAmount: 170,
+      // Derived, never stored — and snapped back to the numbers the packet prints.
       servingGrams: 170,
+      servingMl: null,
       kcalPerServing: 120,
       proteinPerServing: 15,
       archived: 0,
@@ -66,43 +80,57 @@ describe('createFood', () => {
     expect(typeof row.id).toBe('string');
   });
 
-  it('defaults brand and servingGrams to null when omitted', () => {
+  it('defaults brand to null when omitted, and a volume food has no serving grams', () => {
     const { db } = setup();
     const row = createFood(db, {
       at: 1_000,
-      food: { name: 'Black coffee', servingLabel: '1 cup', kcalPerServing: 2, proteinPerServing: 0.3 },
+      food: { name: 'Black coffee', basis: 'volume', servingLabel: '1 cup', servingAmount: 250, kcalPer100: 0.8, proteinPer100: 0.12 },
     });
     expect(row.brand).toBeNull();
     expect(row.servingGrams).toBeNull();
+    expect(row.servingMl).toBe(250);
   });
 
   it('rejects an empty name', () => {
     const { db } = setup();
     expectDbError(
-      () => createFood(db, { at: 1_000, food: { name: '  ', servingLabel: '1 pot', kcalPerServing: 1, proteinPerServing: 1 } }),
+      () =>
+        createFood(db, {
+          at: 1_000,
+          food: { name: '  ', basis: 'weight', servingLabel: '1 pot', servingAmount: 100, kcalPer100: 1, proteinPer100: 1 },
+        }),
       'invalid_input',
     );
   });
 
-  it('rejects a negative kcalPerServing or proteinPerServing', () => {
+  it('rejects a negative kcalPer100 or proteinPer100', () => {
     const { db } = setup();
+    const base = { name: 'X', basis: 'weight', servingLabel: '1', servingAmount: 100 } as const;
     expectDbError(
-      () => createFood(db, { at: 1_000, food: { name: 'X', servingLabel: '1', kcalPerServing: -1, proteinPerServing: 0 } }),
+      () => createFood(db, { at: 1_000, food: { ...base, kcalPer100: -1, proteinPer100: 0 } }),
       'invalid_input',
     );
     expectDbError(
-      () => createFood(db, { at: 1_000, food: { name: 'X', servingLabel: '1', kcalPerServing: 0, proteinPerServing: -1 } }),
+      () => createFood(db, { at: 1_000, food: { ...base, kcalPer100: 0, proteinPer100: -1 } }),
       'invalid_input',
     );
   });
 
-  it('rejects a non-positive servingGrams', () => {
+  it('rejects a non-positive servingAmount', () => {
+    const { db } = setup();
+    const base = { name: 'X', basis: 'weight', servingLabel: '1', kcalPer100: 1, proteinPer100: 1 } as const;
+    expectDbError(() => createFood(db, { at: 1_000, food: { ...base, servingAmount: 0 } }), 'invalid_input');
+    expectDbError(() => createFood(db, { at: 1_000, food: { ...base, servingAmount: -5 } }), 'invalid_input');
+  });
+
+  it('rejects a basis that is neither weight nor volume', () => {
     const { db } = setup();
     expectDbError(
       () =>
         createFood(db, {
           at: 1_000,
-          food: { name: 'X', servingLabel: '1', servingGrams: 0, kcalPerServing: 1, proteinPerServing: 1 },
+          // The column has a CHECK too; this proves the query layer refuses before SQLite has to.
+          food: { name: 'X', basis: 'mass' as FoodBasis, servingLabel: '1', servingAmount: 100, kcalPer100: 1, proteinPer100: 1 },
         }),
       'invalid_input',
     );
@@ -119,7 +147,7 @@ describe('updateFood', () => {
     const food = makeFood({ name: 'Skyr', brand: 'Arla', kcalPerServing: 120, proteinPerServing: 15 });
     db.insert(schema.foods).values(food).run();
 
-    const updated = updateFood(db, { at: 2_000, id: food.id, patch: { kcalPerServing: 130 } });
+    const updated = updateFood(db, { at: 2_000, id: food.id, patch: { kcalPer100: (130 * 100) / 170 } });
 
     expect(updated).toMatchObject({ name: 'Skyr', brand: 'Arla', kcalPerServing: 130, proteinPerServing: 15, updatedAt: 2_000 });
   });
@@ -130,7 +158,7 @@ describe('updateFood', () => {
     db.insert(schema.foods).values(food).run();
     const receipt = logFood(db, { at: 1_000, timeZone: 'America/Los_Angeles', foodId: food.id });
 
-    updateFood(db, { at: 2_000, id: food.id, patch: { kcalPerServing: 999, proteinPerServing: 999 } });
+    updateFood(db, { at: 2_000, id: food.id, patch: { kcalPer100: 999, proteinPer100: 999 } });
 
     const row = db.select().from(schema.foodLog).where(eq(schema.foodLog.id, receipt.entries[0]!.id)).get();
     expect(row).toMatchObject({ kcal: 100, protein: 10 });
@@ -157,11 +185,11 @@ describe('updateFood', () => {
     expectDbError(() => updateFood(db, { at: 1_000, id: food.id, patch: { name: 'New' } }), 'not_found');
   });
 
-  it('rejects a patch that would make kcalPerServing negative', () => {
+  it('rejects a patch that would make kcalPer100 negative', () => {
     const { db } = setup();
     const food = makeFood();
     db.insert(schema.foods).values(food).run();
-    expectDbError(() => updateFood(db, { at: 1_000, id: food.id, patch: { kcalPerServing: -5 } }), 'invalid_input');
+    expectDbError(() => updateFood(db, { at: 1_000, id: food.id, patch: { kcalPer100: -5 } }), 'invalid_input');
   });
 });
 

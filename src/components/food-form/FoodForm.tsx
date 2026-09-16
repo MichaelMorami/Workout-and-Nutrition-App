@@ -1,7 +1,19 @@
 /**
- * `<FoodForm>` — issue #43's add/edit food. `name`, `brand`, `servingLabel` are free text (there is
- * no stepper that could set a name), but every quantity — serving grams, kcal, protein — is a
- * `<Stepper>`, never a keyboard number field, per the module's own tap doctrine.
+ * `<FoodForm>` — issue #43's add/edit food, adapted (issue #86) to the per-100 shape: `basis`,
+ * `servingAmount`, `kcalPer100`, `proteinPer100` replace the old per-serving fields. `name`, `brand`,
+ * `servingLabel` are free text (there is no stepper that could set a name); serving amount, kcal per
+ * 100 and protein per 100 are each a `<Stepper>`, never a keyboard number field, per the module's own
+ * tap doctrine; `basis` is a two-option toggle (Weight/Volume), the minimal control a required enum
+ * field needs.
+ *
+ * SCOPE NOTE: a one-tap serving-preset picker (100 g / 100 ml / 1 cup / 1 tbsp / 1 tsp + Custom) is
+ * issue #89, blocked on #88's design. This form is deliberately the plain #86 data-shape adaptation
+ * only — every field defaults or steps to a valid value with no forced extra tap, but there is no
+ * preset row yet.
+ *
+ * `servingAmount` defaults to 100 (not 0): the schema requires it strictly positive, and 100 is
+ * already the denomination `kcalPer100`/`proteinPer100` are entered in, so an untouched new food is
+ * valid without an extra stepper tap.
  *
  * SAVE IS A REAL BUTTON, NOT AUTO-COMMIT. Unlike the quick-add grid's one-tap logging, this is a
  * multi-field data-entry form: there is no single "the" value to commit the instant it changes, so
@@ -18,10 +30,13 @@
  * attempted, not as the source of truth for what is a valid `FoodInput`.
  */
 import { useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, TextInput, View, type TextStyle } from 'react-native';
-import type { FoodInput } from '../../db';
+import { Pressable, ScrollView, StyleSheet, Text, View, TextInput, type TextStyle } from 'react-native';
+import type { FoodBasis, FoodInput } from '../../db';
 import { radius, size, space, type, type Theme, type TypeStyle } from '../../theme/tokens';
 import { Stepper } from './Stepper';
+
+/** The unit a stepper labelled "per 100 …" is denominated in, following `basis`. */
+const UNIT_LABEL: Record<FoodBasis, string> = { weight: 'g', volume: 'ml' };
 
 export type FoodFormProps = {
   /** `undefined`/`null` — a fresh food, every field starts blank/zero. Given — an edit, pre-filled
@@ -46,9 +61,10 @@ function textStyle(token: TypeStyle, color: string): TextStyle {
 
 /** `null`/empty checks the way `validateFoodInput` does, so this form's own gate agrees with the
  * database's — see the module note on why this is a courtesy, not the source of truth. */
-function firstError(name: string, servingLabel: string): string | null {
+function firstError(name: string, servingLabel: string, servingAmount: number): string | null {
   if (name.trim().length === 0) return 'Name is required.';
   if (servingLabel.trim().length === 0) return 'Serving label is required.';
+  if (!(servingAmount > 0)) return 'Serving amount must be greater than zero.';
   return null;
 }
 
@@ -88,19 +104,64 @@ function Field({
   );
 }
 
+/** The minimal control a required two-value enum needs — `basis` picks which canonical unit
+ * `servingAmount`/`kcalPer100`/`proteinPer100` are denominated in. Not the issue #89 preset picker:
+ * just a plain segmented toggle, the same selected/unselected token pair `PortionSheet`'s own
+ * Presets/Exact switch already uses. */
+function BasisToggle({ basis, onChange, theme, testID }: { basis: FoodBasis; onChange: (basis: FoodBasis) => void; theme: Theme; testID: string }) {
+  const { segmented } = theme.color;
+  return (
+    <View style={styles.field}>
+      <Text style={textStyle(type.label, theme.color.text.secondary)}>Measured in</Text>
+      <View testID={testID} style={styles.toggleRow}>
+        {(['weight', 'volume'] as const).map((option) => {
+          const selected = option === basis;
+          return (
+            <Pressable
+              key={option}
+              testID={`${testID}-${option}`}
+              onPress={() => onChange(option)}
+              accessibilityRole="button"
+              accessibilityState={{ selected }}
+              accessibilityLabel={option === 'weight' ? 'Weight (grams)' : 'Volume (millilitres)'}
+              style={[
+                styles.toggleChip,
+                {
+                  minHeight: size.tapTargetMin,
+                  borderRadius: radius.sm,
+                  backgroundColor: selected ? segmented.selectedBg : segmented.trackBg,
+                  borderColor: segmented.selectedBorder,
+                  borderWidth: selected ? StyleSheet.hairlineWidth : 0,
+                },
+              ]}
+            >
+              <Text style={textStyle(selected ? type.controlSelected : type.control, selected ? segmented.selectedText : segmented.optionText)}>
+                {option === 'weight' ? 'Weight' : 'Volume'}
+              </Text>
+            </Pressable>
+          );
+        })}
+      </View>
+    </View>
+  );
+}
+
 export function FoodForm({ initial = null, onSave, onCancel, theme, testID = 'food-form' }: FoodFormProps) {
   const { button, state } = theme.color;
 
   const [name, setName] = useState(initial?.name ?? '');
   const [brand, setBrand] = useState(initial?.brand ?? '');
   const [servingLabel, setServingLabel] = useState(initial?.servingLabel ?? '');
-  const [servingGrams, setServingGrams] = useState(initial?.servingGrams ?? 0);
-  const [kcalPerServing, setKcalPerServing] = useState(initial?.kcalPerServing ?? 0);
-  const [proteinPerServing, setProteinPerServing] = useState(initial?.proteinPerServing ?? 0);
+  const [basis, setBasis] = useState<FoodBasis>(initial?.basis ?? 'weight');
+  // Defaults to 100, not 0 — `servingAmount` must be > 0 (issue #86's schema), and 100 is already
+  // the denomination `kcalPer100`/`proteinPer100` are entered in, so a new food is valid untouched.
+  const [servingAmount, setServingAmount] = useState(initial?.servingAmount ?? 100);
+  const [kcalPer100, setKcalPer100] = useState(initial?.kcalPer100 ?? 0);
+  const [proteinPer100, setProteinPer100] = useState(initial?.proteinPer100 ?? 0);
   const [error, setError] = useState<string | null>(null);
 
   const handleSave = (): void => {
-    const problem = firstError(name, servingLabel);
+    const problem = firstError(name, servingLabel, servingAmount);
     if (problem) {
       setError(problem);
       return;
@@ -110,11 +171,14 @@ export function FoodForm({ initial = null, onSave, onCancel, theme, testID = 'fo
       name: name.trim(),
       brand: brand.trim().length > 0 ? brand.trim() : null,
       servingLabel: servingLabel.trim(),
-      servingGrams: servingGrams > 0 ? servingGrams : null,
-      kcalPerServing,
-      proteinPerServing,
+      basis,
+      servingAmount,
+      kcalPer100,
+      proteinPer100,
     });
   };
+
+  const unit = UNIT_LABEL[basis];
 
   return (
     // `handled`: with the name field's keyboard up, a tap on a stepper or Save must land on the
@@ -138,33 +202,35 @@ export function FoodForm({ initial = null, onSave, onCancel, theme, testID = 'fo
         testID={`${testID}-serving-label`}
       />
 
+      <BasisToggle basis={basis} onChange={setBasis} theme={theme} testID={`${testID}-basis`} />
       <Stepper
-        label="Serving grams"
-        value={servingGrams}
+        label="Serving amount"
+        value={servingAmount}
         step={5}
         max={2000}
-        unit="g"
-        onChange={setServingGrams}
+        unit={unit}
+        onChange={setServingAmount}
         theme={theme}
-        testID={`${testID}-serving-grams`}
+        testID={`${testID}-serving-amount`}
       />
+
       <Stepper
-        label="Kcal per serving"
-        value={kcalPerServing}
+        label={`Kcal per 100 ${unit}`}
+        value={kcalPer100}
         step={5}
         max={5000}
         unit="kcal"
-        onChange={setKcalPerServing}
+        onChange={setKcalPer100}
         theme={theme}
         testID={`${testID}-kcal`}
       />
       <Stepper
-        label="Protein per serving"
-        value={proteinPerServing}
+        label={`Protein per 100 ${unit}`}
+        value={proteinPer100}
         step={1}
         max={500}
         unit="g"
-        onChange={setProteinPerServing}
+        onChange={setProteinPer100}
         theme={theme}
         testID={`${testID}-protein`}
       />
@@ -213,6 +279,16 @@ const styles = StyleSheet.create({
   input: {
     paddingHorizontal: space[5],
     borderWidth: StyleSheet.hairlineWidth,
+  },
+  toggleRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: space[3],
+  },
+  toggleChip: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: space[4],
   },
   actions: {
     flexDirection: 'row',

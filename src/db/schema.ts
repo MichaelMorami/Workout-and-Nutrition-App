@@ -12,7 +12,14 @@
  *     Nothing derives a calendar day from the timestamp.
  *   - Logs are facts. `food_log` holds literal `kcal`, `protein` and `grams`; catalogue rows are
  *     templates and editing one never touches a log.
- *   - Canonical units. Food in grams, weight in kg, lengths in cm. No unit columns anywhere.
+ *   - Canonical units. Weight in kg, lengths in cm. Food has two canonical units and a `basis`
+ *     column that says which one a row uses: grams for `basis = 'weight'`, millilitres for
+ *     `basis = 'volume'` (docs/decisions.md, decision 3, amended by #113 and #86). That is not a
+ *     unit tag — a column is either grams or millilitres, never "a number plus whatever the user
+ *     typed", so there is still nothing to convert on a future lb/fl-oz switch.
+ *   - Nutrition is stored per 100 g or per 100 ml, following the basis. Per-serving values are
+ *     derived at read time by `./servings` and never stored, so correcting a food cannot leave a
+ *     rounded per-serving number behind to drift from its source.
  *   - CHECK constraints encode true invariants only. Adding one later is a table rebuild, so they are
  *     here from the first migration; removing one is also a rebuild, so nothing speculative is.
  *
@@ -25,6 +32,15 @@ import { check, index, integer, real, sqliteTable, text, uniqueIndex } from 'dri
 /** Meal slots. Typed here, deliberately not a CHECK: a new slot must not cost a table rebuild. */
 export type MealSlot = 'breakfast' | 'lunch' | 'dinner' | 'snack';
 const MEAL_SLOTS: readonly [MealSlot, ...MealSlot[]] = ['breakfast', 'lunch', 'dinner', 'snack'];
+
+/**
+ * How a food is measured (#86). `'weight'` means grams, `'volume'` means millilitres — the two
+ * canonical food units. Unlike `MealSlot` this *is* a CHECK: every query branches on it, so a third
+ * value would be a silent wrong answer rather than a new label, and the set is closed by the data
+ * model rather than by product taste.
+ */
+export type FoodBasis = 'weight' | 'volume';
+const FOOD_BASES: readonly [FoodBasis, ...FoodBasis[]] = ['weight', 'volume'];
 
 /**
  * A column by its bare name, for CHECK constraints. Not `${t.column}`: drizzle renders that
@@ -66,12 +82,16 @@ export const foods = sqliteTable(
     ...syncColumns(),
     name: text('name').notNull(),
     brand: text('brand'),
-    /** What one serving is called: "1 pot", "100 g". */
+    /** Which canonical unit this food is measured in: grams or millilitres. */
+    basis: text('basis', { enum: FOOD_BASES }).notNull(),
+    /** What one serving is called: "1 pot", "1 scoop", "100 g". One serving per food (#86, ruling 3). */
     servingLabel: text('serving_label').notNull(),
-    /** Grams in one serving, or NULL when unknown ("1 flat white"). */
-    servingGrams: real('serving_grams'),
-    kcalPerServing: real('kcal_per_serving').notNull(),
-    proteinPerServing: real('protein_per_serving').notNull(),
+    /** One serving in the canonical unit of `basis`: grams, or millilitres. Always > 0. */
+    servingAmount: real('serving_amount').notNull(),
+    /** kcal per 100 g, or per 100 ml — whichever `basis` says. The label on the packet. */
+    kcalPer100: real('kcal_per_100').notNull(),
+    /** Protein (g) per 100 g, or per 100 ml. */
+    proteinPer100: real('protein_per_100').notNull(),
     /** 1 = hidden from the grid, search and recents; still resolvable from history and meals. */
     archived: integer('archived').notNull().default(0),
     ...usageColumns(),
@@ -81,9 +101,10 @@ export const foods = sqliteTable(
     index('foods_last_used_at_idx').on(t.lastUsedAt),
     check('foods_deleted_check', sql`${col(t.deleted)} in (0, 1)`),
     check('foods_archived_check', sql`${col(t.archived)} in (0, 1)`),
-    check('foods_serving_grams_check', sql`${col(t.servingGrams)} is null or ${col(t.servingGrams)} > 0`),
-    check('foods_kcal_check', sql`${col(t.kcalPerServing)} >= 0`),
-    check('foods_protein_check', sql`${col(t.proteinPerServing)} >= 0`),
+    check('foods_basis_check', sql`${col(t.basis)} in ('weight', 'volume')`),
+    check('foods_serving_amount_check', sql`${col(t.servingAmount)} > 0`),
+    check('foods_kcal_check', sql`${col(t.kcalPer100)} >= 0`),
+    check('foods_protein_check', sql`${col(t.proteinPer100)} >= 0`),
     check('foods_use_count_check', sql`${col(t.useCount)} >= 0`),
   ],
 );
@@ -124,9 +145,9 @@ export const mealItems = sqliteTable(
 );
 
 /**
- * A fact about the past. `kcal`, `protein` and `grams` are literal values at log time — never a join.
- * `local_date` and `local_minute` are the user's calendar day and wall clock at `logged_at`, in the
- * zone they were in, computed once at write time.
+ * A fact about the past. `kcal`, `protein` and the amount (`grams` or `ml`) are literal values at log
+ * time — never a join. `local_date` and `local_minute` are the user's calendar day and wall clock at
+ * `logged_at`, in the zone they were in, computed once at write time.
  */
 export const foodLog = sqliteTable(
   'food_log',
@@ -142,8 +163,10 @@ export const foodLog = sqliteTable(
     mealId: text('meal_id').references(() => meals.id),
     /** Servings of the food as it was at log time. */
     qty: real('qty').notNull().default(1),
-    /** Canonical amount: `qty × serving_grams` at log time; NULL when the food had no serving weight. */
+    /** Canonical amount for a weight food: `qty × serving_amount` at log time. NULL otherwise. */
     grams: real('grams'),
+    /** Canonical amount for a volume food: `qty × serving_amount` at log time. NULL otherwise. */
+    ml: real('ml'),
     kcal: real('kcal').notNull(),
     protein: real('protein').notNull(),
     slot: text('slot', { enum: MEAL_SLOTS }).notNull(),
@@ -157,6 +180,13 @@ export const foodLog = sqliteTable(
     check('food_log_local_minute_check', sql`${col(t.localMinute)} between 0 and 1439`),
     check('food_log_qty_check', sql`${col(t.qty)} > 0`),
     check('food_log_grams_check', sql`${col(t.grams)} is null or ${col(t.grams)} > 0`),
+    check('food_log_ml_check', sql`${col(t.ml)} is null or ${col(t.ml)} > 0`),
+    // Grams and millilitres are mutually exclusive: a row records one canonical amount, following
+    // the food's `basis` at log time. Deliberately not "exactly one" — `grams` has always been
+    // nullable and rows with neither exist (a food logged by servings before #86), so the stricter
+    // form would make old history un-insertable and could only be relaxed by another table rebuild.
+    // "Exactly one, matching the basis" is enforced in `queries/nutrition.ts`, where the basis is known.
+    check('food_log_amount_check', sql`${col(t.grams)} is null or ${col(t.ml)} is null`),
     check('food_log_kcal_check', sql`${col(t.kcal)} >= 0`),
     check('food_log_protein_check', sql`${col(t.protein)} >= 0`),
   ],
@@ -206,7 +236,12 @@ export const settings = sqliteTable(
   ],
 );
 
-export type FoodRow = typeof foods.$inferSelect;
+/**
+ * The stored food row. What the *queries* hand out is `FoodRow` from `./types` — this row plus the
+ * per-serving values derived from it. Kept separate so nothing can accidentally persist a derived
+ * number by assigning a `FoodRow` back into the table.
+ */
+export type FoodTableRow = typeof foods.$inferSelect;
 export type NewFoodRow = typeof foods.$inferInsert;
 export type MealRow = typeof meals.$inferSelect;
 export type NewMealRow = typeof meals.$inferInsert;

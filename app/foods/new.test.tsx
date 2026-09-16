@@ -51,7 +51,7 @@ describe('NewFoodScreen', () => {
     expect(mockCreateFood).toHaveBeenCalledWith(
       expect.anything(),
       expect.objectContaining({
-        food: expect.objectContaining({ name: 'Boiled eggs', servingLabel: '2 eggs', kcalPerServing: 5, proteinPerServing: 1 }),
+        food: expect.objectContaining({ name: 'Boiled eggs', servingLabel: '2 eggs', basis: 'weight', servingAmount: 100, kcalPer100: 5, proteinPer100: 1 }),
       }),
     );
     expect(mockBack).toHaveBeenCalledTimes(1);

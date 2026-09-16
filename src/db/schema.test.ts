@@ -9,7 +9,10 @@ import type Database from 'better-sqlite3';
 import { eq, getTableName } from 'drizzle-orm';
 import { SQLiteTable } from 'drizzle-orm/sqlite-core';
 import { makeTestDb, tableNames } from '../../test/db';
-import { makeBodyMetric, makeFood, makeLogEntry, makeMeal, makeMealItem } from '../../test/factories';
+import { makeBodyMetric, makeLogEntry, makeMeal, makeMealItem } from '../../test/factories';
+// `foods` rows come from the #86 fixture: `test/factories.ts` is qa-engineer's and still builds the
+// pre-#86 per-serving shape. `test/db.test.ts` is the drift alarm that catches that; see the PR body.
+import { makeFood } from './test-support/foods';
 import * as schema from './schema';
 import { foldSql } from './search-fold';
 
@@ -40,7 +43,7 @@ function validRow(table: string, id: string): Record<string, unknown> {
   const sync = { id, updated_at: LATE_SNACK_AT, deleted: 0 };
   switch (table) {
     case 'foods':
-      return { ...sync, name: 'Skyr', serving_label: '1 pot', kcal_per_serving: 120, protein_per_serving: 20 };
+      return { ...sync, name: 'Skyr', basis: 'weight', serving_label: '1 pot', serving_amount: 170, kcal_per_100: 70.6, protein_per_100: 11.8 };
     case 'meals':
       return { ...sync, name: 'Usual breakfast' };
     case 'meal_items':
@@ -253,7 +256,7 @@ describe('history is immutable', () => {
     const before = db.select().from(schema.foodLog).all();
 
     db.update(schema.foods)
-      .set({ name: 'Protein bar (new recipe)', kcalPerServing: 198, proteinPerServing: 20, servingGrams: 55, updatedAt: LATE_SNACK_AT + 1 })
+      .set({ name: 'Protein bar (new recipe)', kcalPer100: 360, proteinPer100: 36.4, servingAmount: 55, updatedAt: LATE_SNACK_AT + 1 })
       .where(eq(schema.foods.id, food.id))
       .run();
 
@@ -275,9 +278,10 @@ describe('history is immutable', () => {
   });
 
   it.each([
-    ['foods', 'serving_grams', 0],
-    ['foods', 'kcal_per_serving', -1],
-    ['foods', 'protein_per_serving', -1],
+    ['foods', 'serving_amount', 0],
+    ['foods', 'serving_amount', -1],
+    ['foods', 'kcal_per_100', -1],
+    ['foods', 'protein_per_100', -1],
     ['foods', 'archived', 2],
     ['foods', 'use_count', -1],
     ['meal_items', 'qty', 0],

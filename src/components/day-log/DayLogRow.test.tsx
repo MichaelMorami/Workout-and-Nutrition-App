@@ -22,6 +22,7 @@ const foodEntry: DayLogEntry = {
   mealId: null,
   qty: 1,
   grams: 170,
+  ml: null,
   kcal: 120,
   protein: 20,
   slot: 'breakfast',

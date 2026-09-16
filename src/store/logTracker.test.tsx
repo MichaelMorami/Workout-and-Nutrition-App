@@ -19,6 +19,7 @@ const receipt: LogReceipt = {
       mealId: null,
       qty: 1,
       grams: null,
+      ml: null,
       kcal: 120,
       protein: 20,
       slot: 'breakfast',

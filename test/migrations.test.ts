@@ -78,16 +78,31 @@ describe('the migrations', () => {
     sqlite.close();
   });
 
-  it('run forward from the previous version without losing a single row', () => {
+  /**
+   * `0002_foods_basis.sql` is the one custom, hand-written migration in this folder, and it is
+   * deliberately destructive: issue #86, client ruling 1, decided there is no honest conversion from
+   * "133 kcal per serving, serving weight unknown" to "kcal per 100 g", so a user's `foods` /
+   * `food_log` / `meals` / `meal_items` rows are wiped rather than carried across. Everything else —
+   * `body_metrics`, `settings` — is real data with nothing to do with this change and must survive.
+   * Two tests, because "forward without losing data" and "forward while deliberately losing this
+   * data" are different claims and a single one could hide either going wrong.
+   */
+  it('wipe foods, food_log, meals and meal_items when the basis migration lands (issue #86 ruling 1)', () => {
     const previous = folderAsOfVersion(folder, journal.entries.length - 1);
     const sqlite = new Database(':memory:');
     migrate(drizzle(sqlite), { migrationsFolder: previous });
     expect(appliedMigrations(sqlite)).toHaveLength(journal.entries.length - 1);
 
-    // A user with history on the old version.
+    // A user with history on the old, per-serving version.
     sqlite
-      .prepare('insert into foods (id, name, serving_label, kcal_per_serving, protein_per_serving, updated_at) values (?, ?, ?, ?, ?, ?)')
+      .prepare(
+        'insert into foods (id, name, serving_label, kcal_per_serving, protein_per_serving, updated_at) values (?, ?, ?, ?, ?, ?)',
+      )
       .run('food-1', 'Greek yoghurt', '1 pot', 133, 17, 1_700_000_000_000);
+    sqlite.prepare('insert into meals (id, name, updated_at) values (?, ?, ?)').run('meal-1', 'Usual breakfast', 1_700_000_000_000);
+    sqlite
+      .prepare('insert into meal_items (id, meal_id, food_id, updated_at) values (?, ?, ?, ?)')
+      .run('mitm-1', 'meal-1', 'food-1', 1_700_000_000_000);
     sqlite
       .prepare(
         'insert into food_log (id, logged_at, local_date, local_minute, food_id, kcal, protein, slot, updated_at) values (?, ?, ?, ?, ?, ?, ?, ?, ?)',
@@ -98,12 +113,42 @@ describe('the migrations', () => {
     migrate(drizzle(sqlite), { migrationsFolder: folder });
 
     expect(appliedMigrations(sqlite)).toHaveLength(journal.entries.length);
-    expect(sqlite.prepare('select * from foods').all()).toEqual([
-      expect.objectContaining({ id: 'food-1', name: 'Greek yoghurt', kcal_per_serving: 133 }),
+    // Wiped, not converted — a surviving row with the old columns would mean drizzle-kit's table
+    // rebuild ran instead of the hand-written wipe, silently carrying a per-serving number into a
+    // per-100 column.
+    expect(sqlite.prepare('select * from foods').all()).toEqual([]);
+    expect(sqlite.prepare('select * from food_log').all()).toEqual([]);
+    expect(sqlite.prepare('select * from meals').all()).toEqual([]);
+    expect(sqlite.prepare('select * from meal_items').all()).toEqual([]);
+    sqlite.close();
+    fs.rmSync(previous, { recursive: true, force: true });
+  });
+
+  it('carry body_metrics and settings forward untouched by the basis migration', () => {
+    const previous = folderAsOfVersion(folder, journal.entries.length - 1);
+    const sqlite = new Database(':memory:');
+    migrate(drizzle(sqlite), { migrationsFolder: previous });
+
+    // Data with nothing to do with foods — the basis migration must not so much as touch it.
+    sqlite
+      .prepare(
+        'insert into body_metrics (id, measured_at, local_date, weight, updated_at) values (?, ?, ?, ?, ?)',
+      )
+      .run('body-1', 1_741_589_700_000, '2025-03-09', 82.4, 1_741_589_700_000);
+    sqlite
+      .prepare(
+        'insert into settings (id, kcal_target, protein_target, updated_at) values (?, ?, ?, ?)',
+      )
+      .run('settings-1', 2400, 170, 1_700_000_000_000);
+
+    migrate(drizzle(sqlite), { migrationsFolder: folder });
+
+    expect(appliedMigrations(sqlite)).toHaveLength(journal.entries.length);
+    expect(sqlite.prepare('select * from body_metrics').all()).toEqual([
+      expect.objectContaining({ id: 'body-1', local_date: '2025-03-09', weight: 82.4 }),
     ]);
-    // The 23:55 log survived, on the day it was eaten.
-    expect(sqlite.prepare('select * from food_log').all()).toEqual([
-      expect.objectContaining({ id: 'log-1', local_date: '2025-03-09', kcal: 214 }),
+    expect(sqlite.prepare('select * from settings').all()).toEqual([
+      expect.objectContaining({ id: 'settings-1', kcal_target: 2400, protein_target: 170 }),
     ]);
     sqlite.close();
     fs.rmSync(previous, { recursive: true, force: true });

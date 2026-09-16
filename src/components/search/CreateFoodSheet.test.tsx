@@ -7,7 +7,7 @@
 import { fireEvent, render, screen } from '@testing-library/react-native';
 import type { ComponentProps } from 'react';
 import type { FoodLogRow, FoodRow, LogReceipt } from '../../db';
-import { createFoodAndLog, VitalsDbError } from '../../db';
+import { createFoodAndLog, VitalsDbError, withServing } from '../../db';
 import { DbProvider } from '../db/DbProvider';
 import { useUndoToastStore } from '../../store/undoToast';
 import { ThemeContext } from '../theme/theme-context';
@@ -39,6 +39,7 @@ function entry(overrides: Partial<FoodLogRow> = {}): FoodLogRow {
     mealId: null,
     qty: 1,
     grams: null,
+    ml: null,
     kcal: 180,
     protein: 22,
     slot: 'breakfast',
@@ -54,14 +55,12 @@ function foodRow(overrides: Partial<FoodRow> = {}): FoodRow {
     name: 'Boiled eggs',
     brand: null,
     servingLabel: '2 eggs',
-    servingGrams: null,
-    kcalPerServing: 180,
-    proteinPerServing: 22,
     archived: 0,
     useCount: 0,
     lastUsedAt: null,
     hourHistogram: null,
     searchText: '',
+    ...withServing({ basis: 'weight', servingAmount: 100, kcalPer100: 180, proteinPer100: 22 }),
     ...overrides,
   };
 }

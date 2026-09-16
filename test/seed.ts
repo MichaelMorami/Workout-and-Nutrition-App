@@ -35,6 +35,7 @@ import type {
   BodyMetric,
   Exercise,
   Food,
+  FoodBasis,
   FoodLogEntry,
   Meal,
   MealItem,
@@ -109,7 +110,11 @@ interface CatalogueFood {
   name: string;
   brand: string | null;
   servingLabel: string;
-  servingGrams: number | null;
+  /** Grams in one serving — the whole demo catalogue is weight-basis (issue #86: `basis` is always
+   * `'weight'` here; nothing in the seeder needs a volume food yet). */
+  servingGrams: number;
+  /** kcal and protein per serving, exactly as a person would read them off a label. Converted to
+   * per-100 (what `foods` actually stores) when the row is built, below. */
   kcal: number;
   protein: number;
   slots: MealSlot[];
@@ -235,21 +240,28 @@ export function seedData(options: SeedOptions = {}): SeedData {
 
   idCounter = 0;
 
-  const foods: Food[] = CATALOGUE.map((c) => ({
-    id: seedId('food'),
-    name: c.name,
-    brand: c.brand,
-    servingLabel: c.servingLabel,
-    servingGrams: c.servingGrams,
-    kcalPerServing: c.kcal,
-    proteinPerServing: c.protein,
-    useCount: 0,
-    lastUsedAt: null,
-    hourHistogram: null,
-    archived: 0,
-    updatedAt: 0,
-    deleted: 0,
-  }));
+  // `foods` stores nutrition per 100 g (issue #86, client ruling 1), never per serving — the
+  // catalogue above is written the way a person reads a label, so the conversion happens once,
+  // here, the same formula `src/db/servings.ts` inverts to get a serving back.
+  const foods: Food[] = CATALOGUE.map((c) => {
+    const basis: FoodBasis = 'weight';
+    return {
+      id: seedId('food'),
+      name: c.name,
+      brand: c.brand,
+      basis,
+      servingLabel: c.servingLabel,
+      servingAmount: c.servingGrams,
+      kcalPer100: (c.kcal * 100) / c.servingGrams,
+      proteinPer100: (c.protein * 100) / c.servingGrams,
+      useCount: 0,
+      lastUsedAt: null,
+      hourHistogram: null,
+      archived: 0,
+      updatedAt: 0,
+      deleted: 0,
+    };
+  });
   const foodIndex = new Map(CATALOGUE.map((c, i) => [c.name, i]));
   const histograms = foods.map(() => new Array<number>(24).fill(0));
 

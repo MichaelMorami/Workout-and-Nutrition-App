@@ -4,7 +4,7 @@
  * (`CLAUDE.md`) instead of showing a blank screen.
  */
 import { fireEvent, render, screen } from '@testing-library/react-native';
-import type { FoodRow } from '../../db';
+import { withServing, type FoodRow } from '../../db';
 import { themes } from '../../theme/tokens';
 import { FoodList } from './FoodList';
 
@@ -17,14 +17,12 @@ const yoghurt: FoodRow = {
   name: 'Greek yoghurt',
   brand: 'Fage',
   servingLabel: '1 pot',
-  servingGrams: 170,
-  kcalPerServing: 120,
-  proteinPerServing: 20,
   archived: 0,
   useCount: 4,
   lastUsedAt: null,
   hourHistogram: null,
   searchText: 'greek yoghurt fage',
+  ...withServing({ basis: 'weight', servingAmount: 170, kcalPer100: (120 * 100) / 170, proteinPer100: (20 * 100) / 170 }),
 };
 
 const eggs: FoodRow = {
@@ -33,9 +31,7 @@ const eggs: FoodRow = {
   name: 'Boiled eggs',
   brand: null,
   servingLabel: '2 eggs',
-  servingGrams: null,
-  kcalPerServing: 140,
-  proteinPerServing: 12,
+  ...withServing({ basis: 'volume', servingAmount: 90, kcalPer100: (140 * 100) / 90, proteinPer100: (12 * 100) / 90 }),
 };
 
 describe('FoodList', () => {
