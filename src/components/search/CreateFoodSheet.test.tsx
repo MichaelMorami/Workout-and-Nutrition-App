@@ -168,4 +168,15 @@ describe('<CreateFoodSheet>', () => {
     expect(mockUndo).toHaveBeenCalledTimes(1);
     expect(mockUndo.mock.calls[0]?.[1]).toMatchObject({ token: { kind: 'unlog', logIds: ['log-1'] } });
   });
+
+  it("presentation='overlay' draws the same form without a native Modal of its own — for use inside the search Modal (issue #79)", async () => {
+    const onClose = jest.fn();
+    await renderSheet({ presentation: 'overlay', onClose });
+
+    expect(screen.container.queryAll((node) => node.type === 'Modal')).toHaveLength(0);
+    expect(screen.getByTestId('create-sheet-form-name').props.value).toBe('boiled eggs');
+
+    await fireEvent.press(screen.getByTestId('create-sheet-scrim'));
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
 });

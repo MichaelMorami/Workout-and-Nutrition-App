@@ -7,6 +7,7 @@
  * long-press opens `<PortionSheet>` (#21) instead. Create's own behaviour is #71.
  */
 import { act, fireEvent, render, screen, within } from '@testing-library/react-native';
+import { Pressable, Text, TextInput } from 'react-native';
 import type { FoodCandidate, LogReceipt, MealCandidate } from '../../db';
 import { addPortion, logFood, logMeal, quickAddCandidates, recentFoods, searchFoods, VitalsDbError } from '../../db';
 import { __resetLogTracker } from '../../store/logTracker';
@@ -133,14 +134,15 @@ describe('SearchSheet — the bar', () => {
 });
 
 describe('SearchSheet — opening', () => {
-  it('opens the sheet with the query field already focused, keyboard up', async () => {
+  it('opens the sheet with the query field focused, keyboard up, the moment the sheet is shown', async () => {
+    const focus = jest.spyOn(TextInput.prototype, 'focus');
     await renderSheet();
 
     await fireEvent.press(screen.getByTestId('search-sheet-bar'));
+    await fireEvent(screen.getByTestId('search-sheet-modal'), 'show');
 
-    const input = screen.getByTestId('search-sheet-input');
-    expect(input).toBeTruthy();
-    expect(input.props.autoFocus).toBe(true);
+    expect(screen.getByTestId('search-sheet-input')).toBeTruthy();
+    expect(focus).toHaveBeenCalledTimes(1);
   });
 
   it('Cancel closes the sheet', async () => {
@@ -395,6 +397,115 @@ describe('SearchSheet — create', () => {
     await fireEvent.press(screen.getByTestId('search-sheet-create'));
 
     expect(onCreate).toHaveBeenCalledWith('boiled eggs');
+  });
+});
+
+describe('SearchSheet — iPhone presentation (issue #79)', () => {
+  it('never asks for focus while the Modal is still presenting — the field is focused once onShow reports it is up', async () => {
+    const focus = jest.spyOn(TextInput.prototype, 'focus');
+    await renderSheet();
+
+    await fireEvent.press(screen.getByTestId('search-sheet-bar'));
+
+    expect(screen.getByTestId('search-sheet-input').props.autoFocus).toBeFalsy();
+    expect(focus).not.toHaveBeenCalled();
+
+    await fireEvent(screen.getByTestId('search-sheet-modal'), 'show');
+
+    expect(focus).toHaveBeenCalledTimes(1);
+  });
+
+  it('the portion sheet renders inside the search Modal, not as a second Modal', async () => {
+    mockRecent.mockReturnValue([eggs]);
+    await renderSheet();
+    await fireEvent.press(screen.getByTestId('search-sheet-bar'));
+
+    await fireEvent(screen.getByTestId('search-sheet-row-food-food-2'), 'longPress');
+
+    const modal = screen.getByTestId('search-sheet-modal');
+    expect(within(modal).getByTestId('search-sheet-portion-sheet-title')).toBeTruthy();
+    expect(screen.container.queryAll((node) => node.type === 'Modal')).toHaveLength(1);
+  });
+
+  it('long-press drops the keyboard before the portion sheet opens — the sheet sits at the bottom, where the keyboard was', async () => {
+    mockRecent.mockReturnValue([eggs]);
+    const blur = jest.spyOn(TextInput.prototype, 'blur');
+    await renderSheet();
+    await fireEvent.press(screen.getByTestId('search-sheet-bar'));
+    await fireEvent(screen.getByTestId('search-sheet-modal'), 'show');
+
+    await fireEvent(screen.getByTestId('search-sheet-row-food-food-2'), 'longPress');
+
+    expect(blur).toHaveBeenCalled();
+    expect(screen.getByTestId('search-sheet-portion-sheet-title')).toBeTruthy();
+  });
+
+  it('Create drops the keyboard before the create form opens, so its Save is never behind it', async () => {
+    const blur = jest.spyOn(TextInput.prototype, 'blur');
+    await renderSheet({ renderCreate: ({ query }) => <Text testID="create-query">{query}</Text> });
+    await fireEvent.press(screen.getByTestId('search-sheet-bar'));
+    await fireEvent(screen.getByTestId('search-sheet-modal'), 'show');
+    await fireEvent.changeText(screen.getByTestId('search-sheet-input'), 'Protein bar');
+
+    await fireEvent.press(screen.getByTestId('search-sheet-create'));
+
+    expect(blur).toHaveBeenCalled();
+    expect(screen.getByTestId('create-query')).toBeTruthy();
+  });
+
+  it('Android back with the create form up closes only the create form', async () => {
+    await renderSheet({ renderCreate: ({ query }) => <Text testID="create-query">{query}</Text> });
+    await fireEvent.press(screen.getByTestId('search-sheet-bar'));
+    await fireEvent.changeText(screen.getByTestId('search-sheet-input'), 'Protein bar');
+    await fireEvent.press(screen.getByTestId('search-sheet-create'));
+
+    await fireEvent(screen.getByTestId('search-sheet-modal'), 'requestClose');
+
+    expect(screen.queryByTestId('create-query')).toBeNull();
+    expect(screen.getByTestId('search-sheet-input').props.value).toBe('Protein bar');
+  });
+
+  it('Android back with the portion sheet up closes only the portion sheet', async () => {
+    mockRecent.mockReturnValue([eggs]);
+    await renderSheet();
+    await fireEvent.press(screen.getByTestId('search-sheet-bar'));
+    await fireEvent(screen.getByTestId('search-sheet-row-food-food-2'), 'longPress');
+
+    await fireEvent(screen.getByTestId('search-sheet-modal'), 'requestClose');
+
+    expect(screen.queryByTestId('search-sheet-portion-sheet-title')).toBeNull();
+    expect(screen.getByTestId('search-sheet-input')).toBeTruthy();
+  });
+
+  it('renderCreate draws the create form inside the search Modal; its onLogged forwards the receipt and closes everything', async () => {
+    mockSearch.mockReturnValue([]);
+    const onLogged = jest.fn();
+    const receipt = receiptFor(eggs);
+    await renderSheet({
+      onLogged,
+      renderCreate: ({ query, onLogged: logged, onClose }) => (
+        <>
+          <Text testID="create-query">{query}</Text>
+          <Pressable testID="create-save" onPress={() => logged(receipt)} />
+          <Pressable testID="create-cancel" onPress={onClose} />
+        </>
+      ),
+    });
+    await fireEvent.press(screen.getByTestId('search-sheet-bar'));
+    await fireEvent.changeText(screen.getByTestId('search-sheet-input'), ' boiled eggs ');
+    await fireEvent.press(screen.getByTestId('search-sheet-create'));
+
+    expect(within(screen.getByTestId('search-sheet-modal')).getByTestId('create-query').props.children).toBe('boiled eggs');
+
+    await fireEvent.press(screen.getByTestId('create-cancel'));
+    expect(screen.queryByTestId('create-query')).toBeNull();
+    expect(screen.getByTestId('search-sheet-input').props.value).toBe(' boiled eggs ');
+
+    await fireEvent.press(screen.getByTestId('search-sheet-create'));
+    await fireEvent.press(screen.getByTestId('create-save'));
+
+    expect(onLogged).toHaveBeenCalledWith(receipt);
+    expect(screen.queryByTestId('search-sheet-modal')).toBeNull();
   });
 });
 

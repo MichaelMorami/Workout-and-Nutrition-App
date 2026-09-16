@@ -42,7 +42,7 @@
         "src/store/undoToast.ts",
         "src/theme/tokens.ts"
       ],
-      "loc": 166
+      "loc": 161
     },
     "app/(tabs)/settings.tsx": {
       "exports": [
@@ -384,7 +384,7 @@
         "src/db/index.ts",
         "src/theme/tokens.ts"
       ],
-      "loc": 218
+      "loc": 227
     },
     "src/components/food-form/Stepper.tsx": {
       "exports": [
@@ -519,7 +519,7 @@
     },
     "src/components/quick-add/PortionSheet.tsx": {
       "exports": [
-        "function PortionSheet({\n  candidate,\n  theme,\n  locale,\n  onLog,\n  onClose,\n  initialMode = 'presets',\n  initialPortions = 1,\n  testID = 'portion-sheet',\n}: PortionSheetProps): import(\"react\").JSX.Element | null",
+        "function PortionSheet({\n  candidate,\n  theme,\n  locale,\n  onLog,\n  onClose,\n  initialMode = 'presets',\n  initialPortions = 1,\n  presentation = 'modal',\n  testID = 'portion-sheet',\n}: PortionSheetProps): import(\"react\").JSX.Element | null",
         "type PortionSheetProps = {\n  /** `null` closes the sheet — there is deliberately no separate `visible` flag to fall out of sync with. */\n  readonly candidate: Candidate | null;\n  readonly theme: Theme;\n  /** Formatting locale, forwarded to every figure. Defaults to the device's. */\n  readonly locale?: string;\n  /** A step, or Exact's Log button — always a servings multiple of the candidate's ow..."
       ],
       "imports": [
@@ -529,7 +529,7 @@
         "src/hooks/useHapticFeedback.ts",
         "src/theme/tokens.ts"
       ],
-      "loc": 516,
+      "loc": 534,
       "importedBy": [
         "src/components/day-log/DayLogList.tsx",
         "src/components/quick-add/QuickAddGrid.tsx",
@@ -596,7 +596,7 @@
     },
     "src/components/quick-add/index.ts": {
       "exports": [
-        "function PortionSheet({\n  candidate,\n  theme,\n  locale,\n  onLog,\n  onClose,\n  initialMode = 'presets',\n  initialPortions = 1,\n  testID = 'portion-sheet',\n}: PortionSheetProps): import(\"react\").JSX.Element | null",
+        "function PortionSheet({\n  candidate,\n  theme,\n  locale,\n  onLog,\n  onClose,\n  initialMode = 'presets',\n  initialPortions = 1,\n  presentation = 'modal',\n  testID = 'portion-sheet',\n}: PortionSheetProps): import(\"react\").JSX.Element | null",
         "function QuickAddGrid({ onLogged, onPortionAdded, locale, testID = 'quick-add-grid' }: QuickAddGridProps): import(\"react\").JSX.Element",
         "function QuickAddTile({ candidate, onLog, onLongPress, theme, locale, testID = 'quick-add-tile' }: QuickAddTileProps): import(\"react\").JSX.Element",
         "function UndoToast({ onUndo, testID = 'undo-toast' }: UndoToastProps): import(\"react\").JSX.Element | null",
@@ -633,7 +633,7 @@
     },
     "src/components/search/CreateFoodSheet.tsx": {
       "exports": [
-        "function CreateFoodSheet({ db, query, onLogged, onClose, locale, theme, testID = 'create-food-sheet' }: CreateFoodSheetProps): import(\"react\").JSX.Element | null",
+        "function CreateFoodSheet({ db, query, onLogged, onClose, locale, presentation = 'modal', theme, testID = 'create-food-sheet' }: CreateFoodSheetProps): import(\"react\").JSX.Element | null",
         "type CreateFoodSheetProps = {\n  readonly db: VitalsDb;\n  /** The trimmed query that seeded this sheet — `SearchSheet`'s own `onCreate(query)`. `null`\n   * closes the sheet; a non-empty string opens it with `FoodForm`'s `name` pre-filled from it. */\n  readonly query: string | null;\n  /** Fires with the fresh log's receipt after a successful save — the same shape `QuickAddGrid`/\n   * `SearchSheet..."
       ],
       "imports": [
@@ -646,11 +646,12 @@
         "src/store/undoToast.ts",
         "src/theme/tokens.ts"
       ],
-      "loc": 173
+      "loc": 185
     },
     "src/components/search/SearchSheet.tsx": {
       "exports": [
-        "function SearchSheet({ db, onLogged, onPortionAdded, onCreate, locale, theme, testID = 'search-sheet' }: SearchSheetProps): import(\"react\").JSX.Element",
+        "function SearchSheet({ db, onLogged, onPortionAdded, onCreate, renderCreate, locale, theme, testID = 'search-sheet' }: SearchSheetProps): import(\"react\").JSX.Element",
+        "type CreateSlotArgs = { query: string; onLogged: (receipt: LogReceipt) => void; onClose: () => void }",
         "type SearchSheetProps = {\n  readonly db: VitalsDb;\n  /** Called after a *fresh* log lands — a row's first tap, or the portion sheet's own Log — with\n   * the receipt (`kcal`/`protein` logged). Mirrors `QuickAddGridProps['onLogged']` exactly, so the\n   * Today screen can feed both into the same running-totals reducer. Never called for a write that\n   * failed, and never called for a repeat tap's..."
       ],
       "imports": [
@@ -664,12 +665,12 @@
         "src/store/undoToast.ts",
         "src/theme/tokens.ts"
       ],
-      "loc": 629
+      "loc": 702
     },
     "src/components/search/index.ts": {
       "exports": [
-        "function CreateFoodSheet({ db, query, onLogged, onClose, locale, theme, testID = 'create-food-sheet' }: CreateFoodSheetProps): import(\"react\").JSX.Element | null",
-        "function SearchSheet({ db, onLogged, onPortionAdded, onCreate, locale, theme, testID = 'search-sheet' }: SearchSheetProps): import(\"react\").JSX.Element",
+        "function CreateFoodSheet({ db, query, onLogged, onClose, locale, presentation = 'modal', theme, testID = 'create-food-sheet' }: CreateFoodSheetProps): import(\"react\").JSX.Element | null",
+        "function SearchSheet({ db, onLogged, onPortionAdded, onCreate, renderCreate, locale, theme, testID = 'search-sheet' }: SearchSheetProps): import(\"react\").JSX.Element",
         "type CreateFoodSheetProps = {\n  readonly db: VitalsDb;\n  /** The trimmed query that seeded this sheet — `SearchSheet`'s own `onCreate(query)`. `null`\n   * closes the sheet; a non-empty string opens it with `FoodForm`'s `name` pre-filled from it. */\n  readonly query: string | null;\n  /** Fires with the fresh log's receipt after a successful save — the same shape `QuickAddGrid`/\n   * `SearchSheet...",
         "type SearchSheetProps = {\n  readonly db: VitalsDb;\n  /** Called after a *fresh* log lands — a row's first tap, or the portion sheet's own Log — with\n   * the receipt (`kcal`/`protein` logged). Mirrors `QuickAddGridProps['onLogged']` exactly, so the\n   * Today screen can feed both into the same running-totals reducer. Never called for a write that\n   * failed, and never called for a repeat tap's..."
       ],
