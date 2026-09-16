@@ -67,6 +67,15 @@ import { useUndoToastStore } from '../src/store/undoToast';
 import { themes } from '../src/theme/tokens';
 
 jest.mock('react-native-reanimated', () => jest.requireActual('../src/components/today/test-support/reanimated-mock'));
+jest.mock('expo-router', () => ({
+  useRouter: () => ({ push: jest.fn() }),
+  useFocusEffect: (cb: () => void) => {
+    const react = jest.requireActual<typeof import('react')>('react');
+    react.useEffect(() => {
+      cb();
+    }, []);
+  },
+}));
 jest.mock('../src/db', () => ({
   ...jest.requireActual<typeof import('../src/db')>('../src/db'),
   quickAddCandidates: jest.fn(),
