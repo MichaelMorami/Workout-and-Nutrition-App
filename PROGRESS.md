@@ -71,3 +71,4 @@ For the sprint-by-sprint plan see [`README.md`](README.md); for open work see th
 - 2026-09-16  test: mock expo-router in tap-budget suite, preempting PR #118's useFocusEffect  (PR #119)
 - 2026-09-16  chore: remove dead excludeIds param from recentFoods (issue #95)  (PR #120)
 - 2026-09-16  fix: quick-add tiles re-rank when Today is returned to (issue #103)  (PR #118 closes #103)
+- 2026-09-16  feat: pin a blank-query "+ Create new food" row first (issue #97)  (PR #121)

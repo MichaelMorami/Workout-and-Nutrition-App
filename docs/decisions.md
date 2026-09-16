@@ -97,14 +97,20 @@ the sixth tile (costs a quick-add food every day to save a tap on the rare one).
 
 | Situation | Behaviour |
 | --- | --- |
-| Before typing | **Recent**: every food and meal logged in the last 14 days, newest first — including the ones already on the six quick-add tiles (amended 2026-09-16, see #95) |
+| Before typing | First row is always **+ Create new food**, opening a blank form. Below it, **Recent**: every food and meal logged in the last 14 days, newest first — including the ones already on the six quick-add tiles (amended 2026-09-16, see #95 and #97) |
 | Typing | Filters the whole library, meals included; ignores case and accents; word-prefix matches first |
 | Tap a row | Log one serving — haptic, undo toast, sheet closes |
 | Long-press a row | The portion sheet, exact control included |
-| Not in the library | Last row is always **Create "‹query›"**. Save stores the food *and* logs one serving. Undo removes the log but keeps the food |
+| Not in the library | While typing, last row is always **Create "‹query›"**, name pre-filled. With no query, the pinned first row opens the same form blank (amended 2026-09-16, see #97). Save stores the food *and* logs one serving. Undo removes the log but keeps the food |
 
 **Tap budget**, enforced by the tap-count test (#23): a recent food in **2** taps · a known food in
-**2** taps plus a few letters · a brand-new food in **3** taps plus its name and numbers.
+**2** taps plus a few letters · a brand-new food in **3** taps plus its name and numbers — and, from
+the pinned blank-sheet row, the same **3** taps with *no query text at all* (amended 2026-09-16, see
+#97).
+
+The blank-sheet route does not lower the tap count; it removes the throwaway query. Before #97 the
+Create row existed only while typing, so reaching a blank form meant inventing letters first. Three
+fixed taps is the budget either way — bar, Create, Save.
 
 No full-text-search index: a `LIKE` over a library of a few hundred foods is instant. Add one only
 with a measurement that says otherwise.
