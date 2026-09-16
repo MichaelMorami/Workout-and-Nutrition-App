@@ -15,7 +15,7 @@ import { addLocalDays, inferSlot, localDateOf, localStamp, type When } from '../
 import { foldSqlValue } from '../search-fold';
 import { foodLog, foods, meals, type FoodLogRow, type NewFoodRow } from '../schema';
 import { servingOf, withServing } from '../servings';
-import type { Amount, Candidate, FoodCandidate, FoodInput, FoodRow, LogReceipt, MealCandidate, MealSlot } from '../types';
+import type { Amount, Candidate, FoodInput, FoodRow, LogReceipt, MealCandidate, MealSlot } from '../types';
 import { recomputeFoodUsage } from '../usage';
 import { validateFoodInput } from './catalog';
 import { foodCandidate, liveMealAggregates, rankingScore, resolveAmount } from './nutrition';

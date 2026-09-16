@@ -12,6 +12,7 @@
  * `queries/*.test.ts`); what is here is the contract the issue agreed, asserted end to end.
  */
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import Database from 'better-sqlite3';
 import { eq } from 'drizzle-orm';
@@ -81,7 +82,7 @@ describe('the 0002 migration', () => {
     const journal = JSON.parse(fs.readFileSync(path.join(FOLDER, 'meta', '_journal.json'), 'utf8')) as {
       entries: { tag: string }[];
     };
-    const out = fs.mkdtempSync(path.join(require('node:os').tmpdir(), 'vitals-86-'));
+    const out = fs.mkdtempSync(path.join(os.tmpdir(), 'vitals-86-'));
     fs.mkdirSync(path.join(out, 'meta'));
     const entries = journal.entries.slice(0, 2);
     for (const entry of entries) fs.copyFileSync(path.join(FOLDER, `${entry.tag}.sql`), path.join(out, `${entry.tag}.sql`));
@@ -264,7 +265,10 @@ describe('per-serving values', () => {
   it('are computed the same way wherever a food is read', () => {
     const handle = db();
     const food = createFood(handle, { at: 1, food: WHEY });
-    const expected = servingOf(food);
+    // Destructured rather than passed whole: `toMatchObject` wants an index-signature type, and
+    // `FoodServing` is a closed interface.
+    const { kcalPerServing, proteinPerServing, servingGrams, servingMl } = servingOf(food);
+    const expected = { kcalPerServing, proteinPerServing, servingGrams, servingMl };
 
     expect(getFood(handle, food.id)).toMatchObject(expected);
     expect(listFoods(handle)[0]).toMatchObject(expected);

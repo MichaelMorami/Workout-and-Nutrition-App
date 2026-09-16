@@ -4,7 +4,8 @@
  */
 import { eq } from 'drizzle-orm';
 import { makeTestDb } from '../../test/db';
-import { makeFood, makeLogEntry, makeMeal } from '../../test/factories';
+import { makeLogEntry, makeMeal } from '../../test/factories';
+import { makeFood } from './test-support/foods';
 import * as schema from './schema';
 import { parseHourHistogram, recomputeFoodUsage, recomputeMealUsage } from './usage';
 
