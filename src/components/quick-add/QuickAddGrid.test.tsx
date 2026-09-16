@@ -312,5 +312,37 @@ describe('QuickAddGrid', () => {
       const names = six.map((c) => screen.getByTestId(`grid-tile-${c.id}-name`).props.children);
       expect(names).toEqual(six.map((c) => c.name));
     });
+
+    it('the "Logged" wash and portion badge on a tile survive a re-rank', async () => {
+      const receipt = receiptFor(yoghurt);
+      mockLogFood.mockReturnValue(receipt);
+      const second = {
+        ...receipt,
+        entries: [{ ...receipt.entries[0]!, kcal: 240, protein: 40 }],
+        portions: 2,
+        undo: { kind: 'revert' as const, previous: [receipt.entries[0]!] },
+      };
+      mockAddPortion.mockReturnValue(second);
+      await renderGrid();
+
+      // Two quick taps — a fresh log, then a same-window portion add — leave the tile mid-"Logged"
+      // wash with a ×2 badge showing. That is exactly the state a re-rank must not disturb.
+      await fireEvent.press(screen.getByTestId('grid-tile-food-1'));
+      await fireEvent.press(screen.getByTestId('grid-tile-food-1'));
+      expect(screen.getByTestId('grid-tile-food-1-logged')).toBeTruthy();
+      expect(screen.getByTestId('grid-tile-food-1-repeat-badge')).toBeTruthy();
+
+      const reordered = [...six].reverse();
+      mockCandidates.mockReturnValue(reordered);
+      await act(async () => focusCallback?.());
+
+      // The reorder actually happened...
+      const names = reordered.map((c) => screen.getByTestId(`grid-tile-${c.id}-name`).props.children);
+      expect(names).toEqual(reordered.map((c) => c.name));
+      // ...but the tapped tile's own wash and badge — its own local state, keyed off a stable
+      // `key`, not remounted by the refetch — came through it untouched.
+      expect(screen.getByTestId('grid-tile-food-1-logged')).toBeTruthy();
+      expect(screen.getByTestId('grid-tile-food-1-repeat-badge')).toBeTruthy();
+    });
   });
 });
