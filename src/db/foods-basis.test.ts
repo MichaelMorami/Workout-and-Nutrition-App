@@ -19,6 +19,7 @@ import { drizzle } from 'drizzle-orm/better-sqlite3';
 import { migrate } from 'drizzle-orm/better-sqlite3/migrator';
 import { makeTestDb } from '../../test/db';
 import type { VitalsDb } from './db';
+import { VitalsDbError } from './errors';
 import { createFood, getFood, listFoods } from './queries/catalog';
 import { dayLog, logFood, quickAddCandidates } from './queries/nutrition';
 import { createFoodAndLog, searchFoods } from './queries/search';
@@ -56,6 +57,18 @@ const WHEY: FoodInput = {
 
 function db(): VitalsDb {
   return makeTestDb({ schema }).db as unknown as VitalsDb;
+}
+
+/** Every write throws `VitalsDbError` with a code, never a raw `Error` (issue #17 contract §0). */
+function expectInvalidInput(fn: () => unknown): void {
+  let caught: unknown;
+  try {
+    fn();
+  } catch (e) {
+    caught = e;
+  }
+  expect(caught).toBeInstanceOf(VitalsDbError);
+  expect((caught as VitalsDbError).code).toBe('invalid_input');
 }
 
 // -------------------------------------------------------------------------------------------
@@ -310,12 +323,14 @@ describe('logging', () => {
   });
 
   it('refuses grams against a volume food and ml against a weight food', () => {
+    // The table's CHECK can only say grams and ml are mutually exclusive — it cannot see the food.
+    // Wrong-unit amounts have to be caught here, or a volume in the grams column reads back as fact.
     const handle = db();
     const oats = createFood(handle, { at: 1, food: OATS });
     const whey = createFood(handle, { at: 1, food: WHEY });
 
-    expect(() => logFood(handle, { ...when, foodId: whey.id, amount: { grams: 30 } })).toThrow(/invalid_input/);
-    expect(() => logFood(handle, { ...when, foodId: oats.id, amount: { ml: 30 } })).toThrow(/invalid_input/);
+    expectInvalidInput(() => logFood(handle, { ...when, foodId: whey.id, amount: { grams: 30 } }));
+    expectInvalidInput(() => logFood(handle, { ...when, foodId: oats.id, amount: { ml: 30 } }));
   });
 
   it('lands a 23:55 log on the local day, not the UTC one', () => {

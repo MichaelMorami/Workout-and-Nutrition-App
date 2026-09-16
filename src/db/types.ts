@@ -4,12 +4,23 @@
  * `./usage`, next to the code that encodes and decodes it. `MealSlot` is `./schema`'s — re-exported
  * from `./index`, not duplicated here. `LocalDate` is `./local-time`'s, for the same reason.
  */
-import type { FoodLogRow, FoodRow, MealItemRow, MealSlot } from './schema';
+import type { FoodBasis, FoodLogRow, FoodTableRow, MealItemRow, MealSlot } from './schema';
+import type { FoodServing } from './servings';
 import type { LocalDate } from './local-time';
 
-/** An amount to log or update to: exactly one of servings or grams, always > 0. Logging by
- * `{ grams }` a food with no `serving_grams` throws `invalid_input`. */
-export type Amount = { servings: number } | { grams: number };
+/**
+ * A catalogue food as every query hands it out: the stored row plus the per-serving values derived
+ * from its per-100 nutrition (issue #86). The derived half is recomputed on every read and is never
+ * written back — `NewFoodRow` is the type the table takes, and it has no per-serving field to fill.
+ */
+export type FoodRow = FoodTableRow & FoodServing;
+
+/**
+ * An amount to log or update to: servings, grams or millilitres, always > 0. The unit has to match
+ * the food's `basis` — `{ grams }` against a volume food, or `{ ml }` against a weight food, throws
+ * `invalid_input` rather than quietly recording a number in the wrong unit.
+ */
+export type Amount = { servings: number } | { grams: number } | { ml: number };
 
 interface CandidateBase {
   id: string;
@@ -24,8 +35,15 @@ interface CandidateBase {
 export interface FoodCandidate extends CandidateBase {
   kind: 'food';
   brand: string | null;
+  /** Which canonical unit this food is measured in — the portion sheet's unit comes from it. */
+  basis: FoodBasis;
   servingLabel: string;
+  /** One serving in the canonical unit of `basis`. */
+  servingAmount: number;
+  /** `servingAmount` for a weight food, `null` for a volume one. */
   servingGrams: number | null;
+  /** `servingAmount` for a volume food, `null` for a weight one. */
+  servingMl: number | null;
 }
 
 export interface MealCandidate extends CandidateBase {
@@ -38,7 +56,7 @@ export type Candidate = FoodCandidate | MealCandidate;
 export type CandidateRef = Pick<Candidate, 'kind' | 'id'>;
 
 /** The row fields `revert` needs to write back exactly. */
-export type LogAmount = Pick<FoodLogRow, 'id' | 'qty' | 'grams' | 'kcal' | 'protein' | 'slot'>;
+export type LogAmount = Pick<FoodLogRow, 'id' | 'qty' | 'grams' | 'ml' | 'kcal' | 'protein' | 'slot'>;
 
 /** What undo needs. Plain JSON: safe to hold in a zustand store. */
 export type UndoToken =
@@ -84,14 +102,26 @@ export interface SettingsView extends SettingsInput {
   isDefault: boolean;
 }
 
-/** What `createFood`/`updateFood` take. `FoodRow`'s sync and usage-cache fields are never caller-set. */
+/**
+ * What `createFood`/`updateFood` take. The sync and usage-cache fields are never caller-set, and
+ * neither are the per-serving values — those are derived from what is here (issue #86).
+ *
+ * The form picks `basis` and `servingAmount` from `SERVING_PRESETS`, or the user gives a Custom
+ * serving; nutrition is always entered per 100 g or per 100 ml, following the basis.
+ */
 export interface FoodInput {
   name: string;
   brand?: string | null;
+  /** Grams or millilitres. Chosen by the serving preset (ruling 2). */
+  basis: FoodBasis;
+  /** What one serving is called: "1 scoop", "1 pot", "100 g". */
   servingLabel: string;
-  servingGrams?: number | null;
-  kcalPerServing: number;
-  proteinPerServing: number;
+  /** One serving in the canonical unit of `basis`. Must be > 0. */
+  servingAmount: number;
+  /** kcal per 100 g or per 100 ml, following `basis`. */
+  kcalPer100: number;
+  /** Protein (g) per 100 g or per 100 ml, following `basis`. */
+  proteinPer100: number;
 }
 
 /** One food in a new meal. `qty` is servings of that food per portion of the meal. */
@@ -136,4 +166,4 @@ export interface WeightSummary {
   weeklyDelta: number | null;
 }
 
-export type { MealSlot };
+export type { FoodBasis, MealSlot };

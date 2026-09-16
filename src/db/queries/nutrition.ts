@@ -11,6 +11,7 @@ import { VitalsDbError } from '../errors';
 import { newId } from '../ids';
 import { inferSlot, localStamp, type LocalDate, type Stamp, type When } from '../local-time';
 import { foodLog, foods, mealItems, meals, type FoodLogRow } from '../schema';
+import { amountOf, servingOf, type ServingSource } from '../servings';
 import type {
   Amount,
   Candidate,
@@ -88,8 +89,10 @@ export function liveMealAggregates(db: VitalsDb): Map<string, MealAggregate> {
     .select({
       mealId: mealItems.mealId,
       qty: mealItems.qty,
-      kcalPerServing: foods.kcalPerServing,
-      proteinPerServing: foods.proteinPerServing,
+      basis: foods.basis,
+      servingAmount: foods.servingAmount,
+      kcalPer100: foods.kcalPer100,
+      proteinPer100: foods.proteinPer100,
     })
     .from(mealItems)
     .innerJoin(foods, eq(mealItems.foodId, foods.id))
@@ -99,13 +102,40 @@ export function liveMealAggregates(db: VitalsDb): Map<string, MealAggregate> {
   const agg = new Map<string, MealAggregate>();
   for (const row of rows) {
     const prev = agg.get(row.mealId) ?? { itemCount: 0, kcal: 0, protein: 0 };
+    const serving = servingOf(row);
     agg.set(row.mealId, {
       itemCount: prev.itemCount + 1,
-      kcal: prev.kcal + row.qty * row.kcalPerServing,
-      protein: prev.protein + row.qty * row.proteinPerServing,
+      kcal: prev.kcal + row.qty * serving.kcalPerServing,
+      protein: prev.protein + row.qty * serving.proteinPerServing,
     });
   }
   return agg;
+}
+
+/**
+ * One grid tile / search row / recents row for a food. `kcal` and `protein` are one serving's worth,
+ * derived from the food's per-100 nutrition — display only, never what a log row records.
+ *
+ * Exported for reuse by `./search` (issue #37), so the grid, search and recents describe the same
+ * food identically.
+ */
+export function foodCandidate(f: ServingSource & Pick<FoodCandidate, 'id' | 'name' | 'brand' | 'servingLabel' | 'useCount' | 'lastUsedAt'>): FoodCandidate {
+  const serving = servingOf(f);
+  return {
+    kind: 'food',
+    id: f.id,
+    name: f.name,
+    brand: f.brand,
+    basis: f.basis,
+    servingLabel: f.servingLabel,
+    servingAmount: f.servingAmount,
+    servingGrams: serving.servingGrams,
+    servingMl: serving.servingMl,
+    kcal: serving.kcalPerServing,
+    protein: serving.proteinPerServing,
+    useCount: f.useCount,
+    lastUsedAt: f.lastUsedAt,
+  };
 }
 
 /**
@@ -124,18 +154,7 @@ export function quickAddCandidates(db: VitalsDb, opts: When & { limit?: number }
     .where(and(eq(foods.deleted, 0), eq(foods.archived, 0)))
     .all()
     .map((f) => ({
-      c: {
-        kind: 'food' as const,
-        id: f.id,
-        name: f.name,
-        brand: f.brand,
-        servingLabel: f.servingLabel,
-        servingGrams: f.servingGrams,
-        kcal: f.kcalPerServing,
-        protein: f.proteinPerServing,
-        useCount: f.useCount,
-        lastUsedAt: f.lastUsedAt,
-      } satisfies FoodCandidate,
+      c: foodCandidate(f) satisfies FoodCandidate,
       s: rankingScore(f.useCount, f.lastUsedAt, f.hourHistogram, hour, opts.at),
     }));
 
@@ -241,19 +260,36 @@ export function dayLog(db: VitalsDb, localDate: LocalDate): DayLogEntry[] {
 // Amounts — shared by logFood and updateLogEntry.
 // ---------------------------------------------------------------------------------------------
 
-/** `qty` (servings) and canonical `grams` for an `Amount` against one serving's `servingGrams`.
+/**
+ * `qty` (servings) and the canonical amount for an `Amount`, against one serving of `food`.
+ *
+ * This is where "exactly one of `grams`/`ml`, following the food's basis" is enforced (#86): the
+ * table's CHECK can only say the two are mutually exclusive, because it cannot see the food. An
+ * amount in the wrong unit throws rather than silently recording millilitres in the grams column.
+ *
  * Exported for reuse by `./search`'s `createFoodAndLog` (issue #37), which resolves an amount
- * against a food it is inserting in the same transaction. */
-export function resolveAmount(amount: Amount, servingGrams: number | null): { qty: number; grams: number | null } {
+ * against a food it is inserting in the same transaction.
+ */
+export function resolveAmount(
+  amount: Amount,
+  food: Pick<ServingSource, 'basis' | 'servingAmount'>,
+): { qty: number; grams: number | null; ml: number | null } {
   if ('grams' in amount) {
     if (amount.grams <= 0) throw new VitalsDbError('invalid_input', 'grams must be > 0');
-    if (servingGrams === null) {
-      throw new VitalsDbError('invalid_input', 'this food has no serving_grams; log it by servings');
+    if (food.basis !== 'weight') {
+      throw new VitalsDbError('invalid_input', 'this food is measured by volume; log it in ml or servings');
     }
-    return { qty: amount.grams / servingGrams, grams: amount.grams };
+    return { qty: amount.grams / food.servingAmount, grams: amount.grams, ml: null };
+  }
+  if ('ml' in amount) {
+    if (amount.ml <= 0) throw new VitalsDbError('invalid_input', 'ml must be > 0');
+    if (food.basis !== 'volume') {
+      throw new VitalsDbError('invalid_input', 'this food is measured by weight; log it in grams or servings');
+    }
+    return { qty: amount.ml / food.servingAmount, grams: null, ml: amount.ml };
   }
   if (amount.servings <= 0) throw new VitalsDbError('invalid_input', 'servings must be > 0');
-  return { qty: amount.servings, grams: servingGrams === null ? null : amount.servings * servingGrams };
+  return { qty: amount.servings, ...amountOf(food, amount.servings) };
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -266,7 +302,8 @@ export function logFood(db: VitalsDb, opts: When & { foodId: string; amount?: Am
     const food = tx.select().from(foods).where(eq(foods.id, opts.foodId)).get();
     if (!food || food.deleted === 1) throw new VitalsDbError('not_found', `food ${opts.foodId} not found`);
 
-    const { qty, grams } = resolveAmount(opts.amount ?? { servings: 1 }, food.servingGrams);
+    const { qty, grams, ml } = resolveAmount(opts.amount ?? { servings: 1 }, food);
+    const serving = servingOf(food);
     const { localDate, localMinute } = localStamp(opts.at, opts.timeZone);
     const slot = opts.slot ?? inferSlot(localMinute);
 
@@ -281,8 +318,9 @@ export function logFood(db: VitalsDb, opts: When & { foodId: string; amount?: Am
       mealId: null,
       qty,
       grams,
-      kcal: qty * food.kcalPerServing,
-      protein: qty * food.proteinPerServing,
+      ml,
+      kcal: qty * serving.kcalPerServing,
+      protein: qty * serving.proteinPerServing,
       slot,
     };
 
@@ -311,9 +349,10 @@ export function logMeal(db: VitalsDb, opts: When & { mealId: string; portions?: 
       .select({
         foodId: mealItems.foodId,
         qty: mealItems.qty,
-        servingGrams: foods.servingGrams,
-        kcalPerServing: foods.kcalPerServing,
-        proteinPerServing: foods.proteinPerServing,
+        basis: foods.basis,
+        servingAmount: foods.servingAmount,
+        kcalPer100: foods.kcalPer100,
+        proteinPer100: foods.proteinPer100,
       })
       .from(mealItems)
       .innerJoin(foods, eq(mealItems.foodId, foods.id))
@@ -327,6 +366,7 @@ export function logMeal(db: VitalsDb, opts: When & { mealId: string; portions?: 
 
     const rows: FoodLogRow[] = items.map((item) => {
       const qty = item.qty * portions;
+      const serving = servingOf(item);
       return {
         id: newId(),
         updatedAt: opts.at,
@@ -337,9 +377,9 @@ export function logMeal(db: VitalsDb, opts: When & { mealId: string; portions?: 
         foodId: item.foodId,
         mealId: opts.mealId,
         qty,
-        grams: item.servingGrams === null ? null : qty * item.servingGrams,
-        kcal: qty * item.kcalPerServing,
-        protein: qty * item.proteinPerServing,
+        ...amountOf(item, qty),
+        kcal: qty * serving.kcalPerServing,
+        protein: qty * serving.proteinPerServing,
         slot,
       };
     });
@@ -361,7 +401,7 @@ export function logMeal(db: VitalsDb, opts: When & { mealId: string; portions?: 
 // ---------------------------------------------------------------------------------------------
 
 function toLogAmount(row: FoodLogRow): LogAmount {
-  return { id: row.id, qty: row.qty, grams: row.grams, kcal: row.kcal, protein: row.protein, slot: row.slot };
+  return { id: row.id, qty: row.qty, grams: row.grams, ml: row.ml, kcal: row.kcal, protein: row.protein, slot: row.slot };
 }
 
 /** Double-tap: another full portion of exactly what `receipt` logged. The usage cache is unchanged. */
@@ -381,6 +421,7 @@ export function addPortion(db: VitalsDb, opts: Stamp & { receipt: LogReceipt }):
       const next = {
         qty: current.qty * factor,
         grams: current.grams === null ? null : current.grams * factor,
+        ml: current.ml === null ? null : current.ml * factor,
         kcal: current.kcal * factor,
         protein: current.protein * factor,
       };
@@ -407,12 +448,13 @@ export function updateLogEntry(
     if (!current || current.deleted === 1) throw new VitalsDbError('not_found', `log entry ${opts.id} not found`);
 
     const previous = toLogAmount(current);
-    let { qty, grams, kcal, protein } = current;
+    let { qty, grams, ml, kcal, protein } = current;
 
     if (opts.amount) {
       const kcalPerServing = current.kcal / current.qty;
       const proteinPerServing = current.protein / current.qty;
       const gramsPerServing = current.grams === null ? null : current.grams / current.qty;
+      const mlPerServing = current.ml === null ? null : current.ml / current.qty;
 
       if ('grams' in opts.amount) {
         if (opts.amount.grams <= 0) throw new VitalsDbError('invalid_input', 'grams must be > 0');
@@ -421,10 +463,18 @@ export function updateLogEntry(
         }
         grams = opts.amount.grams;
         qty = opts.amount.grams / gramsPerServing;
+      } else if ('ml' in opts.amount) {
+        if (opts.amount.ml <= 0) throw new VitalsDbError('invalid_input', 'ml must be > 0');
+        if (mlPerServing === null) {
+          throw new VitalsDbError('invalid_input', 'this entry has no ml ratio; update it by servings');
+        }
+        ml = opts.amount.ml;
+        qty = opts.amount.ml / mlPerServing;
       } else {
         if (opts.amount.servings <= 0) throw new VitalsDbError('invalid_input', 'servings must be > 0');
         qty = opts.amount.servings;
         grams = gramsPerServing === null ? null : qty * gramsPerServing;
+        ml = mlPerServing === null ? null : qty * mlPerServing;
       }
       kcal = qty * kcalPerServing;
       protein = qty * proteinPerServing;
@@ -432,10 +482,10 @@ export function updateLogEntry(
 
     const slot = opts.slot ?? current.slot;
 
-    tx.update(foodLog).set({ qty, grams, kcal, protein, slot, updatedAt: opts.at }).where(eq(foodLog.id, opts.id)).run();
+    tx.update(foodLog).set({ qty, grams, ml, kcal, protein, slot, updatedAt: opts.at }).where(eq(foodLog.id, opts.id)).run();
 
     return {
-      entry: { ...current, qty, grams, kcal, protein, slot, updatedAt: opts.at },
+      entry: { ...current, qty, grams, ml, kcal, protein, slot, updatedAt: opts.at },
       undo: { kind: 'revert', previous: [previous] } satisfies UndoToken,
     };
   });
@@ -499,12 +549,13 @@ export function undo(db: VitalsDb, opts: Stamp & { token: UndoToken }): void {
         const same =
           current.qty === previous.qty &&
           current.grams === previous.grams &&
+          current.ml === previous.ml &&
           current.kcal === previous.kcal &&
           current.protein === previous.protein &&
           current.slot === previous.slot;
         if (same) continue;
         tx.update(foodLog)
-          .set({ qty: previous.qty, grams: previous.grams, kcal: previous.kcal, protein: previous.protein, slot: previous.slot, updatedAt: opts.at })
+          .set({ qty: previous.qty, grams: previous.grams, ml: previous.ml, kcal: previous.kcal, protein: previous.protein, slot: previous.slot, updatedAt: opts.at })
           .where(eq(foodLog.id, previous.id))
           .run();
       }

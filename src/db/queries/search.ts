@@ -13,11 +13,12 @@ import type { VitalsDb } from '../db';
 import { newId } from '../ids';
 import { addLocalDays, inferSlot, localDateOf, localStamp, type When } from '../local-time';
 import { foldSqlValue } from '../search-fold';
-import { foodLog, foods, meals, type FoodLogRow, type FoodRow, type NewFoodRow } from '../schema';
-import type { Amount, Candidate, FoodCandidate, FoodInput, LogReceipt, MealCandidate, MealSlot } from '../types';
+import { foodLog, foods, meals, type FoodLogRow, type NewFoodRow } from '../schema';
+import { servingOf, withServing } from '../servings';
+import type { Amount, Candidate, FoodCandidate, FoodInput, FoodRow, LogReceipt, MealCandidate, MealSlot } from '../types';
 import { recomputeFoodUsage } from '../usage';
 import { validateFoodInput } from './catalog';
-import { liveMealAggregates, rankingScore, resolveAmount } from './nutrition';
+import { foodCandidate, liveMealAggregates, rankingScore, resolveAmount } from './nutrition';
 
 // ---------------------------------------------------------------------------------------------
 // Matching — every token a substring of `search_text`; tier 0 when every token also matches at a
@@ -57,20 +58,8 @@ function compareByTierThenScore(
   return a.tier - b.tier || b.s - a.s || a.c.name.localeCompare(b.c.name) || a.c.id.localeCompare(b.c.id);
 }
 
-function toFoodCandidate(f: FoodRow): FoodCandidate {
-  return {
-    kind: 'food',
-    id: f.id,
-    name: f.name,
-    brand: f.brand,
-    servingLabel: f.servingLabel,
-    servingGrams: f.servingGrams,
-    kcal: f.kcalPerServing,
-    protein: f.proteinPerServing,
-    useCount: f.useCount,
-    lastUsedAt: f.lastUsedAt,
-  };
-}
+/** The same shape the quick-add grid uses — one implementation, so the two can never disagree. */
+const toFoodCandidate = foodCandidate;
 
 // ---------------------------------------------------------------------------------------------
 // searchFoods
@@ -255,7 +244,8 @@ export function createFoodAndLog(
   return db.transaction((tx) => {
     // Validated before any write, so an invalid amount never leaves a food behind — belt, and the
     // transaction rollback below is the braces, for any failure after this point.
-    const { qty, grams } = resolveAmount(opts.amount ?? { servings: 1 }, opts.food.servingGrams ?? null);
+    const { qty, grams, ml } = resolveAmount(opts.amount ?? { servings: 1 }, opts.food);
+    const serving = servingOf(opts.food);
 
     const foodRow: NewFoodRow = {
       id: newId(),
@@ -263,10 +253,11 @@ export function createFoodAndLog(
       deleted: 0,
       name: opts.food.name,
       brand: opts.food.brand ?? null,
+      basis: opts.food.basis,
       servingLabel: opts.food.servingLabel,
-      servingGrams: opts.food.servingGrams ?? null,
-      kcalPerServing: opts.food.kcalPerServing,
-      proteinPerServing: opts.food.proteinPerServing,
+      servingAmount: opts.food.servingAmount,
+      kcalPer100: opts.food.kcalPer100,
+      proteinPer100: opts.food.proteinPer100,
       archived: 0,
     };
     tx.insert(foods).values(foodRow).run();
@@ -285,8 +276,9 @@ export function createFoodAndLog(
       mealId: null,
       qty,
       grams,
-      kcal: qty * foodRow.kcalPerServing,
-      protein: qty * foodRow.proteinPerServing,
+      ml,
+      kcal: qty * serving.kcalPerServing,
+      protein: qty * serving.proteinPerServing,
       slot,
     };
     tx.insert(foodLog).values(logRow).run();
@@ -296,7 +288,7 @@ export function createFoodAndLog(
     if (!insertedFood) throw new Error(`unreachable: food ${foodRow.id} was just inserted`);
 
     return {
-      food: insertedFood,
+      food: withServing(insertedFood),
       receipt: {
         target: { kind: 'food', id: foodRow.id },
         entries: [logRow],

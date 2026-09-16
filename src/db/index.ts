@@ -20,6 +20,10 @@ export type { VitalsDbErrorCode } from './errors';
 export { inferSlot, localDateOf, localStamp } from './local-time';
 export type { LocalDate, Stamp, When } from './local-time';
 
+// Servings: the per-100 -> per-serving derivation and the metric preset table (#86).
+export { SERVING_PRESETS, servingOf, UNIT_OF_BASIS, withServing } from './servings';
+export type { FoodServing, ServingPreset, ServingSource } from './servings';
+
 // The usage cache codec (the recompute functions are internal — every write that needs one calls
 // it itself; nothing outside `src/db` recomputes a cache directly).
 export { parseHourHistogram } from './usage';
@@ -34,6 +38,7 @@ export type {
   DayTotals,
   FoodCandidate,
   FoodInput,
+  FoodRow,
   LogAmount,
   LogReceipt,
   MealCandidate,
