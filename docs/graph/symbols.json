@@ -529,7 +529,7 @@
         "src/hooks/useHapticFeedback.ts",
         "src/theme/tokens.ts"
       ],
-      "loc": 534,
+      "loc": 634,
       "importedBy": [
         "src/components/day-log/DayLogList.tsx",
         "src/components/quick-add/QuickAddGrid.tsx",

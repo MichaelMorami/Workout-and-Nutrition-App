@@ -26,7 +26,7 @@
  * `sheetOut` describe a spring worth revisiting once a native bottom-sheet dependency is on the
  * table, but are not implementable from RN core alone without reaching for one now.
  */
-import { useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import {
   Modal,
   PanResponder,
@@ -236,7 +236,21 @@ function NudgeButton({
 
 /** The Exact slider track — `PanResponder`-driven, `value` and `max` in the same unit (grams for a
  * food, servings for a meal). Detents fall at every half of `unitSize` (one serving), snapped within
- * `interaction.sliderDetentSnapG` of a detent with `haptics.sliderDetent`. */
+ * `interaction.sliderDetentSnapG` of a detent with `haptics.sliderDetent`.
+ *
+ * `max` is `ExactControl`'s current *range* (issue #92), not a hard cap — it grows there as the value
+ * passes it, and this component only ever reads whatever `max` it is handed, so a grown range takes
+ * effect the moment it's re-rendered with. There is no ceiling logic left in here to reset.
+ *
+ * ISSUE #92 FIX (the finger-catch jump). `onPanResponderMove`/`Release` still read
+ * `event.nativeEvent.locationX` relative to *this* outer view — the bug was that `trackFill` (and now
+ * the thumb) could themselves become the touch target once the finger was over them, making
+ * `locationX` jump to being relative to that child's own origin instead. Both are `pointerEvents="none"`
+ * below, which removes them from hit-testing entirely, so this outer view is always the target and
+ * `locationX` stays in one consistent frame for the whole gesture — no ref, no `gestureState.dx` math
+ * needed. The thumb hit area (`size.slider.thumbHit`, 44pt) is this same outer view, so a drag can
+ * start from the thumb or anywhere else on the track.
+ */
 function SliderTrack({
   theme,
   value,
@@ -280,10 +294,13 @@ function SliderTrack({
             onSnap();
             onChange(nearestDetent);
           } else {
-            onChange(raw);
+            onChange(Math.round(raw));
           }
         },
       }),
+    // `onChange`/`onSnap` are `useCallback`-stabilised by `ExactControl`, so this only actually
+    // rebuilds on the rare events that change `max` (range growth) or `trackWidth` (first layout) —
+    // never once per drag-move the way a fresh inline arrow would force it to.
     [max, detentStep, trackWidth, onChange, onSnap],
   );
 
@@ -292,17 +309,64 @@ function SliderTrack({
   };
 
   const fillPct = max > 0 ? Math.min(100, Math.max(0, (value / max) * 100)) : 0;
+  const thumbDiameter = size.slider.thumb;
+  const thumbLeft =
+    trackWidth > 0 ? Math.min(trackWidth - thumbDiameter, Math.max(0, (fillPct / 100) * trackWidth - thumbDiameter / 2)) : 0;
 
   return (
     <View
       testID={testID}
       onLayout={handleLayout}
       {...panResponder.panHandlers}
-      style={[styles.track, { height: size.slider.track, borderRadius: radius.pill, backgroundColor: slider.track }]}
+      accessibilityRole="adjustable"
+      accessibilityLabel="Amount"
+      accessibilityValue={{ min: 0, max: Math.round(max), now: Math.round(value) }}
+      style={[styles.trackHitArea, { minHeight: size.slider.thumbHit }]}
     >
-      <View style={[styles.trackFill, { width: `${fillPct}%`, borderRadius: radius.pill, backgroundColor: slider.fill }]} />
+      <View
+        pointerEvents="none"
+        style={[
+          styles.track,
+          {
+            top: (size.slider.thumbHit - size.slider.track) / 2,
+            height: size.slider.track,
+            borderRadius: radius.pill,
+            backgroundColor: slider.track,
+          },
+        ]}
+      >
+        <View style={[styles.trackFill, { width: `${fillPct}%`, borderRadius: radius.pill, backgroundColor: slider.fill }]} />
+      </View>
+      <View
+        testID={`${testID}-thumb`}
+        pointerEvents="none"
+        style={[
+          styles.thumb,
+          {
+            top: (size.slider.thumbHit - thumbDiameter) / 2,
+            left: thumbLeft,
+            width: thumbDiameter,
+            height: thumbDiameter,
+            borderRadius: radius.pill,
+            backgroundColor: slider.thumb,
+            borderWidth: size.slider.thumbRing,
+            borderColor: slider.thumbRing,
+            boxShadow: theme.shadow.sliderThumb,
+          },
+        ]}
+      />
     </View>
   );
+}
+
+/** Grows `prevRange` to fit `next` in whole `baseRange`-sized steps, never shrinks it. Issue #92: the
+ * slider has no hard cap — `ExactControl` starts at `baseRange` (today, `interaction.sliderMaxServings`
+ * worth of the food's serving; 8 servings per #91 once that lands) and this is what lets the value and
+ * the visible range keep climbing past it instead of the old clamp-to-max jump-down. */
+function growRangeTo(next: number, prevRange: number, baseRange: number): number {
+  if (next <= prevRange) return prevRange;
+  const chunks = Math.ceil(next / baseRange);
+  return Math.max(prevRange, chunks * baseRange);
 }
 
 function ExactControl({
@@ -324,12 +388,40 @@ function ExactControl({
   const fireHaptic = useHapticFeedback();
   const isGrams = candidate.kind === 'food' && candidate.servingGrams != null;
   const unitSize = isGrams ? (candidate as { servingGrams: number }).servingGrams : 1;
-  const max = unitSize * interaction.sliderMaxServings;
+  // The slider's starting range — not a cap. See `growRangeTo`.
+  const baseRange = unitSize * interaction.sliderMaxServings;
   const nudgeStep = isGrams ? interaction.sliderNudgeG : 0.5;
 
   const [amount, setAmount] = useState<number>(unitSize * initialPortions);
+  // A log-entry edit (issue #42) can open already above `baseRange` — start the range grown to fit
+  // rather than clamping the pre-filled amount down on first paint.
+  const [rangeMax, setRangeMax] = useState<number>(() => Math.max(baseRange, unitSize * initialPortions));
 
-  const clamp = (next: number): number => Math.min(max, Math.max(0, next));
+  // Both callbacks are `useCallback`-stabilised (deps only on `baseRange`, constant for the life of
+  // this candidate's sheet) so `SliderTrack`'s `PanResponder` isn't rebuilt on every value change —
+  // only when the range actually grows. Functional `setState` throughout means neither one closes
+  // over a stale `amount`/`rangeMax`, so no ref is needed either (see `SliderTrack`'s own note on why
+  // this codebase avoids refs inside `PanResponder` handlers).
+  const applyAbsolute = useCallback(
+    (next: number) => {
+      const bounded = Math.max(0, next);
+      setRangeMax((prevRange) => growRangeTo(bounded, prevRange, baseRange));
+      setAmount(bounded);
+    },
+    [baseRange],
+  );
+  const applyDelta = useCallback(
+    (delta: number) => {
+      setAmount((prev) => {
+        const bounded = Math.max(0, prev + delta);
+        setRangeMax((prevRange) => growRangeTo(bounded, prevRange, baseRange));
+        return bounded;
+      });
+    },
+    [baseRange],
+  );
+  const onSnap = useCallback(() => fireHaptic(haptics.sliderDetent), [fireHaptic]);
+
   const portions = amount / unitSize;
   const kcalText = Math.round(candidate.kcal * portions).toLocaleString(locale);
   const proteinText = Math.round(candidate.protein * portions).toLocaleString(locale);
@@ -347,19 +439,19 @@ function ExactControl({
       </View>
 
       <View style={styles.sliderRow}>
-        <NudgeButton theme={theme} label="−" onPress={() => setAmount((prev) => clamp(prev - nudgeStep))} testID={`${testID}-nudge-down`} />
+        <NudgeButton theme={theme} label="−" onPress={() => applyDelta(-nudgeStep)} testID={`${testID}-nudge-down`} />
         <View style={styles.sliderTrackWrap}>
           <SliderTrack
             theme={theme}
             value={amount}
-            max={max}
+            max={rangeMax}
             unitSize={unitSize}
-            onChange={(next) => setAmount(clamp(next))}
-            onSnap={() => fireHaptic(haptics.sliderDetent)}
+            onChange={applyAbsolute}
+            onSnap={onSnap}
             testID={`${testID}-track`}
           />
         </View>
-        <NudgeButton theme={theme} label="+" onPress={() => setAmount((prev) => clamp(prev + nudgeStep))} testID={`${testID}-nudge-up`} />
+        <NudgeButton theme={theme} label="+" onPress={() => applyDelta(nudgeStep)} testID={`${testID}-nudge-up`} />
       </View>
 
       <Pressable
@@ -515,12 +607,20 @@ const styles = StyleSheet.create({
   sliderTrackWrap: {
     flex: 1,
   },
-  track: {
+  trackHitArea: {
     width: '100%',
     justifyContent: 'center',
   },
+  track: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+  },
   trackFill: {
     height: '100%',
+  },
+  thumb: {
+    position: 'absolute',
   },
   nudge: {
     alignItems: 'center',
