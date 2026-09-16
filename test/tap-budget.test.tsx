@@ -465,4 +465,82 @@ describe('tap-count budget — search and create (issue #23, 2026-09-11 update)'
     const ring = within(screen.getByTestId('today-header-kcal-arc'));
     expect(ring.getByTestId('arc-value').props.children).toBe('1,000');
   });
+
+  it('a brand-new food from the pinned blank-sheet row: three fixed taps and no throwaway query, and it ends logged', async () => {
+    // Issue #97: before this, the Create row only existed while typing, so reaching a blank form
+    // meant inventing throwaway letters just to make the row appear at all. The budget this proves
+    // is that the pinned "+ Create new food" row removes exactly that — zero `fireEvent.changeText`
+    // calls on `today-search-sheet-input`, the search bar itself, anywhere in this test. It is
+    // *not* a claim that the form needs no typing at all: `FoodForm` requires a non-empty name and
+    // serving label regardless of entry point (`FoodForm.tsx`'s own `firstError`), and unlike the
+    // query-seeded Create row, a blank query pre-fills nothing, so the name field starts empty too.
+    // That data entry is the same "plus whatever text/steppers fill in the name and the numbers"
+    // the query-seeded Create case above already spends on top of its 3 fixed taps — here it is
+    // just one field more, because there is no query left to pre-fill it.
+    mockRecentFoods.mockReturnValue([]);
+    const blankFoodReceipt: LogReceipt = {
+      target: { kind: 'food', id: 'food-4' },
+      entries: [
+        {
+          id: 'log-4',
+          updatedAt: 0,
+          deleted: 0,
+          loggedAt: 0,
+          localDate: '2025-03-10',
+          localMinute: 415,
+          foodId: 'food-4',
+          mealId: null,
+          qty: 1,
+          grams: null,
+          kcal: 90,
+          protein: 15,
+          slot: 'breakfast',
+        },
+      ],
+      portions: 1,
+      undo: { kind: 'unlog', logIds: ['log-4'] },
+    };
+    mockCreateFoodAndLog.mockReturnValue({ food: eggsFoodRow({ id: 'food-4', name: 'Rice cake' }), receipt: blankFoodReceipt });
+    await renderToday();
+
+    // Tap 1 — open the sheet. The pinned row is there immediately, before any query exists and
+    // with zero `recentFoods`/library items to fall back on — nothing to type to make it appear.
+    await fireEvent.press(screen.getByTestId('today-search-sheet-bar'));
+    expect(screen.getByTestId('today-search-sheet-create-new')).toBeTruthy();
+
+    // Tap 2 — the pinned row itself, never the trailing `Create "‹query›"` row (there is no query).
+    await fireEvent.press(screen.getByTestId('today-search-sheet-create-new'));
+
+    // Blank, not pre-filled — the whole point of #97 is a genuinely blank form, not a query in
+    // disguise.
+    expect(screen.getByTestId('today-create-food-sheet-form-name').props.value).toBe('');
+
+    await fireEvent.changeText(screen.getByTestId('today-create-food-sheet-form-name'), 'Rice cake');
+    await fireEvent.changeText(screen.getByTestId('today-create-food-sheet-form-serving-label'), '1 cake');
+    await fireEvent.press(screen.getByTestId('today-create-food-sheet-form-kcal-increase'));
+    await fireEvent.press(screen.getByTestId('today-create-food-sheet-form-protein-increase'));
+
+    // Tap 3 — Save.
+    await fireEvent.press(screen.getByTestId('today-create-food-sheet-form-save'));
+
+    // Ends logged — `createFoodAndLog`, never a plain `createFood` a "just saved" path would call.
+    expect(mockCreateFoodAndLog).toHaveBeenCalledTimes(1);
+    expect(mockCreateFoodAndLog.mock.calls[0]?.[1]).toMatchObject({ food: expect.objectContaining({ name: 'Rice cake' }) });
+    expect(screen.getByTestId('today-undo-toast-title')).toHaveTextContent('Rice cake');
+    expect(screen.queryByTestId('today-create-food-sheet')).toBeNull();
+
+    const ring = within(screen.getByTestId('today-header-kcal-arc'));
+    expect(ring.getByTestId('arc-value').props.children).toBe('1,090');
+
+    // No `fireEvent.changeText` on the search bar anywhere above — confirmed by never touching
+    // `mockSearchFoods` with a query, which a typed character would have triggered via `SearchSheet`'s
+    // own `results` memo.
+    expect(mockSearchFoods).not.toHaveBeenCalled();
+  });
+
+  // No separate failed-Save companion for the blank-sheet route: `CreateFoodSheet.handleSave`'s
+  // catch block (asserted above for the query-seeded Create row) does not branch on how `query`
+  // was seeded — `''` and `'Protein bar'` both just sit in the same `createQuery` state and the
+  // same try/catch. A second copy here would execute the identical code path under a different
+  // label, not prove anything the existing negative test does not already cover.
 });
