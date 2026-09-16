@@ -15,7 +15,7 @@ import { addLocalDays, inferSlot, localDateOf, localStamp, type When } from '../
 import { foldSqlValue } from '../search-fold';
 import { foodLog, foods, meals, type FoodLogRow, type NewFoodRow } from '../schema';
 import { servingOf, withServing } from '../servings';
-import type { Amount, Candidate, FoodInput, FoodRow, LogReceipt, MealCandidate, MealSlot } from '../types';
+import type { Amount, Candidate, FoodCandidate, FoodInput, FoodRow, LogReceipt, MealCandidate, MealSlot } from '../types';
 import { recomputeFoodUsage } from '../usage';
 import { validateFoodInput } from './catalog';
 import { foodCandidate, liveMealAggregates, rankingScore, resolveAmount } from './nutrition';
@@ -61,6 +61,42 @@ function compareByTierThenScore(
 /** The same shape the quick-add grid uses — one implementation, so the two can never disagree. */
 const toFoodCandidate = foodCandidate;
 
+/** `query`, folded through the same SQL expression `search_text`'s triggers use and split into
+ * whitespace-separated tokens — `[]` for a blank query, which every caller treats as "no results,
+ * the empty state is `recentFoods`" (issue #95). Shared so `searchFoods` and `searchFoodsOnly` can
+ * never disagree about what "the same word" means. */
+function tokenize(db: VitalsDb, query: string): string[] {
+  const trimmed = query.trim();
+  if (trimmed.length === 0) return [];
+  const folded = db.get<{ folded: string }>(sql`select ${foldSqlValue(trimmed)} as folded`).folded;
+  return folded.split(/\s+/).filter((t) => t.length > 0);
+}
+
+/**
+ * Every live, non-archived food whose `search_text` matches every token, tiered and scored — the
+ * one matching pass both `searchFoods` and `searchFoodsOnly` run over `foods`, so the two call
+ * sites can never diverge on which foods match or how they rank.
+ */
+function matchFoods(
+  db: VitalsDb,
+  tokens: readonly string[],
+  hour: number,
+  at: number,
+): { c: FoodCandidate; tier: 0 | 1; s: number }[] {
+  const matches: { c: FoodCandidate; tier: 0 | 1; s: number }[] = [];
+  const foodRows = db
+    .select()
+    .from(foods)
+    .where(and(eq(foods.deleted, 0), eq(foods.archived, 0)))
+    .all();
+  for (const f of foodRows) {
+    const tier = matchTier(f.searchText, tokens);
+    if (tier === null) continue;
+    matches.push({ c: toFoodCandidate(f), tier, s: rankingScore(f.useCount, f.lastUsedAt, f.hourHistogram, hour, at) });
+  }
+  return matches;
+}
+
 // ---------------------------------------------------------------------------------------------
 // searchFoods
 // ---------------------------------------------------------------------------------------------
@@ -79,28 +115,13 @@ const toFoodCandidate = foodCandidate;
  */
 export function searchFoods(db: VitalsDb, opts: When & { query: string; limit?: number }): Candidate[] {
   const limit = opts.limit ?? 20;
-  const trimmed = opts.query.trim();
-  if (trimmed.length === 0) return [];
-
-  const folded = db.get<{ folded: string }>(sql`select ${foldSqlValue(trimmed)} as folded`).folded;
-  const tokens = folded.split(/\s+/).filter((t) => t.length > 0);
+  const tokens = tokenize(db, opts.query);
   if (tokens.length === 0) return [];
 
   const { localMinute } = localStamp(opts.at, opts.timeZone);
   const hour = Math.floor(localMinute / 60);
 
-  const matches: { c: Candidate; tier: 0 | 1; s: number }[] = [];
-
-  const foodRows = db
-    .select()
-    .from(foods)
-    .where(and(eq(foods.deleted, 0), eq(foods.archived, 0)))
-    .all();
-  for (const f of foodRows) {
-    const tier = matchTier(f.searchText, tokens);
-    if (tier === null) continue;
-    matches.push({ c: toFoodCandidate(f), tier, s: rankingScore(f.useCount, f.lastUsedAt, f.hourHistogram, hour, opts.at) });
-  }
+  const matches: { c: Candidate; tier: 0 | 1; s: number }[] = matchFoods(db, tokens, hour, opts.at);
 
   const mealAgg = liveMealAggregates(db);
   const mealRows = db.select().from(meals).where(eq(meals.deleted, 0)).all();
@@ -126,6 +147,36 @@ export function searchFoods(db: VitalsDb, opts: When & { query: string; limit?: 
   }
 
   return matches
+    .sort(compareByTierThenScore)
+    .slice(0, limit)
+    .map((x) => x.c);
+}
+
+// ---------------------------------------------------------------------------------------------
+// searchFoodsOnly
+// ---------------------------------------------------------------------------------------------
+
+/**
+ * `searchFoods`, restricted to catalogue foods — never a saved meal. Issue #98 (2026-09-15 ruling):
+ * the meal-ingredient picker searches "the whole food library — every live, non-archived food,
+ * logged or not" and never offers a meal as an ingredient. A sibling query rather than a `kind`
+ * filter on `searchFoods`, because the two callers want different return types (a plain
+ * `FoodCandidate[]` here — no `Candidate` union to narrow at the call site — vs `searchFoods`'
+ * mixed `Candidate[]`); the fold/tokenise/tier/ranking behaviour itself is one shared
+ * implementation (`tokenize`, `matchFoods`), so this can never drift from `searchFoods` on what
+ * matches or how it ranks. Same rules as `searchFoods`: a blank query returns `[]` (#95 — the empty
+ * state is `recentFoods`), archived and tombstoned foods are excluded, ordered by tier then the
+ * quick-add score at `at`, then name, then id. `limit` defaults to 20.
+ */
+export function searchFoodsOnly(db: VitalsDb, opts: When & { query: string; limit?: number }): FoodCandidate[] {
+  const limit = opts.limit ?? 20;
+  const tokens = tokenize(db, opts.query);
+  if (tokens.length === 0) return [];
+
+  const { localMinute } = localStamp(opts.at, opts.timeZone);
+  const hour = Math.floor(localMinute / 60);
+
+  return matchFoods(db, tokens, hour, opts.at)
     .sort(compareByTierThenScore)
     .slice(0, limit)
     .map((x) => x.c);

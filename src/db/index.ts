@@ -84,5 +84,6 @@ export {
 // The Today weight chip (#36).
 export { weightSummary } from './queries/weight';
 
-// Search, recents and create-and-log (#37).
-export { createFoodAndLog, recentFoods, searchFoods } from './queries/search';
+// Search, recents and create-and-log (#37). searchFoodsOnly (#98): the meal-ingredient picker's
+// foods-only search — same fold/tier/ranking rules as searchFoods, never a meal.
+export { createFoodAndLog, recentFoods, searchFoods, searchFoodsOnly } from './queries/search';

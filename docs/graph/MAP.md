@@ -847,7 +847,7 @@ jq -r '.modules["src/db/queries/nutrition.ts"].exports[]' docs/graph/symbols.jso
 
 <sub>used by: `src/db/queries/catalog.ts`, `src/db/queries/nutrition.ts`, `src/db/queries/search.ts`</sub>
 
-### `src/db/index.ts`  <sub>89 lines</sub>
+### `src/db/index.ts`  <sub>90 lines</sub>
 
 - `class VitalsDbError`
 - `const DEFAULT_SETTINGS: SettingsInput`
@@ -879,6 +879,7 @@ jq -r '.modules["src/db/queries/nutrition.ts"].exports[]' docs/graph/symbols.jso
 - `function quickAddCandidates(db: VitalsDb, opts: When & { limit?: number }): Candidate[]`
 - `function recentFoods(db: VitalsDb, opts: When & { days: number; limit?: number }): Candidate[]`
 - `function searchFoods(db: VitalsDb, opts: When & { query: string; limit?: number }): Candidate[]`
+- `function searchFoodsOnly(db: VitalsDb, opts: When & { query: string; limit?: number }): FoodCandidate[]`
 - `function servingOf(food: ServingSource): FoodServing`
 - `function setFoodArchived(db: VitalsDb, opts: Stamp & { id: string; archived: boolean }): FoodRow`
 - `function softDeleteLogEntries(db: VitalsDb, opts: Stamp & { ids: readonly string[] }): { undo: UndoToken }`
@@ -999,11 +1000,12 @@ _no exports_
 
 <sub>used by: `src/db/queries/search.ts`</sub>
 
-### `src/db/queries/search.ts`  <sub>301 lines</sub>
+### `src/db/queries/search.ts`  <sub>352 lines</sub>
 
 - `function createFoodAndLog(db: VitalsDb, opts: When & { food: FoodInput; amount?: Amount; slot?: MealSlot }): { food: FoodRow; receipt: LogReceipt }`
 - `function recentFoods(db: VitalsDb, opts: When & { days: number; limit?: number }): Candidate[]`
 - `function searchFoods(db: VitalsDb, opts: When & { query: string; limit?: number }): Candidate[]`
+- `function searchFoodsOnly(db: VitalsDb, opts: When & { query: string; limit?: number }): FoodCandidate[]`
 
 ### `src/db/queries/settings.ts`  <sub>82 lines</sub>
 

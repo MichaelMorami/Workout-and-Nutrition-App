@@ -918,6 +918,7 @@
         "function quickAddCandidates(db: VitalsDb, opts: When & { limit?: number }): Candidate[]",
         "function recentFoods(db: VitalsDb, opts: When & { days: number; limit?: number }): Candidate[]",
         "function searchFoods(db: VitalsDb, opts: When & { query: string; limit?: number }): Candidate[]",
+        "function searchFoodsOnly(db: VitalsDb, opts: When & { query: string; limit?: number }): FoodCandidate[]",
         "function servingOf(food: ServingSource): FoodServing",
         "function setFoodArchived(db: VitalsDb, opts: Stamp & { id: string; archived: boolean }): FoodRow",
         "function softDeleteLogEntries(db: VitalsDb, opts: Stamp & { ids: readonly string[] }): { undo: UndoToken }",
@@ -973,7 +974,7 @@
         "type VitalsSchema = typeof schema"
       ],
       "imports": [],
-      "loc": 89,
+      "loc": 90,
       "importedBy": [
         "app/(tabs)/index.tsx",
         "app/foods/[id].tsx",
@@ -1112,7 +1113,8 @@
       "exports": [
         "function createFoodAndLog(db: VitalsDb, opts: When & { food: FoodInput; amount?: Amount; slot?: MealSlot }): { food: FoodRow; receipt: LogReceipt }",
         "function recentFoods(db: VitalsDb, opts: When & { days: number; limit?: number }): Candidate[]",
-        "function searchFoods(db: VitalsDb, opts: When & { query: string; limit?: number }): Candidate[]"
+        "function searchFoods(db: VitalsDb, opts: When & { query: string; limit?: number }): Candidate[]",
+        "function searchFoodsOnly(db: VitalsDb, opts: When & { query: string; limit?: number }): FoodCandidate[]"
       ],
       "imports": [
         "drizzle-orm",
@@ -1127,7 +1129,7 @@
         "src/db/types.ts",
         "src/db/usage.ts"
       ],
-      "loc": 301
+      "loc": 352
     },
     "src/db/queries/settings.ts": {
       "exports": [
