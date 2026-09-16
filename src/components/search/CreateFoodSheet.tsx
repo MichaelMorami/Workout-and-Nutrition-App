@@ -101,7 +101,9 @@ export function CreateFoodSheet({ db, query, onLogged, onClose, locale, presenta
     brand: null,
     servingLabel: '',
     basis: 'weight',
-    servingAmount: 0,
+    // 100, not 0 — `servingAmount` must be > 0 (issue #86's schema); `FoodForm`'s own no-`initial`
+    // default agrees, so Save fires untouched with no forced extra tap.
+    servingAmount: 100,
     kcalPer100: 0,
     proteinPer100: 0,
   };

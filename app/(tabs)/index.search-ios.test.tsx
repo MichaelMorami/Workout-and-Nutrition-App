@@ -275,7 +275,6 @@ describe('Today search on iPhone (issue #79) — one native Modal at a time', ()
     expect(screen.getByTestId('today-create-food-sheet-form-name').props.value).toBe('Protein bar');
     expect(presentedModals()).toHaveLength(1);
 
-    await fireEvent.press(screen.getByTestId('today-create-food-sheet-form-preset-100-g'));
     await fireEvent.changeText(screen.getByTestId('today-create-food-sheet-form-serving-label'), '1 bar');
     await fireEvent.press(screen.getByTestId('today-create-food-sheet-form-save'));
 

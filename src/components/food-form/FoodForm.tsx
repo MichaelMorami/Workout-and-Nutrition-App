@@ -1,16 +1,19 @@
 /**
- * `<FoodForm>` — issue #43's add/edit food, rebuilt on issue #86's per-100 shape. `name`, `brand`,
- * `servingLabel` are free text (there is no stepper that could set a name); every quantity —
- * serving amount, kcal per 100, protein per 100 — is a `<Stepper>`, never a keyboard number field,
- * per the module's own tap doctrine.
+ * `<FoodForm>` — issue #43's add/edit food, adapted (issue #86) to the per-100 shape: `basis`,
+ * `servingAmount`, `kcalPer100`, `proteinPer100` replace the old per-serving fields. `name`, `brand`,
+ * `servingLabel` are free text (there is no stepper that could set a name); serving amount, kcal per
+ * 100 and protein per 100 are each a `<Stepper>`, never a keyboard number field, per the module's own
+ * tap doctrine; `basis` is a two-option toggle (Weight/Volume), the minimal control a required enum
+ * field needs.
  *
- * ONE TAP PICKS BASIS + SERVING AMOUNT (issue #86 ruling 2). `SERVING_PRESETS` (100 g, 100 ml,
- * 1 cup, 1 tbsp, 1 tsp) is one constant table shared with the database, so the form and `foods.basis`
- * never disagree about what a preset means. Tapping a preset sets `basis`, `servingAmount` *and*
- * `servingLabel` in one tap — the common case (a food measured in one of the five standard units)
- * never touches a stepper at all. "Custom" (e.g. "1 scoop, 33 g") is the one case that must set an
- * amount the preset table has no entry for: a weight/volume toggle plus a `<Stepper>`, still never a
- * keyboard number field.
+ * SCOPE NOTE: a one-tap serving-preset picker (100 g / 100 ml / 1 cup / 1 tbsp / 1 tsp + Custom) is
+ * issue #89, blocked on #88's design. This form is deliberately the plain #86 data-shape adaptation
+ * only — every field defaults or steps to a valid value with no forced extra tap, but there is no
+ * preset row yet.
+ *
+ * `servingAmount` defaults to 100 (not 0): the schema requires it strictly positive, and 100 is
+ * already the denomination `kcalPer100`/`proteinPer100` are entered in, so an untouched new food is
+ * valid without an extra stepper tap.
  *
  * SAVE IS A REAL BUTTON, NOT AUTO-COMMIT. Unlike the quick-add grid's one-tap logging, this is a
  * multi-field data-entry form: there is no single "the" value to commit the instant it changes, so
@@ -28,9 +31,12 @@
  */
 import { useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View, TextInput, type TextStyle } from 'react-native';
-import { SERVING_PRESETS, UNIT_OF_BASIS, type FoodBasis, type FoodInput, type ServingPreset } from '../../db';
+import type { FoodBasis, FoodInput } from '../../db';
 import { radius, size, space, type, type Theme, type TypeStyle } from '../../theme/tokens';
 import { Stepper } from './Stepper';
+
+/** The unit a stepper labelled "per 100 …" is denominated in, following `basis`. */
+const UNIT_LABEL: Record<FoodBasis, string> = { weight: 'g', volume: 'ml' };
 
 export type FoodFormProps = {
   /** `undefined`/`null` — a fresh food, every field starts blank/zero. Given — an edit, pre-filled
@@ -42,10 +48,6 @@ export type FoodFormProps = {
   readonly testID?: string;
 };
 
-/** Not a preset: the escape hatch for a serving the table has no entry for (issue #86 ruling 4 —
- * a custom serving belongs to its food only, never added to the shared table). */
-const CUSTOM = 'Custom';
-
 function textStyle(token: TypeStyle, color: string): TextStyle {
   return {
     fontFamily: token.fontFamily,
@@ -55,17 +57,6 @@ function textStyle(token: TypeStyle, color: string): TextStyle {
     textTransform: token.textTransform,
     color,
   };
-}
-
-/** A preset's label as a testID fragment: "100 g" -> "100-g", "1 cup" -> "1-cup". */
-function slugOf(label: string): string {
-  return label.toLowerCase().replace(/\s+/g, '-');
-}
-
-/** Which preset (if any) exactly matches a stored `basis`/`servingAmount` pair — how editing an
- * existing food re-selects the chip it was created from instead of always landing on Custom. */
-function presetFor(basis: FoodBasis, servingAmount: number): ServingPreset | null {
-  return SERVING_PRESETS.find((preset) => preset.basis === basis && preset.amount === servingAmount) ?? null;
 }
 
 /** `null`/empty checks the way `validateFoodInput` does, so this form's own gate agrees with the
@@ -113,67 +104,16 @@ function Field({
   );
 }
 
-/** The preset row — five metric presets plus Custom, one tap each. A wrapping row of segmented-style
- * chips, the same selected/unselected token pair `segmented` already defines for `PortionSheet`'s
- * Presets/Exact switch, generalised past a fixed two-option track. */
-function PresetRow({
-  selectedLabel,
-  onSelect,
-  theme,
-  testID,
-}: {
-  selectedLabel: string;
-  onSelect: (option: ServingPreset | typeof CUSTOM) => void;
-  theme: Theme;
-  testID: string;
-}) {
-  const { segmented } = theme.color;
-  const options: readonly (ServingPreset | typeof CUSTOM)[] = [...SERVING_PRESETS, CUSTOM];
-
-  return (
-    <View style={styles.field}>
-      <Text style={textStyle(type.label, theme.color.text.secondary)}>Serving</Text>
-      <View testID={testID} style={styles.presetRow}>
-        {options.map((option) => {
-          const label = option === CUSTOM ? CUSTOM : option.label;
-          const selected = label === selectedLabel;
-          return (
-            <Pressable
-              key={label}
-              testID={`${testID}-${slugOf(label)}`}
-              onPress={() => onSelect(option)}
-              accessibilityRole="button"
-              accessibilityState={{ selected }}
-              accessibilityLabel={label}
-              style={[
-                styles.presetChip,
-                {
-                  minHeight: size.tapTargetMin,
-                  borderRadius: radius.sm,
-                  backgroundColor: selected ? segmented.selectedBg : segmented.trackBg,
-                  borderColor: segmented.selectedBorder,
-                  borderWidth: selected ? StyleSheet.hairlineWidth : 0,
-                },
-              ]}
-            >
-              <Text style={textStyle(selected ? type.controlSelected : type.control, selected ? segmented.selectedText : segmented.optionText)}>
-                {label}
-              </Text>
-            </Pressable>
-          );
-        })}
-      </View>
-    </View>
-  );
-}
-
-/** The Custom serving's weight/volume toggle — which canonical unit `servingAmount` is in. */
+/** The minimal control a required two-value enum needs — `basis` picks which canonical unit
+ * `servingAmount`/`kcalPer100`/`proteinPer100` are denominated in. Not the issue #89 preset picker:
+ * just a plain segmented toggle, the same selected/unselected token pair `PortionSheet`'s own
+ * Presets/Exact switch already uses. */
 function BasisToggle({ basis, onChange, theme, testID }: { basis: FoodBasis; onChange: (basis: FoodBasis) => void; theme: Theme; testID: string }) {
   const { segmented } = theme.color;
   return (
     <View style={styles.field}>
       <Text style={textStyle(type.label, theme.color.text.secondary)}>Measured in</Text>
-      <View testID={testID} style={styles.presetRow}>
+      <View testID={testID} style={styles.toggleRow}>
         {(['weight', 'volume'] as const).map((option) => {
           const selected = option === basis;
           return (
@@ -185,7 +125,7 @@ function BasisToggle({ basis, onChange, theme, testID }: { basis: FoodBasis; onC
               accessibilityState={{ selected }}
               accessibilityLabel={option === 'weight' ? 'Weight (grams)' : 'Volume (millilitres)'}
               style={[
-                styles.presetChip,
+                styles.toggleChip,
                 {
                   minHeight: size.tapTargetMin,
                   borderRadius: radius.sm,
@@ -213,24 +153,12 @@ export function FoodForm({ initial = null, onSave, onCancel, theme, testID = 'fo
   const [brand, setBrand] = useState(initial?.brand ?? '');
   const [servingLabel, setServingLabel] = useState(initial?.servingLabel ?? '');
   const [basis, setBasis] = useState<FoodBasis>(initial?.basis ?? 'weight');
-  const [servingAmount, setServingAmount] = useState(initial?.servingAmount ?? 0);
+  // Defaults to 100, not 0 — `servingAmount` must be > 0 (issue #86's schema), and 100 is already
+  // the denomination `kcalPer100`/`proteinPer100` are entered in, so a new food is valid untouched.
+  const [servingAmount, setServingAmount] = useState(initial?.servingAmount ?? 100);
   const [kcalPer100, setKcalPer100] = useState(initial?.kcalPer100 ?? 0);
   const [proteinPer100, setProteinPer100] = useState(initial?.proteinPer100 ?? 0);
-  const [selectedPreset, setSelectedPreset] = useState<string>(
-    initial ? (presetFor(initial.basis, initial.servingAmount)?.label ?? CUSTOM) : CUSTOM,
-  );
   const [error, setError] = useState<string | null>(null);
-
-  const handlePresetSelect = (option: ServingPreset | typeof CUSTOM): void => {
-    if (option === CUSTOM) {
-      setSelectedPreset(CUSTOM);
-      return;
-    }
-    setSelectedPreset(option.label);
-    setBasis(option.basis);
-    setServingAmount(option.amount);
-    setServingLabel(option.label);
-  };
 
   const handleSave = (): void => {
     const problem = firstError(name, servingLabel, servingAmount);
@@ -250,7 +178,7 @@ export function FoodForm({ initial = null, onSave, onCancel, theme, testID = 'fo
     });
   };
 
-  const unit = UNIT_OF_BASIS[basis];
+  const unit = UNIT_LABEL[basis];
 
   return (
     // `handled`: with the name field's keyboard up, a tap on a stepper or Save must land on the
@@ -274,23 +202,17 @@ export function FoodForm({ initial = null, onSave, onCancel, theme, testID = 'fo
         testID={`${testID}-serving-label`}
       />
 
-      <PresetRow selectedLabel={selectedPreset} onSelect={handlePresetSelect} theme={theme} testID={`${testID}-preset`} />
-
-      {selectedPreset === CUSTOM ? (
-        <>
-          <BasisToggle basis={basis} onChange={setBasis} theme={theme} testID={`${testID}-basis`} />
-          <Stepper
-            label="Serving amount"
-            value={servingAmount}
-            step={5}
-            max={2000}
-            unit={unit}
-            onChange={setServingAmount}
-            theme={theme}
-            testID={`${testID}-serving-amount`}
-          />
-        </>
-      ) : null}
+      <BasisToggle basis={basis} onChange={setBasis} theme={theme} testID={`${testID}-basis`} />
+      <Stepper
+        label="Serving amount"
+        value={servingAmount}
+        step={5}
+        max={2000}
+        unit={unit}
+        onChange={setServingAmount}
+        theme={theme}
+        testID={`${testID}-serving-amount`}
+      />
 
       <Stepper
         label={`Kcal per 100 ${unit}`}
@@ -358,12 +280,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: space[5],
     borderWidth: StyleSheet.hairlineWidth,
   },
-  presetRow: {
+  toggleRow: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: space[3],
   },
-  presetChip: {
+  toggleChip: {
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: space[4],

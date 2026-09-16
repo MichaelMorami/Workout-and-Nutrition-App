@@ -384,7 +384,7 @@
         "src/db/index.ts",
         "src/theme/tokens.ts"
       ],
-      "loc": 381
+      "loc": 303
     },
     "src/components/food-form/Stepper.tsx": {
       "exports": [
@@ -648,7 +648,7 @@
         "src/store/undoToast.ts",
         "src/theme/tokens.ts"
       ],
-      "loc": 191
+      "loc": 193
     },
     "src/components/search/SearchSheet.tsx": {
       "exports": [

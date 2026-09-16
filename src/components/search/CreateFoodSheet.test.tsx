@@ -107,7 +107,6 @@ describe('<CreateFoodSheet>', () => {
     mockCreateFoodAndLog.mockReturnValue({ food: foodRow({ name: 'Boiled eggs' }), receipt: receipt() });
     await renderSheet({ query: 'Boiled eggs' });
 
-    await fireEvent.press(screen.getByTestId('create-sheet-form-preset-100-g'));
     await fireEvent.changeText(screen.getByTestId('create-sheet-form-serving-label'), '2 eggs');
     await fireEvent.press(screen.getByTestId('create-sheet-form-save'));
 
@@ -123,7 +122,6 @@ describe('<CreateFoodSheet>', () => {
     const onClose = jest.fn();
     await renderSheet({ query: 'boiled eggs', onLogged, onClose });
 
-    await fireEvent.press(screen.getByTestId('create-sheet-form-preset-100-g'));
     await fireEvent.changeText(screen.getByTestId('create-sheet-form-serving-label'), '2 eggs');
     await fireEvent.press(screen.getByTestId('create-sheet-form-save'));
 
@@ -139,7 +137,6 @@ describe('<CreateFoodSheet>', () => {
     const onClose = jest.fn();
     await renderSheet({ query: 'boiled eggs', onLogged, onClose });
 
-    await fireEvent.press(screen.getByTestId('create-sheet-form-preset-100-g'));
     await fireEvent.changeText(screen.getByTestId('create-sheet-form-serving-label'), '2 eggs');
     await fireEvent.press(screen.getByTestId('create-sheet-form-save'));
 
@@ -170,7 +167,6 @@ describe('<CreateFoodSheet>', () => {
       </DbProvider>,
     );
 
-    await fireEvent.press(screen.getByTestId('create-sheet-form-preset-100-g'));
     await fireEvent.changeText(screen.getByTestId('create-sheet-form-serving-label'), '2 eggs');
     await fireEvent.press(screen.getByTestId('create-sheet-form-save'));
 
