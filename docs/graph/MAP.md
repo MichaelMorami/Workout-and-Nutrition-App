@@ -989,7 +989,7 @@ _no exports_
 
 <sub>used by: `src/db/queries/search.ts`</sub>
 
-### `src/db/queries/search.ts`  <sub>309 lines</sub>
+### `src/db/queries/search.ts`  <sub>311 lines</sub>
 
 - `function createFoodAndLog(db: VitalsDb, opts: When & { food: FoodInput; amount?: Amount; slot?: MealSlot }): { food: FoodRow; receipt: LogReceipt }`
 - `function recentFoods(db: VitalsDb, opts: When & { days: number; excludeIds?: readonly string[]; limit?: number }): Candidate[]`
