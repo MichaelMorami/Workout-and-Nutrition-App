@@ -520,6 +520,7 @@
     "src/components/quick-add/PortionSheet.tsx": {
       "exports": [
         "function PortionSheet({\n  candidate,\n  theme,\n  locale,\n  onLog,\n  onClose,\n  initialMode = 'presets',\n  initialPortions = 1,\n  presentation = 'modal',\n  testID = 'portion-sheet',\n}: PortionSheetProps): import(\"react\").JSX.Element | null",
+        "function servingSteps(_candidate: Candidate): readonly number[]",
         "type PortionSheetProps = {\n  /** `null` closes the sheet — there is deliberately no separate `visible` flag to fall out of sync with. */\n  readonly candidate: Candidate | null;\n  readonly theme: Theme;\n  /** Formatting locale, forwarded to every figure. Defaults to the device's. */\n  readonly locale?: string;\n  /** A step, or Exact's Log button — always a servings multiple of the candidate's ow..."
       ],
       "imports": [
@@ -529,7 +530,7 @@
         "src/hooks/useHapticFeedback.ts",
         "src/theme/tokens.ts"
       ],
-      "loc": 634,
+      "loc": 686,
       "importedBy": [
         "src/components/day-log/DayLogList.tsx",
         "src/components/quick-add/QuickAddGrid.tsx",
