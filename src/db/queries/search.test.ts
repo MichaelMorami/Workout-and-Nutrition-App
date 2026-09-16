@@ -382,7 +382,7 @@ describe('recentFoods', () => {
     expect(recentFoods(db, { at: AT, timeZone: LA, days: 14 })).toEqual([]);
   });
 
-  it('excludeIds removes the grid\'s six from the list', () => {
+  it('issue #95: a food on the quick-add grid still appears in Recent — no exclusion, `excludeIds` (if passed) is ignored', () => {
     const { db } = setup();
     const gridFood = makeFood({ name: 'On the grid' });
     const otherFood = makeFood({ name: 'Not on the grid' });
@@ -394,8 +394,10 @@ describe('recentFoods', () => {
       ])
       .run();
 
+    // Even if a caller still passes `excludeIds` (a leftover ui-side prop during the #95 rollout),
+    // it must have no effect — the ruling on #95 is that Recent never excludes grid items.
     const result = recentFoods(db, { at: AT, timeZone: LA, days: 14, excludeIds: [gridFood.id] });
-    expect(result.map((c) => c.id)).toEqual([otherFood.id]);
+    expect(result.map((c) => c.id)).toEqual([otherFood.id, gridFood.id]);
   });
 
   it('limit defaults to 20', () => {

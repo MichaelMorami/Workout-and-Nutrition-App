@@ -667,7 +667,7 @@
         "src/store/undoToast.ts",
         "src/theme/tokens.ts"
       ],
-      "loc": 702
+      "loc": 707
     },
     "src/components/search/index.ts": {
       "exports": [
@@ -1114,7 +1114,7 @@
         "src/db/types.ts",
         "src/db/usage.ts"
       ],
-      "loc": 309
+      "loc": 311
     },
     "src/db/queries/settings.ts": {
       "exports": [

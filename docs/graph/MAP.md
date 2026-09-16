@@ -658,7 +658,7 @@ jq -r '.modules["src/db/queries/nutrition.ts"].exports[]' docs/graph/symbols.jso
   /** Fires with the fresh log's receipt after a successful save — the same shape `QuickAddGrid`/
    * `SearchSheet...`
 
-### `src/components/search/SearchSheet.tsx`  <sub>702 lines</sub>
+### `src/components/search/SearchSheet.tsx`  <sub>707 lines</sub>
 
 - `function SearchSheet({ db, onLogged, onPortionAdded, onCreate, renderCreate, locale, theme, testID = 'search-sheet' }: SearchSheetProps): import("react").JSX.Element`
 - `type CreateSlotArgs = { query: string; onLogged: (receipt: LogReceipt) => void; onClose: () => void }`
@@ -989,7 +989,7 @@ _no exports_
 
 <sub>used by: `src/db/queries/search.ts`</sub>
 
-### `src/db/queries/search.ts`  <sub>309 lines</sub>
+### `src/db/queries/search.ts`  <sub>311 lines</sub>
 
 - `function createFoodAndLog(db: VitalsDb, opts: When & { food: FoodInput; amount?: Amount; slot?: MealSlot }): { food: FoodRow; receipt: LogReceipt }`
 - `function recentFoods(db: VitalsDb, opts: When & { days: number; excludeIds?: readonly string[]; limit?: number }): Candidate[]`
