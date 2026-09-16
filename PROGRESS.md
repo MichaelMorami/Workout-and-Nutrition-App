@@ -63,3 +63,8 @@ For the sprint-by-sprint plan see [`README.md`](README.md); for open work see th
 - 2026-09-16  fix: apply the components project's 20s timeout via jest.setTimeout (issue #108)  (PR #111 closes #108)
 - 2026-09-16  fix: one native Modal for search, taps land with the keyboard up, focus on show (issue #79)  (PR #105 closes #79)
 - 2026-09-16  feat: exact-slider thumb dot, no-jump drag, no hard cap (issue #92)  (PR #106 closes #92)
+- 2026-09-16  fix: sliderNudgeG 5 → 1, slider doc strings describe the growing range (issue #107)  (PR #112 closes #107)
+- 2026-09-16  docs: Recent includes grid items; food has weight and volume bases (issues #95, #86)  (PR #113)
+- 2026-09-16  feat: Servings strip — value-only steps, scrollable past 3 (issue #91)  (PR #115 closes #91)
+- 2026-09-16  fix: recentFoods no longer excludes quick-add grid items (issue #95)  (PR #116)
+- 2026-09-16  fix: SearchSheet reads Recent fresh, no grid exclusion (issue #95)  (PR #117)
