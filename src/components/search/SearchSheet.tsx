@@ -18,13 +18,16 @@
  * save-and-log) is #71, exposed here only as a plain callback (`onCreate`) — this component never
  * touches `createFoodAndLog` itself.
  *
- * RECENT EXCLUDES THE SIX ON THE GRID. `quickAddCandidates` is read once per mount, exactly like
- * `<QuickAddGrid>`'s own "ranked once per visit" discipline (its module note) — not to duplicate
- * that grid's state, but because this component has no other way to know which six it must exclude
- * from `recentFoods` without threading a prop through the screen that owns both. The same read
- * doubles as the search bar's "day one" signal: an empty result is exactly `<QuickAddGrid>`'s own
- * empty-state trigger, so the bar's emphasis (`searchBar.emphasisIcon`/`emphasisLabelText`,
- * `borderEmphasis`) lights up in lockstep with the grid teaching the same first-time user.
+ * RECENT NEVER EXCLUDES THE GRID (issue #95's ruling — reversing #69's original design). Recent is
+ * every food and meal logged in the last `interaction.recentDays` days, newest last-log first,
+ * including the six on `<QuickAddGrid>`. `recentFoods` is read fresh every time the sheet opens
+ * (`openSheet`, not a mount-time `useState`), so a food logged a moment ago — on the grid or off
+ * it — appears at the top the next time this sheet is opened, no app reload required. This
+ * component still reads `quickAddCandidates` once per mount, exactly like `<QuickAddGrid>`'s own
+ * "ranked once per visit" discipline (its module note), but only for `libraryEmpty`: whether the
+ * whole library (not just the last `recentDays`) has anything at all, which drives the search bar's
+ * "day one" emphasis (`searchBar.emphasisIcon`/`emphasisLabelText`, `borderEmphasis`) in lockstep
+ * with the grid teaching the same first-time user, and the "no library yet" empty state below.
  *
  * THE LAST ROW WHILE TYPING IS ALWAYS CREATE. Per the decisions doc, `Create "‹query›"` trails every
  * non-empty query — including when there are results, not only when there are none. A blank query
@@ -289,10 +292,9 @@ export function SearchSheet({ db, onLogged, onPortionAdded, onCreate, renderCrea
   const fireHaptic = useHapticFeedback();
 
   // Read once per mount — the grid's own "ranked once per visit" discipline (`QuickAddGrid`'s module
-  // note), and the only way this component knows which six `recentFoods` must exclude.
+  // note). Only feeds `libraryEmpty` (issue #95: `recentFoods` no longer needs these ids).
   const [when] = useState(deviceWhen);
   const [gridCandidates] = useState<Candidate[]>(() => quickAddCandidates(db, { ...when, limit: 6 }));
-  const gridIds = useMemo(() => gridCandidates.map((c) => c.id), [gridCandidates]);
   const libraryEmpty = gridCandidates.length === 0;
 
   const [visible, setVisible] = useState(false);
@@ -313,8 +315,11 @@ export function SearchSheet({ db, onLogged, onPortionAdded, onCreate, renderCrea
     [],
   );
 
+  // Read fresh on every open (issue #95) — not cached from mount, so a food logged a moment ago,
+  // whether or not it is also one of the six on the grid, is already first in Recent the next time
+  // this sheet opens, with no reload needed.
   const openSheet = (): void => {
-    setRecent(recentFoods(db, { ...when, days: interaction.recentDays, excludeIds: gridIds }));
+    setRecent(recentFoods(db, { ...when, days: interaction.recentDays }));
     setQuery('');
     setVisible(true);
   };
