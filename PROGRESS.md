@@ -60,3 +60,6 @@ For the sprint-by-sprint plan see [`README.md`](README.md); for open work see th
 - 2026-09-14  test: search-and-log tap budgets — recent, known, and brand-new via Create (issue #23)  (PR #76 closes #23)
 - 2026-09-14  feat: exclude colocated test files from Metro's bundle (issue #77)  (PR #78 closes #77)
 - 2026-09-15  feat: dayLog sorts newest first (issue #84)  (PR #104 closes #84)
+- 2026-09-16  fix: apply the components project's 20s timeout via jest.setTimeout (issue #108)  (PR #111 closes #108)
+- 2026-09-16  fix: one native Modal for search, taps land with the keyboard up, focus on show (issue #79)  (PR #105 closes #79)
+- 2026-09-16  feat: exact-slider thumb dot, no-jump drag, no hard cap (issue #92)  (PR #106 closes #92)
