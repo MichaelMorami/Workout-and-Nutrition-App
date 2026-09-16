@@ -3,10 +3,32 @@
  * ranked tiles (or fewer while the catalogue is still small), and a teaching empty state for a
  * first-time user with nothing logged yet.
  *
- * RANKED ONCE PER VISIT. `quickAddCandidates` is read once, in a lazy `useState` initialiser, not
- * on every render or after every log. Re-ranking right after a tap would reorder or disappear the
- * tile the user just watched confirm with a haptic and a wash — the ranking is for "what to show
- * when I open Today", not a live leaderboard. A pull-to-refresh or the next app open re-ranks it.
+ * RANKED ONCE PER VISIT, RE-RANKED ONLY AT THREE RETURN POINTS (issue #103). `quickAddCandidates`
+ * is read once, in a lazy `useState` initialiser, not on every render or after every log —
+ * re-ranking right after a tap would reorder or disappear the tile the user just watched confirm
+ * with a haptic and a wash, and the user's own ruling on #103 is explicit: no re-rank while Today
+ * stays focused, whatever the trigger (a tile tap, a double-tap portion add, an undo). It refetches
+ * only when Today is genuinely being *returned to*:
+ *
+ *   1. Navigation focus — `useFocusEffect` (the `app/meals`, `app/foods` precedent), covering a
+ *      switch back from another tab or a pop from a pushed screen such as Settings → Foods/Meals.
+ *      The hook also fires on the very first focus, which lands the moment after this component's
+ *      own mount already read the same data — `focused` below is the same "skip the first
+ *      call" guard `DayLogList`'s own `refreshToken` effect uses, so that first focus is a no-op,
+ *      not a redundant second read.
+ *   2. The app returning to the foreground — an `AppState` `'change'` listener, refetching only on
+ *      a transition *to* `'active'` (backgrounding and foregrounding again is its own "return").
+ *   3. `refreshToken` — bumped by the Today screen when the search sheet or the create-food sheet
+ *      logs and then closes. Both render *inside* Today (never pushed, never a separate route), so
+ *      neither one fires a navigation focus event on its own; `refreshToken` is the seam, mirroring
+ *      `DayLogList`'s own prop of the same name and the same "skip the first call" discipline. The
+ *      Today screen bumps it from the search sheet's own `onLogged`/`onPortionAdded` — the grid is
+ *      hidden behind that sheet's modal at that instant, so re-ranking then is invisible, and by
+ *      the time the sheet's own close animation finishes the grid is already showing the result.
+ *
+ * A refetch never remounts a surviving tile — `key={`${candidate.kind}-${candidate.id}`}` below is
+ * unchanged, so `QuickAddTile`'s own "Logged" wash and portion badge (`QuickAddTile`'s local state)
+ * stay with the right candidate even if its position in the row shifts.
  *
  * ONLY SIX ITEMS, NEVER AN UNBOUNDED LIST. `quickAddCandidates(..., { limit: 6 })` guarantees a
  * fixed, small array — this is a bounded grid, not a scrolling list, so a plain `View`/`map` is the
@@ -31,8 +53,9 @@
  * and lands back on the same `onLogged` path a plain tap uses. Every one of the three raises the
  * undo toast (`useUndoToastStore`) with the token the write returned.
  */
-import { useState } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { useFocusEffect } from 'expo-router';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { AppState, StyleSheet, Text, View } from 'react-native';
 import { addPortion, logFood, logMeal, quickAddCandidates, VitalsDbError, type Candidate, type LogReceipt } from '../../db';
 import { deviceWhen } from '../../hooks/deviceWhen';
 import { useDb } from '../../hooks/useDb';
@@ -52,6 +75,10 @@ export type QuickAddGridProps = {
    * `receipt.entries` after an `addPortion` holds the rows' new, larger totals, not an addition, so
    * a caller summing running totals from `onLogged` alone would double-count them. */
   readonly onPortionAdded?: (delta: LogDelta) => void;
+  /** Bumped by the Today screen when the search sheet or the create-food sheet logs and then
+   * closes — see the module note on why that pair needs its own seam, distinct from navigation
+   * focus and `AppState`. Only a genuine change refetches, never the first render. */
+  readonly refreshToken?: number;
   /** Formatting locale, forwarded to every tile and the "Ranked for" hour. Defaults to the device's. */
   readonly locale?: string;
   readonly testID?: string;
@@ -116,15 +143,58 @@ function EmptyState({ theme, testID }: { theme: Theme; testID: string }) {
   );
 }
 
-export function QuickAddGrid({ onLogged, onPortionAdded, locale, testID = 'quick-add-grid' }: QuickAddGridProps) {
+export function QuickAddGrid({ onLogged, onPortionAdded, refreshToken, locale, testID = 'quick-add-grid' }: QuickAddGridProps) {
   const db = useDb();
   const theme = useTheme();
   const { sectionLabel } = theme.color;
 
   // Captured once per mount — see the module note on why re-ranking is not tied to render.
   const [when] = useState(deviceWhen);
-  const [candidates] = useState<Candidate[]>(() => quickAddCandidates(db, { ...when, limit: 6 }));
+  const [candidates, setCandidates] = useState<Candidate[]>(() => quickAddCandidates(db, { ...when, limit: 6 }));
   const [sheetCandidate, setSheetCandidate] = useState<Candidate | null>(null);
+
+  // The module note's three return points. None of them fire from a tap, a double-tap or an
+  // undo — those only ever touch `handleTap`/`handleSheetLog` below, never this state.
+  const refetch = useCallback((): void => {
+    setCandidates(quickAddCandidates(db, { ...when, limit: 6 }));
+    // `db`/`when` are stable for this component's whole lifetime (a fresh `when` object per render
+    // would defeat "ranked once per visit" the same way `DayLogList`'s own refetch effect notes).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [db]);
+
+  // 1. Navigation focus — skips the very first focus, which lands right after the lazy `useState`
+  // initialiser above already did this exact read (mirrors `app/meals`, `app/foods`).
+  const everFocused = useRef(false);
+  useFocusEffect(
+    useCallback(() => {
+      if (!everFocused.current) {
+        everFocused.current = true;
+        return;
+      }
+      refetch();
+    }, [refetch]),
+  );
+
+  // 2. The app returning to the foreground. `AppState`'s `'change'` event only fires on an actual
+  // transition, never on mount, so this never duplicates the initial read either.
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', (nextState) => {
+      if (nextState === 'active') refetch();
+    });
+    return () => subscription.remove();
+  }, [refetch]);
+
+  // 3. `refreshToken` — the search/create-food sheet's own seam (module note). Skips the first
+  // render, exactly `DayLogList`'s own `refreshToken` effect.
+  const tokenSeen = useRef(false);
+  useEffect(() => {
+    if (!tokenSeen.current) {
+      tokenSeen.current = true;
+      return;
+    }
+    refetch();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [refreshToken]);
 
   const logFreshCandidate = (candidate: Candidate, at: { at: number; timeZone: string }, portions?: number): LogReceipt =>
     candidate.kind === 'food'
