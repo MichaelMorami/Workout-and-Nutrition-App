@@ -119,7 +119,14 @@ export function FoodForm({ initial = null, onSave, onCancel, theme, testID = 'fo
   return (
     // `handled`: with the name field's keyboard up, a tap on a stepper or Save must land on the
     // first try — the default (`'never'`) spends that tap dismissing the keyboard (issue #79).
-    <ScrollView testID={testID} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+    <ScrollView
+      testID={testID}
+      contentContainerStyle={styles.content}
+      keyboardShouldPersistTaps="handled"
+      // …and the content insets for the keyboard, so Save can still be scrolled to when the
+      // keyboard covers the bottom of the form (issue #79). iOS only; a no-op on Android.
+      automaticallyAdjustKeyboardInsets
+    >
       <Field label="Name" value={name} onChangeText={setName} theme={theme} placeholder="Greek yoghurt" testID={`${testID}-name`} />
       <Field label="Brand" value={brand} onChangeText={setBrand} theme={theme} placeholder="Optional" testID={`${testID}-brand`} />
       <Field

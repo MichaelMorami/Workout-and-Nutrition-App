@@ -342,6 +342,13 @@ export function SearchSheet({ db, onLogged, onPortionAdded, onCreate, renderCrea
     inputRef.current?.focus();
   };
 
+  // Both overlays sit at the bottom of the sheet — exactly where the keyboard is. Nothing else
+  // blurs the field now that the taps persist, so dropping the keyboard here is what keeps the
+  // portion steppers and the create form's Save tappable on an iPhone (issue #79).
+  const dismissKeyboard = (): void => {
+    inputRef.current?.blur();
+  };
+
   const handleCreateLogged = (receipt: LogReceipt): void => {
     onLogged?.(receipt);
     closeSheet();
@@ -412,6 +419,7 @@ export function SearchSheet({ db, onLogged, onPortionAdded, onCreate, renderCrea
     // `interaction.undoDismissedBy` includes `'sheetOpened'` — a toast from the tap before this
     // long-press must not survive into a decision the portion sheet is about to make instead.
     useUndoToastStore.getState().dismiss();
+    dismissKeyboard();
     setSheetCandidate(candidate);
   };
 
@@ -438,6 +446,7 @@ export function SearchSheet({ db, onLogged, onPortionAdded, onCreate, renderCrea
   const trimmedQuery = query.trim();
 
   const handleCreatePress = (): void => {
+    dismissKeyboard();
     onCreate?.(trimmedQuery);
     if (renderCreate) setCreateQuery(trimmedQuery);
   };
