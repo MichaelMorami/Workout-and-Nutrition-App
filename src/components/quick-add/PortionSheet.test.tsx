@@ -7,8 +7,8 @@ import { fireEvent, render, screen } from '@testing-library/react-native';
 import type { ComponentProps } from 'react';
 import { StyleSheet } from 'react-native';
 import type { FoodCandidate, MealCandidate } from '../../db';
-import { interaction, size, themes } from '../../theme/tokens';
-import { PortionSheet } from './PortionSheet';
+import { interaction, size, space, themes } from '../../theme/tokens';
+import { PortionSheet, servingSteps } from './PortionSheet';
 
 const food: FoodCandidate = {
   kind: 'food',
@@ -60,13 +60,65 @@ describe('PortionSheet', () => {
     expect(screen.getByTestId('sheet-title')).toHaveTextContent('Greek yoghurt');
   });
 
-  it('renders five preset steps, the usual (×1) one visually marked', async () => {
+  it('issue #91: the section is labelled "Servings", not "Presets"', async () => {
     await renderSheet();
-    expect(screen.getByTestId('sheet-step-0.5')).toHaveTextContent('60 kcal', { exact: false });
-    expect(screen.getByTestId('sheet-step-1')).toHaveTextContent('120 kcal', { exact: false });
-    expect(screen.getByTestId('sheet-step-1.5')).toHaveTextContent('180 kcal', { exact: false });
-    expect(screen.getByTestId('sheet-step-2')).toHaveTextContent('240 kcal', { exact: false });
-    expect(screen.getByTestId('sheet-step-3')).toHaveTextContent('360 kcal', { exact: false });
+    const option = screen.getByTestId('sheet-mode-presets');
+    expect(option).toHaveTextContent('Servings');
+    expect(option.props.accessibilityLabel).toBe('Servings');
+  });
+
+  it('issue #91: servingSteps() returns half-servings from ½ to 8, for a food and a meal', async () => {
+    expect(servingSteps(food)).toEqual([
+      0.5, 1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5, 5.5, 6, 6.5, 7, 7.5, 8,
+    ]);
+    expect(servingSteps(meal)).toEqual(servingSteps(food));
+  });
+
+  it('issue #91: serving steps show only the value — no kcal text on the buttons', async () => {
+    await renderSheet();
+    expect(screen.getByTestId('sheet-step-0.5')).toHaveTextContent('½');
+    expect(screen.getByTestId('sheet-step-0.5')).not.toHaveTextContent('kcal');
+    expect(screen.getByTestId('sheet-step-1')).toHaveTextContent('1');
+    expect(screen.getByTestId('sheet-step-1')).not.toHaveTextContent('kcal');
+    expect(screen.getByTestId('sheet-step-1.5')).toHaveTextContent('1½');
+    expect(screen.getByTestId('sheet-step-8')).toHaveTextContent('8');
+    // the accessibility label is still allowed to carry the calories
+    expect(screen.getByTestId('sheet-step-1').props.accessibilityLabel).toContain('kilocalories');
+  });
+
+  it('issue #91: a step past the old cap of 3 still logs immediately, no extra tap', async () => {
+    const onLog = jest.fn();
+    const onClose = jest.fn();
+    await renderSheet({ onLog, onClose });
+
+    await fireEvent.press(screen.getByTestId('sheet-step-5'));
+
+    expect(onLog).toHaveBeenCalledWith(food, 5);
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it('issue #91: the steps render in a horizontal scroll strip, not a wrapping grid', async () => {
+    await renderSheet();
+    const strip = screen.getByTestId('sheet-steps');
+    expect(strip.props.horizontal).toBe(true);
+  });
+
+  it('issue #91: opens with the "1" step in view — the strip is scrolled so it sits at the leading edge', async () => {
+    await renderSheet();
+    const strip = screen.getByTestId('sheet-steps');
+    const steps = servingSteps(food);
+    const pitch = size.portionSheet.stepWidth + space[2];
+    const anchorIndex = steps.indexOf(1);
+    expect(strip.props.contentOffset).toEqual({ x: anchorIndex * pitch, y: 0 });
+  });
+
+  it('issue #91: editing pre-fills the strip scrolled to the currently logged amount, not always "1"', async () => {
+    await renderSheet({ initialPortions: 2.5 });
+    const strip = screen.getByTestId('sheet-steps');
+    const steps = servingSteps(food);
+    const pitch = size.portionSheet.stepWidth + space[2];
+    const anchorIndex = steps.indexOf(2.5);
+    expect(strip.props.contentOffset).toEqual({ x: anchorIndex * pitch, y: 0 });
   });
 
   it('tapping a preset step logs that multiple and closes the sheet', async () => {
