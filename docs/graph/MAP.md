@@ -22,7 +22,7 @@ jq -r '.modules["src/db/queries/nutrition.ts"].exports[]' docs/graph/symbols.jso
 
 - `function default(): import("react").JSX.Element`
 
-### `app/(tabs)/index.tsx`  <sub>161 lines</sub>
+### `app/(tabs)/index.tsx`  <sub>188 lines</sub>
 
 - `function default(): React.JSX.Element`
 
@@ -548,9 +548,9 @@ jq -r '.modules["src/db/queries/nutrition.ts"].exports[]' docs/graph/symbols.jso
 
 <sub>used by: `src/components/day-log/DayLogList.tsx`, `src/components/quick-add/QuickAddGrid.tsx`, `src/components/search/SearchSheet.tsx`</sub>
 
-### `src/components/quick-add/QuickAddGrid.tsx`  <sub>274 lines</sub>
+### `src/components/quick-add/QuickAddGrid.tsx`  <sub>353 lines</sub>
 
-- `function QuickAddGrid({ onLogged, onPortionAdded, locale, testID = 'quick-add-grid' }: QuickAddGridProps): import("react").JSX.Element`
+- `function QuickAddGrid({ onLogged, onPortionAdded, refreshToken, locale, testID = 'quick-add-grid' }: QuickAddGridProps): import("react").JSX.Element`
 - `type QuickAddGridProps = {
   /** Called after a *fresh* log lands — a first tap, or the portion sheet's own Log — with the
    * receipt (`kcal`/`protein` logged, for #41's arcs and any other listener). Never called for a
@@ -596,7 +596,7 @@ jq -r '.modules["src/db/queries/nutrition.ts"].exports[]' docs/graph/symbols.jso
   presentation = 'modal',
   testID = 'portion-sheet',
 }: PortionSheetProps): import("react").JSX.Element | null`
-- `function QuickAddGrid({ onLogged, onPortionAdded, locale, testID = 'quick-add-grid' }: QuickAddGridProps): import("react").JSX.Element`
+- `function QuickAddGrid({ onLogged, onPortionAdded, refreshToken, locale, testID = 'quick-add-grid' }: QuickAddGridProps): import("react").JSX.Element`
 - `function QuickAddTile({ candidate, onLog, onLongPress, theme, locale, testID = 'quick-add-tile' }: QuickAddTileProps): import("react").JSX.Element`
 - `function UndoToast({ onUndo, testID = 'undo-toast' }: UndoToastProps): import("react").JSX.Element | null`
 - `type PortionSheetProps = {

@@ -43,7 +43,18 @@ jest.mock('react-native/Libraries/Components/ScrollView/ScrollView', () =>
   jest.requireActual('react-native/Libraries/Components/ScrollView/ScrollView'),
 );
 jest.mock('react-native-reanimated', () => jest.requireActual('../../src/components/today/test-support/reanimated-mock'));
-jest.mock('expo-router', () => ({ useRouter: () => ({ push: jest.fn() }) }));
+// `useFocusEffect` (issue #103's grid refocus) just needs to not throw here — the focus/AppState
+// refresh points themselves are asserted at `<QuickAddGrid>`'s own level
+// (`src/components/quick-add/QuickAddGrid.test.tsx`).
+jest.mock('expo-router', () => ({
+  useRouter: () => ({ push: jest.fn() }),
+  useFocusEffect: (cb: () => void) => {
+    const react = jest.requireActual<typeof import('react')>('react');
+    react.useEffect(() => {
+      cb();
+    }, []);
+  },
+}));
 jest.mock('../../src/db', () => ({
   ...jest.requireActual<typeof import('../../src/db')>('../../src/db'),
   quickAddCandidates: jest.fn().mockReturnValue([]),

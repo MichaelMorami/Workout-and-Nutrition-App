@@ -59,6 +59,17 @@ import { layout, space } from '../../src/theme/tokens';
  * is a React child of this `ScrollView`, and the touch responder follows React ancestry. With the
  * default (`'never'`), every tap inside the sheet while its keyboard was up went to this
  * `ScrollView` to dismiss the keyboard instead of to Cancel, a row or Create.
+ *
+ * `quickAddRefreshToken` IS THE SEARCH-SHEET SEAM `<QuickAddGrid>`'S OWN MODULE NOTE DESCRIBES
+ * (issue #103). `<SearchSheet>` and `<CreateFoodSheet>` render *inside* this screen, never pushed,
+ * so neither one fires a navigation focus event when it closes — this screen bumps the token from
+ * `handleSearchLogged`/`handleSearchPortionAdded` instead, which every search row, every repeat tap
+ * on one, and the create form's own Save all funnel through (`SearchSheet`'s `handleCreateLogged`
+ * calls this screen's `onLogged` before it closes). The grid tap path (`handleLogged`/
+ * `handlePortionAdded`, unchanged) never bumps it — the user's ruling on #103 is explicit: Today's
+ * own tiles do not reorder while Today stays focused, only when the search sheet's own log-then-
+ * close (or a genuine refocus, `<QuickAddGrid>`'s own two other triggers) says the user is looking
+ * at Today again.
  */
 export default function TodayScreen(): React.JSX.Element {
   const db = useDb();
@@ -69,6 +80,9 @@ export default function TodayScreen(): React.JSX.Element {
   const [totals, setTotals] = useState<DayTotals>(() => todayTotals(db, localDateOf(when.at, when.timeZone)));
   // Bumped by every handler below — `<DayLogList>`'s cue to re-read `dayLog` (see the module note).
   const [dayLogVersion, setDayLogVersion] = useState(0);
+  // Bumped only by the search/create-food sheet's own log handlers below — `<QuickAddGrid>`'s cue to
+  // re-rank (issue #103, see the module note). A grid tap never touches this.
+  const [quickAddRefreshToken, setQuickAddRefreshToken] = useState(0);
 
   const handleLogged = (receipt: LogReceipt): void => {
     const kcal = receipt.entries.reduce((sum, entry) => sum + entry.kcal, 0);
@@ -102,6 +116,19 @@ export default function TodayScreen(): React.JSX.Element {
     setDayLogVersion((v) => v + 1);
   };
 
+  // `<SearchSheet>`'s own two logging paths (a row, and Create's own Save) — see the module note on
+  // `quickAddRefreshToken`. `<QuickAddGrid>`'s own tap path calls `handleLogged`/`handlePortionAdded`
+  // directly, unwrapped, so a grid tap never bumps this token (issue #103's no-reorder-on-tap ruling).
+  const handleSearchLogged = (receipt: LogReceipt): void => {
+    handleLogged(receipt);
+    setQuickAddRefreshToken((v) => v + 1);
+  };
+
+  const handleSearchPortionAdded = (delta: LogDelta): void => {
+    handlePortionAdded(delta);
+    setQuickAddRefreshToken((v) => v + 1);
+  };
+
   return (
     <View style={styles.screen}>
       <ScrollView
@@ -122,11 +149,11 @@ export default function TodayScreen(): React.JSX.Element {
           testID="today-header"
         />
         <View style={styles.quickAddGroup}>
-          <QuickAddGrid onLogged={handleLogged} onPortionAdded={handlePortionAdded} />
+          <QuickAddGrid onLogged={handleLogged} onPortionAdded={handlePortionAdded} refreshToken={quickAddRefreshToken} />
           <SearchSheet
             db={db}
-            onLogged={handleLogged}
-            onPortionAdded={handlePortionAdded}
+            onLogged={handleSearchLogged}
+            onPortionAdded={handleSearchPortionAdded}
             renderCreate={(create) => (
               <CreateFoodSheet {...create} presentation="overlay" db={db} theme={theme} testID="today-create-food-sheet" />
             )}
