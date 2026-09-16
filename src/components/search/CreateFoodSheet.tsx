@@ -100,9 +100,10 @@ export function CreateFoodSheet({ db, query, onLogged, onClose, locale, presenta
     name: query,
     brand: null,
     servingLabel: '',
-    servingGrams: null,
-    kcalPerServing: 0,
-    proteinPerServing: 0,
+    basis: 'weight',
+    servingAmount: 0,
+    kcalPer100: 0,
+    proteinPer100: 0,
   };
 
   const handleSave = (input: FoodInput): void => {

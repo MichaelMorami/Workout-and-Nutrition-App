@@ -9,7 +9,7 @@ import { act, fireEvent, render, screen } from '@testing-library/react-native';
 import React from 'react';
 import { DbProvider } from '../../src/components/db/DbProvider';
 import { ThemeContext } from '../../src/components/theme/theme-context';
-import { listFoods, type FoodRow } from '../../src/db';
+import { listFoods, withServing, type FoodRow } from '../../src/db';
 import { themes } from '../../src/theme/tokens';
 import FoodsScreen from './index';
 
@@ -45,14 +45,12 @@ const yoghurt: FoodRow = {
   name: 'Greek yoghurt',
   brand: 'Fage',
   servingLabel: '1 pot',
-  servingGrams: 170,
-  kcalPerServing: 120,
-  proteinPerServing: 20,
   archived: 0,
   useCount: 4,
   lastUsedAt: null,
   hourHistogram: null,
   searchText: 'greek yoghurt fage',
+  ...withServing({ basis: 'weight', servingAmount: 170, kcalPer100: (120 * 100) / 170, proteinPer100: (20 * 100) / 170 }),
 };
 
 afterEach(() => {

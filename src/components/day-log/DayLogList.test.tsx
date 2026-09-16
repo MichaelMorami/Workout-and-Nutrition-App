@@ -42,6 +42,7 @@ const yoghurt: DayLogEntry = {
   mealId: null,
   qty: 1,
   grams: 170,
+  ml: null,
   kcal: 120,
   protein: 20,
   slot: 'breakfast',
@@ -62,6 +63,7 @@ const shake: DayLogEntry = {
   mealId: 'meal-1',
   qty: 1,
   grams: null,
+  ml: null,
   kcal: 410,
   protein: 38,
   slot: 'lunch',
@@ -131,8 +133,8 @@ describe('DayLogList', () => {
   it("confirming an edit calls updateLogEntry, updates the row, and shows the undo toast", async () => {
     const onChanged = jest.fn();
     mockUpdateLogEntry.mockReturnValue({
-      entry: { ...yoghurt, qty: 2, grams: 340, kcal: 240, protein: 40 },
-      undo: { kind: 'revert', previous: [{ id: 'log-1', qty: 1, grams: 170, kcal: 120, protein: 20, slot: 'breakfast' }] },
+      entry: { ...yoghurt, qty: 2, grams: 340, ml: null, kcal: 240, protein: 40 },
+      undo: { kind: 'revert', previous: [{ id: 'log-1', qty: 1, grams: 170, ml: null, kcal: 120, protein: 20, slot: 'breakfast' }] },
     });
     await renderList({ onChanged });
 
@@ -146,7 +148,7 @@ describe('DayLogList', () => {
     expect(onChanged).toHaveBeenCalledWith({ kcal: 120, protein: 20, entryCountDelta: 0 });
     expect(useUndoToastStore.getState().toast?.token).toEqual({
       kind: 'revert',
-      previous: [{ id: 'log-1', qty: 1, grams: 170, kcal: 120, protein: 20, slot: 'breakfast' }],
+      previous: [{ id: 'log-1', qty: 1, grams: 170, ml: null, kcal: 120, protein: 20, slot: 'breakfast' }],
     });
     expect(screen.queryByTestId('log-portion-sheet-title')).toBeNull();
   });

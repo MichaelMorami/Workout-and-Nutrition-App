@@ -19,6 +19,7 @@ import {
   undo,
   updateLogEntry,
   weightSummary,
+  withServing,
   type DayLogEntry,
   type FoodCandidate,
   type LogReceipt,
@@ -74,7 +75,10 @@ const yoghurt: FoodCandidate = {
   name: 'Greek yoghurt',
   brand: null,
   servingLabel: '1 pot',
+  basis: 'weight',
+  servingAmount: 170,
   servingGrams: 170,
+  servingMl: null,
   kcal: 120,
   protein: 20,
   useCount: 4,
@@ -92,6 +96,7 @@ const loggedYoghurt: DayLogEntry = {
   mealId: null,
   qty: 1,
   grams: 170,
+  ml: null,
   kcal: 120,
   protein: 20,
   slot: 'breakfast',
@@ -115,6 +120,7 @@ const receipt: LogReceipt = {
       mealId: null,
       qty: 1,
       grams: null,
+      ml: null,
       kcal: 120,
       protein: 20,
       slot: 'breakfast',
@@ -252,13 +258,16 @@ describe('TodayScreen', () => {
   });
 
   it('editing a row from the day log moves the ring by the difference, through the same shared handler', async () => {
-    const editedYoghurt: DayLogEntry = { ...loggedYoghurt, qty: 2, grams: 340, kcal: 240, protein: 40 };
+    const editedYoghurt: DayLogEntry = { ...loggedYoghurt, qty: 2, grams: 340, ml: null, kcal: 240, protein: 40 };
     // See the delete test above: the day log's post-edit refetch stands in for SQLite already
     // reflecting the write by the time it runs.
     mockDayLog.mockReturnValueOnce([loggedYoghurt]).mockReturnValue([editedYoghurt]);
     mockUpdateLogEntry.mockReturnValue({
       entry: editedYoghurt,
-      undo: { kind: 'revert', previous: [{ id: 'log-1', qty: 1, grams: 170, kcal: 120, protein: 20, slot: 'breakfast' }] },
+      undo: {
+        kind: 'revert',
+        previous: [{ id: 'log-1', qty: 1, grams: 170, ml: null, kcal: 120, protein: 20, slot: 'breakfast' }],
+      },
     });
     await renderScreen();
     const ring = within(screen.getByTestId('today-header-kcal-arc'));
@@ -282,14 +291,12 @@ describe('TodayScreen', () => {
         name: 'Boiled eggs',
         brand: null,
         servingLabel: '2 eggs',
-        servingGrams: null,
-        kcalPerServing: 140,
-        proteinPerServing: 12,
         archived: 0,
         useCount: 0,
         lastUsedAt: null,
         hourHistogram: null,
         searchText: '',
+        ...withServing({ basis: 'weight', servingAmount: 100, kcalPer100: 140, proteinPer100: 12 }),
       },
       receipt: {
         target: { kind: 'food', id: 'food-9' },
@@ -305,6 +312,7 @@ describe('TodayScreen', () => {
             mealId: null,
             qty: 1,
             grams: null,
+            ml: null,
             kcal: 140,
             protein: 12,
             slot: 'breakfast',
@@ -323,6 +331,7 @@ describe('TodayScreen', () => {
 
     expect(screen.getByTestId('today-create-food-sheet-form-name').props.value).toBe('Boiled eggs');
 
+    await fireEvent.press(screen.getByTestId('today-create-food-sheet-form-preset-100-g'));
     await fireEvent.changeText(screen.getByTestId('today-create-food-sheet-form-serving-label'), '2 eggs');
     await fireEvent.press(screen.getByTestId('today-create-food-sheet-form-save'));
 

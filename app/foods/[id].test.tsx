@@ -47,7 +47,9 @@ function setup() {
   const { db } = makeTestDb({ schema });
   const food = createFood(db, {
     at: 1_000,
-    food: { name: 'Skyr', brand: null, servingLabel: '1 pot', servingGrams: 170, kcalPerServing: 100, proteinPerServing: 10 },
+    // 100 g so per-100 and per-serving read the same numbers — keeps this fixture's figures the
+    // ones the original per-serving test was written against (issue #86).
+    food: { name: 'Skyr', brand: null, servingLabel: '100 g', basis: 'weight', servingAmount: 100, kcalPer100: 100, proteinPer100: 10 },
   });
   return { db, food };
 }
@@ -80,7 +82,7 @@ describe('EditFoodScreen', () => {
     await fireEvent.press(screen.getByTestId('food-form-save'));
 
     const updated = db.select().from(schema.foods).where(eq(schema.foods.id, food.id)).get();
-    expect(updated?.kcalPerServing).toBe(105);
+    expect(updated?.kcalPer100).toBe(105);
     expect(mockBack).toHaveBeenCalledTimes(1);
   });
 
@@ -100,7 +102,7 @@ describe('EditFoodScreen', () => {
     await fireEvent.press(screen.getByTestId('food-form-save'));
 
     const updatedFood = db.select().from(schema.foods).where(eq(schema.foods.id, food.id)).get();
-    expect(updatedFood?.kcalPerServing).not.toBe(loggedEntry.kcal);
+    expect(updatedFood?.kcalPer100).not.toBe(loggedEntry.kcal);
 
     const logRow = db.select().from(schema.foodLog).where(eq(schema.foodLog.id, loggedEntry.id)).get();
     expect(logRow).toMatchObject({ kcal: loggedEntry.kcal, protein: loggedEntry.protein });

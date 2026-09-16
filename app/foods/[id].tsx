@@ -9,15 +9,19 @@ import { getFood, updateFood, type FoodInput, type FoodRow } from '../../src/db'
 import { layout, space, type } from '../../src/theme/tokens';
 
 /** `FoodRow` -> the six fields `<FoodForm>`/`updateFood` care about — never the usage cache or
- * sync columns riding along on the row. */
+ * sync columns riding along on the row. The per-100 fields, not the derived per-serving ones
+ * (issue #86): `<FoodForm>`'s own `FoodInput` is the stored shape, and `servingGrams`/
+ * `kcalPerServing`/`proteinPerServing` are read-side conveniences with no honest way back to a
+ * per-100 number without the serving amount already in hand here. */
 function inputFromFood(food: FoodRow): FoodInput {
   return {
     name: food.name,
     brand: food.brand,
     servingLabel: food.servingLabel,
-    servingGrams: food.servingGrams,
-    kcalPerServing: food.kcalPerServing,
-    proteinPerServing: food.proteinPerServing,
+    basis: food.basis,
+    servingAmount: food.servingAmount,
+    kcalPer100: food.kcalPer100,
+    proteinPer100: food.proteinPer100,
   };
 }
 

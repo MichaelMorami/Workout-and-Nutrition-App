@@ -1,7 +1,16 @@
 /**
- * `<FoodForm>` — issue #43's add/edit food. `name`, `brand`, `servingLabel` are free text (there is
- * no stepper that could set a name), but every quantity — serving grams, kcal, protein — is a
- * `<Stepper>`, never a keyboard number field, per the module's own tap doctrine.
+ * `<FoodForm>` — issue #43's add/edit food, rebuilt on issue #86's per-100 shape. `name`, `brand`,
+ * `servingLabel` are free text (there is no stepper that could set a name); every quantity —
+ * serving amount, kcal per 100, protein per 100 — is a `<Stepper>`, never a keyboard number field,
+ * per the module's own tap doctrine.
+ *
+ * ONE TAP PICKS BASIS + SERVING AMOUNT (issue #86 ruling 2). `SERVING_PRESETS` (100 g, 100 ml,
+ * 1 cup, 1 tbsp, 1 tsp) is one constant table shared with the database, so the form and `foods.basis`
+ * never disagree about what a preset means. Tapping a preset sets `basis`, `servingAmount` *and*
+ * `servingLabel` in one tap — the common case (a food measured in one of the five standard units)
+ * never touches a stepper at all. "Custom" (e.g. "1 scoop, 33 g") is the one case that must set an
+ * amount the preset table has no entry for: a weight/volume toggle plus a `<Stepper>`, still never a
+ * keyboard number field.
  *
  * SAVE IS A REAL BUTTON, NOT AUTO-COMMIT. Unlike the quick-add grid's one-tap logging, this is a
  * multi-field data-entry form: there is no single "the" value to commit the instant it changes, so
@@ -18,8 +27,8 @@
  * attempted, not as the source of truth for what is a valid `FoodInput`.
  */
 import { useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, TextInput, View, type TextStyle } from 'react-native';
-import type { FoodInput } from '../../db';
+import { Pressable, ScrollView, StyleSheet, Text, View, TextInput, type TextStyle } from 'react-native';
+import { SERVING_PRESETS, UNIT_OF_BASIS, type FoodBasis, type FoodInput, type ServingPreset } from '../../db';
 import { radius, size, space, type, type Theme, type TypeStyle } from '../../theme/tokens';
 import { Stepper } from './Stepper';
 
@@ -33,6 +42,10 @@ export type FoodFormProps = {
   readonly testID?: string;
 };
 
+/** Not a preset: the escape hatch for a serving the table has no entry for (issue #86 ruling 4 —
+ * a custom serving belongs to its food only, never added to the shared table). */
+const CUSTOM = 'Custom';
+
 function textStyle(token: TypeStyle, color: string): TextStyle {
   return {
     fontFamily: token.fontFamily,
@@ -44,11 +57,23 @@ function textStyle(token: TypeStyle, color: string): TextStyle {
   };
 }
 
+/** A preset's label as a testID fragment: "100 g" -> "100-g", "1 cup" -> "1-cup". */
+function slugOf(label: string): string {
+  return label.toLowerCase().replace(/\s+/g, '-');
+}
+
+/** Which preset (if any) exactly matches a stored `basis`/`servingAmount` pair — how editing an
+ * existing food re-selects the chip it was created from instead of always landing on Custom. */
+function presetFor(basis: FoodBasis, servingAmount: number): ServingPreset | null {
+  return SERVING_PRESETS.find((preset) => preset.basis === basis && preset.amount === servingAmount) ?? null;
+}
+
 /** `null`/empty checks the way `validateFoodInput` does, so this form's own gate agrees with the
  * database's — see the module note on why this is a courtesy, not the source of truth. */
-function firstError(name: string, servingLabel: string): string | null {
+function firstError(name: string, servingLabel: string, servingAmount: number): string | null {
   if (name.trim().length === 0) return 'Name is required.';
   if (servingLabel.trim().length === 0) return 'Serving label is required.';
+  if (!(servingAmount > 0)) return 'Serving amount must be greater than zero.';
   return null;
 }
 
@@ -88,19 +113,127 @@ function Field({
   );
 }
 
+/** The preset row — five metric presets plus Custom, one tap each. A wrapping row of segmented-style
+ * chips, the same selected/unselected token pair `segmented` already defines for `PortionSheet`'s
+ * Presets/Exact switch, generalised past a fixed two-option track. */
+function PresetRow({
+  selectedLabel,
+  onSelect,
+  theme,
+  testID,
+}: {
+  selectedLabel: string;
+  onSelect: (option: ServingPreset | typeof CUSTOM) => void;
+  theme: Theme;
+  testID: string;
+}) {
+  const { segmented } = theme.color;
+  const options: readonly (ServingPreset | typeof CUSTOM)[] = [...SERVING_PRESETS, CUSTOM];
+
+  return (
+    <View style={styles.field}>
+      <Text style={textStyle(type.label, theme.color.text.secondary)}>Serving</Text>
+      <View testID={testID} style={styles.presetRow}>
+        {options.map((option) => {
+          const label = option === CUSTOM ? CUSTOM : option.label;
+          const selected = label === selectedLabel;
+          return (
+            <Pressable
+              key={label}
+              testID={`${testID}-${slugOf(label)}`}
+              onPress={() => onSelect(option)}
+              accessibilityRole="button"
+              accessibilityState={{ selected }}
+              accessibilityLabel={label}
+              style={[
+                styles.presetChip,
+                {
+                  minHeight: size.tapTargetMin,
+                  borderRadius: radius.sm,
+                  backgroundColor: selected ? segmented.selectedBg : segmented.trackBg,
+                  borderColor: segmented.selectedBorder,
+                  borderWidth: selected ? StyleSheet.hairlineWidth : 0,
+                },
+              ]}
+            >
+              <Text style={textStyle(selected ? type.controlSelected : type.control, selected ? segmented.selectedText : segmented.optionText)}>
+                {label}
+              </Text>
+            </Pressable>
+          );
+        })}
+      </View>
+    </View>
+  );
+}
+
+/** The Custom serving's weight/volume toggle — which canonical unit `servingAmount` is in. */
+function BasisToggle({ basis, onChange, theme, testID }: { basis: FoodBasis; onChange: (basis: FoodBasis) => void; theme: Theme; testID: string }) {
+  const { segmented } = theme.color;
+  return (
+    <View style={styles.field}>
+      <Text style={textStyle(type.label, theme.color.text.secondary)}>Measured in</Text>
+      <View testID={testID} style={styles.presetRow}>
+        {(['weight', 'volume'] as const).map((option) => {
+          const selected = option === basis;
+          return (
+            <Pressable
+              key={option}
+              testID={`${testID}-${option}`}
+              onPress={() => onChange(option)}
+              accessibilityRole="button"
+              accessibilityState={{ selected }}
+              accessibilityLabel={option === 'weight' ? 'Weight (grams)' : 'Volume (millilitres)'}
+              style={[
+                styles.presetChip,
+                {
+                  minHeight: size.tapTargetMin,
+                  borderRadius: radius.sm,
+                  backgroundColor: selected ? segmented.selectedBg : segmented.trackBg,
+                  borderColor: segmented.selectedBorder,
+                  borderWidth: selected ? StyleSheet.hairlineWidth : 0,
+                },
+              ]}
+            >
+              <Text style={textStyle(selected ? type.controlSelected : type.control, selected ? segmented.selectedText : segmented.optionText)}>
+                {option === 'weight' ? 'Weight' : 'Volume'}
+              </Text>
+            </Pressable>
+          );
+        })}
+      </View>
+    </View>
+  );
+}
+
 export function FoodForm({ initial = null, onSave, onCancel, theme, testID = 'food-form' }: FoodFormProps) {
   const { button, state } = theme.color;
 
   const [name, setName] = useState(initial?.name ?? '');
   const [brand, setBrand] = useState(initial?.brand ?? '');
   const [servingLabel, setServingLabel] = useState(initial?.servingLabel ?? '');
-  const [servingGrams, setServingGrams] = useState(initial?.servingGrams ?? 0);
-  const [kcalPerServing, setKcalPerServing] = useState(initial?.kcalPerServing ?? 0);
-  const [proteinPerServing, setProteinPerServing] = useState(initial?.proteinPerServing ?? 0);
+  const [basis, setBasis] = useState<FoodBasis>(initial?.basis ?? 'weight');
+  const [servingAmount, setServingAmount] = useState(initial?.servingAmount ?? 0);
+  const [kcalPer100, setKcalPer100] = useState(initial?.kcalPer100 ?? 0);
+  const [proteinPer100, setProteinPer100] = useState(initial?.proteinPer100 ?? 0);
+  const [selectedPreset, setSelectedPreset] = useState<string>(
+    initial ? (presetFor(initial.basis, initial.servingAmount)?.label ?? CUSTOM) : CUSTOM,
+  );
   const [error, setError] = useState<string | null>(null);
 
+  const handlePresetSelect = (option: ServingPreset | typeof CUSTOM): void => {
+    if (option === CUSTOM) {
+      setSelectedPreset(CUSTOM);
+      return;
+    }
+    setSelectedPreset(option.label);
+    setBasis(option.basis);
+    setServingAmount(option.amount);
+    setServingLabel(option.label);
+  };
+
   const handleSave = (): void => {
-    const problem = firstError(name, servingLabel);
+    const problem = firstError(name, servingLabel, servingAmount);
     if (problem) {
       setError(problem);
       return;
@@ -110,11 +243,14 @@ export function FoodForm({ initial = null, onSave, onCancel, theme, testID = 'fo
       name: name.trim(),
       brand: brand.trim().length > 0 ? brand.trim() : null,
       servingLabel: servingLabel.trim(),
-      servingGrams: servingGrams > 0 ? servingGrams : null,
-      kcalPerServing,
-      proteinPerServing,
+      basis,
+      servingAmount,
+      kcalPer100,
+      proteinPer100,
     });
   };
+
+  const unit = UNIT_OF_BASIS[basis];
 
   return (
     // `handled`: with the name field's keyboard up, a tap on a stepper or Save must land on the
@@ -138,33 +274,41 @@ export function FoodForm({ initial = null, onSave, onCancel, theme, testID = 'fo
         testID={`${testID}-serving-label`}
       />
 
+      <PresetRow selectedLabel={selectedPreset} onSelect={handlePresetSelect} theme={theme} testID={`${testID}-preset`} />
+
+      {selectedPreset === CUSTOM ? (
+        <>
+          <BasisToggle basis={basis} onChange={setBasis} theme={theme} testID={`${testID}-basis`} />
+          <Stepper
+            label="Serving amount"
+            value={servingAmount}
+            step={5}
+            max={2000}
+            unit={unit}
+            onChange={setServingAmount}
+            theme={theme}
+            testID={`${testID}-serving-amount`}
+          />
+        </>
+      ) : null}
+
       <Stepper
-        label="Serving grams"
-        value={servingGrams}
-        step={5}
-        max={2000}
-        unit="g"
-        onChange={setServingGrams}
-        theme={theme}
-        testID={`${testID}-serving-grams`}
-      />
-      <Stepper
-        label="Kcal per serving"
-        value={kcalPerServing}
+        label={`Kcal per 100 ${unit}`}
+        value={kcalPer100}
         step={5}
         max={5000}
         unit="kcal"
-        onChange={setKcalPerServing}
+        onChange={setKcalPer100}
         theme={theme}
         testID={`${testID}-kcal`}
       />
       <Stepper
-        label="Protein per serving"
-        value={proteinPerServing}
+        label={`Protein per 100 ${unit}`}
+        value={proteinPer100}
         step={1}
         max={500}
         unit="g"
-        onChange={setProteinPerServing}
+        onChange={setProteinPer100}
         theme={theme}
         testID={`${testID}-protein`}
       />
@@ -213,6 +357,16 @@ const styles = StyleSheet.create({
   input: {
     paddingHorizontal: space[5],
     borderWidth: StyleSheet.hairlineWidth,
+  },
+  presetRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: space[3],
+  },
+  presetChip: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: space[4],
   },
   actions: {
     flexDirection: 'row',

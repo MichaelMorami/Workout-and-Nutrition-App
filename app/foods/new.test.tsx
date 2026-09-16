@@ -43,6 +43,10 @@ describe('NewFoodScreen', () => {
     await renderScreen();
 
     await fireEvent.changeText(screen.getByTestId('food-form-name'), 'Boiled eggs');
+    // Issue #86: a serving needs a basis + amount before Save will fire. The 100 g preset picks
+    // both in one tap and pre-fills the label to "100 g"; overriding it after keeps this food's
+    // own label ("2 eggs") rather than the preset's.
+    await fireEvent.press(screen.getByTestId('food-form-preset-100-g'));
     await fireEvent.changeText(screen.getByTestId('food-form-serving-label'), '2 eggs');
     await fireEvent.press(screen.getByTestId('food-form-kcal-increase'));
     await fireEvent.press(screen.getByTestId('food-form-protein-increase'));
@@ -51,7 +55,7 @@ describe('NewFoodScreen', () => {
     expect(mockCreateFood).toHaveBeenCalledWith(
       expect.anything(),
       expect.objectContaining({
-        food: expect.objectContaining({ name: 'Boiled eggs', servingLabel: '2 eggs', kcalPerServing: 5, proteinPerServing: 1 }),
+        food: expect.objectContaining({ name: 'Boiled eggs', servingLabel: '2 eggs', basis: 'weight', servingAmount: 100, kcalPer100: 5, proteinPer100: 1 }),
       }),
     );
     expect(mockBack).toHaveBeenCalledTimes(1);
