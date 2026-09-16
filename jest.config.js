@@ -90,22 +90,14 @@ module.exports = {
       },
       clearMocks: true,
       restoreMocks: true,
-      /**
-       * The default 5000 ms per-test budget is a laptop number. On the hosted CI runner (2 vCPUs,
-       * `--coverage`, and Jest's own `maxWorkers` therefore pinned to 1) every `components` suite
-       * runs strictly sequentially in one process — there is no free core for a second file to
-       * overlap into. Istanbul's instrumentation and the GC sweep that follows a heavy full-screen
-       * render (`app/(tabs)/index.test.tsx`, which now drives a real log → undo → fade-out cycle
-       * through fake timers) can burn a real, wall-clock second or more right as the *next* queued
-       * file starts mounting its own tree — and Jest's timeout is wall-clock, not the frozen clock,
-       * so it fires regardless of `jest.useFakeTimers()`. Locally, with 6+ idle cores, Jest overlaps
-       * files across workers and this pause never lands in the same process as another suite's
-       * first render, which is exactly why this was 100% green on every local run (single test,
-       * full suite, `--coverage`, `--coverage --runInBand`) and 100% red on CI's single worker.
-       * 20 s buys back that margin without hiding a genuinely hanging test — anything actually stuck
-       * (an unresolved promise, a `waitFor` with nothing to wait for) still fails, just later.
-       */
-      testTimeout: 20000,
+      // The 20s-vs-5s CI budget this project needs (hosted runner, single worker, heavy
+      // full-screen renders — see the rationale above `jest.setTimeout` in
+      // `test/setup/native.ts`) cannot be set here: Jest 29 validates each `projects[]` entry
+      // against a schema that has no `testTimeout` key, so it logs an "Unknown option" warning
+      // and drops it — and even a normalized value would never reach the scheduler, because
+      // `groupOptions()` reads `testTimeout` off the run's one shared *global* config, not off
+      // any individual project. `test/jest-config-projects.test.ts` guards against this coming
+      // back.
     },
   ],
 
