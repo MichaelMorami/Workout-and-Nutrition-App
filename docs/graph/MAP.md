@@ -524,7 +524,7 @@ jq -r '.modules["src/db/queries/nutrition.ts"].exports[]' docs/graph/symbols.jso
 
 ## `src/components/quick-add/`
 
-### `src/components/quick-add/PortionSheet.tsx`  <sub>634 lines</sub>
+### `src/components/quick-add/PortionSheet.tsx`  <sub>686 lines</sub>
 
 - `function PortionSheet({
   candidate,
@@ -537,6 +537,7 @@ jq -r '.modules["src/db/queries/nutrition.ts"].exports[]' docs/graph/symbols.jso
   presentation = 'modal',
   testID = 'portion-sheet',
 }: PortionSheetProps): import("react").JSX.Element | null`
+- `function servingSteps(_candidate: Candidate): readonly number[]`
 - `type PortionSheetProps = {
   /** `null` closes the sheet — there is deliberately no separate `visible` flag to fall out of sync with. */
   readonly candidate: Candidate | null;

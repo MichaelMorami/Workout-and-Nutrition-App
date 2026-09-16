@@ -31,6 +31,7 @@ import {
   Modal,
   PanResponder,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   View,
@@ -42,14 +43,33 @@ import type { Candidate } from '../../db';
 import { useHapticFeedback } from '../../hooks/useHapticFeedback';
 import { haptics, interaction, radius, size, space, type, type Theme, type TypeStyle } from '../../theme/tokens';
 
-const PRESET_MULTIPLES = [0.5, 1, 1.5, 2, 3] as const;
-const PRESET_LABELS: Record<(typeof PRESET_MULTIPLES)[number], string> = {
-  0.5: '½',
-  1: '1',
-  1.5: '1½',
-  2: '2',
-  3: '3',
-};
+/**
+ * The Servings strip's step list (issue #91) — a single function so a later per-serving-type rule
+ * (issue #93) has exactly one place to plug into instead of every call site guessing its own list.
+ * Default: half-servings from ½ up to 8, the same list for a food and a meal candidate until #93
+ * varies it by `candidate`. Built from `n / 2` rather than repeated `+= 0.5` so every entry is an
+ * exact binary float (halves of an integer always are) — no drift to round away.
+ */
+export function servingSteps(_candidate: Candidate): readonly number[] {
+  const steps: number[] = [];
+  for (let half = 1; half <= 16; half += 1) steps.push(half / 2);
+  return steps;
+}
+
+/** "½", "1", "1½", "2" … the step's own value and nothing else — issue #91 drops the per-step kcal
+ * line, so the Servings strip's buttons are value-only. */
+function servingStepLabel(multiple: number): string {
+  const whole = Math.trunc(multiple);
+  const isHalf = multiple - whole === 0.5;
+  if (!isHalf) return `${whole}`;
+  return whole === 0 ? '½' : `${whole}½`;
+}
+
+/** The step in `steps` nearest `target` — how the strip picks what to scroll to and mark selected:
+ * the usual ×1 serving on a fresh log, or the amount already logged when editing (issue #91). */
+function nearestStep(steps: readonly number[], target: number): number {
+  return steps.reduce((closest, step) => (Math.abs(step - target) < Math.abs(closest - target) ? step : closest), steps[0] ?? target);
+}
 
 export type PortionSheetProps = {
   /** `null` closes the sheet — there is deliberately no separate `visible` flag to fall out of sync with. */
@@ -68,9 +88,10 @@ export type PortionSheetProps = {
    * everything that can be predicted" applies to editing exactly as it does to a fresh log.
    */
   readonly initialMode?: 'presets' | 'exact';
-  /** Exact mode's starting amount, as a servings multiple of the candidate's own serving. Defaults
-   * to 1 (fresh logging's "usual serving" start). Ignored by Presets, which has no notion of a
-   * current amount. */
+  /** The starting amount, as a servings multiple of the candidate's own serving. Defaults to 1
+   * (fresh logging's "usual serving" start). Exact mode pre-fills its slider/stepper from it; the
+   * Servings strip (issue #91) uses it only to pick which step it opens scrolled to and marked
+   * selected — editing an already-logged amount lands on that step instead of resetting to ×1. */
   readonly initialPortions?: number;
   /**
    * `'modal'` (default) presents the sheet in its own native `Modal`. `'overlay'` draws the same
@@ -130,7 +151,7 @@ function Segmented({
             onPress={() => onChange(option)}
             accessibilityRole="button"
             accessibilityState={{ selected }}
-            accessibilityLabel={option === 'presets' ? 'Presets' : 'Exact'}
+            accessibilityLabel={option === 'presets' ? 'Servings' : 'Exact'}
             style={[
               styles.segmentOption,
               {
@@ -143,7 +164,7 @@ function Segmented({
             ]}
           >
             <Text style={textStyle(selected ? type.controlSelected : type.control, selected ? segmented.selectedText : segmented.optionText)}>
-              {option === 'presets' ? 'Presets' : 'Exact'}
+              {option === 'presets' ? 'Servings' : 'Exact'}
             </Text>
           </Pressable>
         );
@@ -152,24 +173,51 @@ function Segmented({
   );
 }
 
-function PresetSteps({
+/**
+ * The Servings strip (issue #91) — a horizontal scroll of value-only step buttons, not a fixed
+ * five-across row: `servingSteps` now goes up to 8, more than a sheet-width row could ever hold
+ * without shrinking the touch targets below `size.portionSheet.stepHit`. Only this strip scrolls —
+ * `ScrollView` is sized by its own content, so the sheet around it never grows.
+ *
+ * Opens scrolled so the nearest step to `initialPortions` (the usual ×1 serving fresh, or the
+ * already-logged amount when editing) sits at the strip's leading edge via `contentOffset`, which
+ * — unlike an imperative `scrollTo` — takes effect on the very first frame, so there's no visible
+ * jump from "0" to the anchor after mount. Whatever steps follow past the visible width peek at the
+ * trailing edge for free: the strip's own width is the sheet's content width, no token of its own
+ * needed for that (a peek inset would only matter if a device's width happened to divide evenly by
+ * the step pitch — worth a dedicated token from design-lead if that ever needs guaranteeing).
+ */
+function ServingSteps({
   candidate,
   theme,
   locale,
   onPick,
+  initialPortions = 1,
   testID,
 }: {
   candidate: Candidate;
   theme: Theme;
   locale?: string;
   onPick: (portions: number) => void;
+  initialPortions?: number;
   testID: string;
 }) {
   const { portionSheet } = theme.color;
+  const steps = servingSteps(candidate);
+  const anchor = nearestStep(steps, initialPortions);
+  const anchorIndex = Math.max(0, steps.indexOf(anchor));
+  const pitch = size.portionSheet.stepWidth + space[2];
+
   return (
-    <View style={styles.stepsRow}>
-      {PRESET_MULTIPLES.map((multiple) => {
-        const usual = multiple === 1;
+    <ScrollView
+      testID={`${testID}-steps`}
+      horizontal
+      showsHorizontalScrollIndicator={false}
+      contentOffset={{ x: anchorIndex * pitch, y: 0 }}
+      contentContainerStyle={styles.stepsRow}
+    >
+      {steps.map((multiple) => {
+        const selected = multiple === anchor;
         const kcal = Math.round(candidate.kcal * multiple).toLocaleString(locale);
         return (
           <Pressable
@@ -177,27 +225,26 @@ function PresetSteps({
             testID={`${testID}-step-${multiple}`}
             onPress={() => onPick(multiple)}
             accessibilityRole="button"
-            accessibilityLabel={`Log ${PRESET_LABELS[multiple]} times the usual serving, ${kcal} kilocalories`}
+            accessibilityLabel={`Log ${servingStepLabel(multiple)} times the usual serving, ${kcal} kilocalories`}
             style={[
               styles.step,
               {
                 width: size.portionSheet.stepWidth,
                 minHeight: size.portionSheet.stepHit,
                 borderRadius: radius.md,
-                backgroundColor: usual ? portionSheet.stepSelectedBg : portionSheet.stepBg,
+                backgroundColor: selected ? portionSheet.stepSelectedBg : portionSheet.stepBg,
                 borderWidth: StyleSheet.hairlineWidth,
                 borderColor: portionSheet.stepBorder,
               },
             ]}
           >
-            <Text style={textStyle(type.numericLg, usual ? portionSheet.stepSelectedText : portionSheet.stepText)}>
-              {PRESET_LABELS[multiple]}
+            <Text style={textStyle(type.numericLg, selected ? portionSheet.stepSelectedText : portionSheet.stepText)}>
+              {servingStepLabel(multiple)}
             </Text>
-            <Text style={textStyle(type.label, usual ? portionSheet.stepSelectedText : portionSheet.stepMetaText)}>{`${kcal} kcal`}</Text>
           </Pressable>
         );
       })}
-    </View>
+    </ScrollView>
   );
 }
 
@@ -534,7 +581,14 @@ export function PortionSheet({
         <Segmented theme={theme} mode={mode} onChange={setMode} testID={`${testID}-mode`} />
 
         {mode === 'presets' ? (
-          <PresetSteps candidate={candidate} theme={theme} locale={locale} onPick={handlePick} testID={testID} />
+          <ServingSteps
+            candidate={candidate}
+            theme={theme}
+            locale={locale}
+            onPick={handlePick}
+            initialPortions={initialPortions}
+            testID={testID}
+          />
         ) : (
           <ExactControl
             candidate={candidate}
@@ -587,13 +641,11 @@ const styles = StyleSheet.create({
   },
   stepsRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     gap: space[2],
   },
   step: {
     alignItems: 'center',
     justifyContent: 'center',
-    gap: space[1],
   },
   figuresRow: {
     flexDirection: 'row',
