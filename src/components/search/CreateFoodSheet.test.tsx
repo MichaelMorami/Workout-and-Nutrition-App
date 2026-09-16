@@ -92,6 +92,16 @@ describe('<CreateFoodSheet>', () => {
   it("pre-fills the form's name field from the query", async () => {
     await renderSheet({ query: 'boiled eggs' });
     expect(screen.getByTestId('create-sheet-form-name').props.value).toBe('boiled eggs');
+    expect(screen.getByTestId('create-sheet-title')).toHaveTextContent('Create "boiled eggs"');
+  });
+
+  it('opens on an empty string, not only a non-empty query, with a blank name (issue #97)', async () => {
+    await renderSheet({ query: '' });
+
+    expect(screen.getByTestId('create-sheet')).toBeTruthy();
+    expect(screen.getByTestId('create-sheet-form-name').props.value).toBe('');
+    // No dangling `Create ""` — the blank-query sheet gets its own plain title.
+    expect(screen.getByTestId('create-sheet-title')).toHaveTextContent('Create new food');
   });
 
   it('Save calls createFoodAndLog exactly once with the query as name and logs one serving', async () => {

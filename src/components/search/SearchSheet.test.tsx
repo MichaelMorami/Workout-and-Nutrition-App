@@ -204,7 +204,7 @@ describe('SearchSheet — recent', () => {
     expect(screen.getByTestId('search-sheet-row-food-food-2-name')).toHaveTextContent('Boiled eggs');
   });
 
-  it('shows the "no library yet" empty state, leading to Create, when there is nothing recent', async () => {
+  it('shows the "no library yet" empty state, leading to Create, when there is nothing recent — with the pinned create row still above it (issue #97)', async () => {
     mockQuickAdd.mockReturnValue([]);
     mockRecent.mockReturnValue([]);
     await renderSheet();
@@ -214,6 +214,10 @@ describe('SearchSheet — recent', () => {
     const empty = screen.getByTestId('search-sheet-empty');
     expect(empty.props.accessibilityLabel).toMatch(/no foods yet/i);
     expect(screen.queryByTestId('search-sheet-create')).toBeNull();
+
+    expect(screen.getByTestId('search-sheet-create-new')).toBeTruthy();
+    const order = screen.getAllByTestId(/^search-sheet-(create-new|empty)$/);
+    expect(order.map((el) => el.props.testID)).toEqual(['search-sheet-create-new', 'search-sheet-empty']);
   });
 
   it('does not show the "no library yet" empty state when the library has items, even if nothing is recent', async () => {
@@ -229,6 +233,53 @@ describe('SearchSheet — recent', () => {
     await fireEvent.press(screen.getByTestId('search-sheet-bar'));
 
     expect(screen.queryByTestId('search-sheet-empty')).toBeNull();
+  });
+});
+
+describe('SearchSheet — blank-query create row (issue #97)', () => {
+  it('pins a "+ Create new food" row first, above Recent, for a blank query', async () => {
+    mockRecent.mockReturnValue([eggs]);
+    await renderSheet();
+
+    await fireEvent.press(screen.getByTestId('search-sheet-bar'));
+
+    const createNew = screen.getByTestId('search-sheet-create-new');
+    expect(createNew).toHaveTextContent(/create new food/i);
+    expect(createNew.props.accessibilityRole).toBe('button');
+    expect(createNew.props.accessibilityLabel).toMatch(/create new food/i);
+
+    const order = screen.getAllByTestId(/^search-sheet-(create-new|section-recent)$/);
+    expect(order.map((el) => el.props.testID)).toEqual(['search-sheet-create-new', 'search-sheet-section-recent']);
+  });
+
+  it('tapping the pinned row calls onCreate with an empty string', async () => {
+    const onCreate = jest.fn();
+    await renderSheet({ onCreate });
+    await fireEvent.press(screen.getByTestId('search-sheet-bar'));
+
+    await fireEvent.press(screen.getByTestId('search-sheet-create-new'));
+
+    expect(onCreate).toHaveBeenCalledWith('');
+  });
+
+  it('opens the blank create form (renderCreate) on a tap, with an empty query', async () => {
+    await renderSheet({ renderCreate: ({ query }) => <Text testID="create-query">{query}</Text> });
+    await fireEvent.press(screen.getByTestId('search-sheet-bar'));
+
+    await fireEvent.press(screen.getByTestId('search-sheet-create-new'));
+
+    expect(screen.getByTestId('create-query').props.children).toBe('');
+  });
+
+  it('drops the pinned row once the user types; the trailing Create "‹query›" row is last instead', async () => {
+    mockSearch.mockReturnValue([eggs]);
+    await renderSheet();
+    await fireEvent.press(screen.getByTestId('search-sheet-bar'));
+
+    await fireEvent.changeText(screen.getByTestId('search-sheet-input'), 'egg');
+
+    expect(screen.queryByTestId('search-sheet-create-new')).toBeNull();
+    expect(screen.getByTestId('search-sheet-create')).toHaveTextContent('Create "egg"', { exact: false });
   });
 });
 

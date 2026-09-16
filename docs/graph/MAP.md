@@ -647,7 +647,7 @@ jq -r '.modules["src/db/queries/nutrition.ts"].exports[]' docs/graph/symbols.jso
 
 ## `src/components/search/`
 
-### `src/components/search/CreateFoodSheet.tsx`  <sub>185 lines</sub>
+### `src/components/search/CreateFoodSheet.tsx`  <sub>190 lines</sub>
 
 - `function CreateFoodSheet({ db, query, onLogged, onClose, locale, presentation = 'modal', theme, testID = 'create-food-sheet' }: CreateFoodSheetProps): import("react").JSX.Element | null`
 - `type CreateFoodSheetProps = {
@@ -658,7 +658,7 @@ jq -r '.modules["src/db/queries/nutrition.ts"].exports[]' docs/graph/symbols.jso
   /** Fires with the fresh log's receipt after a successful save — the same shape `QuickAddGrid`/
    * `SearchSheet...`
 
-### `src/components/search/SearchSheet.tsx`  <sub>707 lines</sub>
+### `src/components/search/SearchSheet.tsx`  <sub>746 lines</sub>
 
 - `function SearchSheet({ db, onLogged, onPortionAdded, onCreate, renderCreate, locale, theme, testID = 'search-sheet' }: SearchSheetProps): import("react").JSX.Element`
 - `type CreateSlotArgs = { query: string; onLogged: (receipt: LogReceipt) => void; onClose: () => void }`

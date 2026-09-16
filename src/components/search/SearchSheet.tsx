@@ -16,7 +16,8 @@
  * exactly `QuickAddGrid`'s own doctrine: no dialog, and the sheet stays open, as if the tap simply
  * did not count. What a tap on the trailing *Create* row does (open the add-food form, pre-filled,
  * save-and-log) is #71, exposed here only as a plain callback (`onCreate`) — this component never
- * touches `createFoodAndLog` itself.
+ * touches `createFoodAndLog` itself. The pinned blank-query row (#97, below) funnels through the
+ * exact same `onCreate`/`renderCreate` pair, just with an empty string.
  *
  * RECENT NEVER EXCLUDES THE GRID (issue #95's ruling — reversing #69's original design). Recent is
  * every food and meal logged in the last `interaction.recentDays` days, newest last-log first,
@@ -30,10 +31,16 @@
  * with the grid teaching the same first-time user, and the "no library yet" empty state below.
  *
  * THE LAST ROW WHILE TYPING IS ALWAYS CREATE. Per the decisions doc, `Create "‹query›"` trails every
- * non-empty query — including when there are results, not only when there are none. A blank query
- * has nothing to create from, so Recent never carries one; a library with nothing recent instead
- * gets the "no library yet" teaching empty state, which leads the user to type (and so to Create)
- * rather than rendering a row with no query to seed it.
+ * non-empty query — including when there are results, not only when there are none.
+ *
+ * THE FIRST ROW ON A BLANK QUERY IS ALWAYS CREATE (issue #97 — reversing #69/#70's original
+ * ruling that a blank query "has nothing to create from"). A pinned "+ Create new food" row sits
+ * above Recent, the day-one library fallback and the "no library yet" empty state alike — on day
+ * one it is the obvious next step, and there is no reason to make a user with an empty library type
+ * a throwaway query just to reach Create. It renders as `<CreateNewFoodRow>`, not `<CreateRow>`
+ * (no query to quote), but taps the same `handleCreatePress` with `trimmedQuery` already `''`, so it
+ * opens `renderCreate`/calls `onCreate` exactly like the trailing row does — `CreateFoodSheet` (#71)
+ * already treats any non-null query, including `''`, as "open with a blank name".
  *
  * NO NEW NATIVE DEPENDENCY: `Modal`'s built-in `animationType="slide"` presents the sheet, the same
  * choice `<PortionSheet>` made and for the same reason.
@@ -241,6 +248,33 @@ function CreateRow({ query, theme, onPress, testID }: { query: string; theme: Th
       </View>
       <View style={styles.rowText}>
         <Text style={textStyle(type.body, resultRow.createText)}>{`Create "${query}"`}</Text>
+        <Text style={textStyle(type.caption, resultRow.createMetaText)}>New food · logs one serving</Text>
+      </View>
+    </Pressable>
+  );
+}
+
+/** The pinned "+ Create new food" row (issue #97) — the blank-query counterpart to `<CreateRow>`.
+ * No query to quote, so its own copy and a11y label say so plainly; same `resultRow.create*`
+ * tokens, same tap target, same trailing "logs one serving" promise once the form is saved. */
+function CreateNewFoodRow({ theme, onPress, testID }: { theme: Theme; onPress: () => void; testID: string }) {
+  const { resultRow } = theme.color;
+  return (
+    <Pressable
+      testID={testID}
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityLabel="Create new food"
+      style={[
+        styles.row,
+        { minHeight: size.resultRow.heightHit, backgroundColor: resultRow.bg, borderBottomColor: resultRow.divider, borderBottomWidth: StyleSheet.hairlineWidth },
+      ]}
+    >
+      <View style={[styles.createDisc, { width: size.resultRow.createDisc, height: size.resultRow.createDisc, borderRadius: size.resultRow.createDisc / 2, backgroundColor: resultRow.createIconBg }]}>
+        <Text style={{ fontSize: size.icon.lg, color: resultRow.createIcon }}>+</Text>
+      </View>
+      <View style={styles.rowText}>
+        <Text style={textStyle(type.body, resultRow.createText)}>Create new food</Text>
         <Text style={textStyle(type.caption, resultRow.createMetaText)}>New food · logs one serving</Text>
       </View>
     </Pressable>
@@ -493,6 +527,21 @@ export function SearchSheet({ db, onLogged, onPortionAdded, onCreate, renderCrea
       ? { title: 'Recent', meta: `${interaction.recentDays} days`, testID: `${testID}-section-recent` }
       : null;
 
+  // The pinned blank-query row (issue #97) is drawn as part of the list header, never as a data
+  // row: `ListHeaderComponent` renders above every data row *and* above the section header below
+  // it, so it stays first whether Recent has items, the library is empty, or anything in between.
+  const listHeader = (
+    <>
+      {!typing ? <CreateNewFoodRow theme={theme} onPress={handleCreatePress} testID={`${testID}-create-new`} /> : null}
+      {header ? (
+        <View testID={header.testID} style={styles.sectionHeader}>
+          <Text style={textStyle(type.micro, searchSheet.sectionText)}>{header.title}</Text>
+          <Text style={textStyle(type.label, searchSheet.sectionMetaText)}>{header.meta}</Text>
+        </View>
+      ) : null}
+    </>
+  );
+
   return (
     <View testID={testID}>
       <Pressable
@@ -578,24 +627,14 @@ export function SearchSheet({ db, onLogged, onPortionAdded, onCreate, renderCrea
               </Pressable>
             </View>
 
-            {showNoLibraryEmptyState ? (
-              <NoLibraryEmptyState theme={theme} testID={`${testID}-empty`} />
-            ) : (
-              <FlatList
-                data={rows}
-                keyExtractor={(row) => row.key}
-                renderItem={renderRow}
-                keyboardShouldPersistTaps="handled"
-                ListHeaderComponent={
-                  header ? (
-                    <View testID={header.testID} style={styles.sectionHeader}>
-                      <Text style={textStyle(type.micro, searchSheet.sectionText)}>{header.title}</Text>
-                      <Text style={textStyle(type.label, searchSheet.sectionMetaText)}>{header.meta}</Text>
-                    </View>
-                  ) : null
-                }
-              />
-            )}
+            <FlatList
+              data={rows}
+              keyExtractor={(row) => row.key}
+              renderItem={renderRow}
+              keyboardShouldPersistTaps="handled"
+              ListHeaderComponent={listHeader}
+              ListFooterComponent={showNoLibraryEmptyState ? <NoLibraryEmptyState theme={theme} testID={`${testID}-empty`} /> : null}
+            />
           </View>
 
           {createQuery !== null && renderCreate ? (
