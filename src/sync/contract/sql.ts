@@ -123,7 +123,11 @@ export interface ParsedSql {
   policiesFor(table: string, command: PolicyCommand): readonly ParsedPolicy[];
   /** The only policy for `command`, or `undefined`. Throws if there is more than one. */
   policyFor(table: string, command: PolicyCommand): ParsedPolicy | undefined;
-  /** The last explicit grant or revoke of `privilege` on `table` to `role`, across the whole set. */
+  /**
+   * The effective explicit state of `privilege` on `table` for `role`, across the whole set: the last
+   * grant or revoke to the role, overridden by a standing grant to `public`. `table` and `role` are
+   * resolved names (`food_log`, `authenticated`), not SQL as written.
+   */
   privilegeState(table: string, role: string, privilege: string): PrivilegeState;
 }
 
@@ -148,16 +152,70 @@ const TABLE_CONSTRAINT_PREFIXES = ['constraint ', 'primary key', 'unique', 'chec
 
 const squash = (text: string): string => text.replace(/\s+/g, ' ').trim();
 
+/** One identifier as written: a `"quoted"` one (with `""` escapes) or a plain word. */
+const IDENTIFIER = '(?:"(?:[^"]|"")+"|[A-Za-z_][A-Za-z0-9_$]*)';
+const LEADING_IDENTIFIER = new RegExp(`^${IDENTIFIER}`);
+
+/**
+ * Resolve one identifier the way Postgres does (#130): an unquoted name folds to lower case, so
+ * `Food_Log` and `FOOD_LOG` are both `food_log`; a quoted name keeps its case exactly, so `"Food_Log"`
+ * is a different table. Every name used as a map key goes through here, or a mixed-case statement
+ * lands under a key no check ever reads.
+ */
+const identifier = (raw: string): string =>
+  raw.startsWith('"') ? raw.slice(1, -1).replace(/""/g, '"') : raw.toLowerCase();
+
+/** Resolve a dotted name (`public."Thing"`) into its parts. Throws on anything that is not one. */
+const nameParts = (name: string): string[] => {
+  const parts: string[] = [];
+  let rest = name;
+  for (;;) {
+    const match = LEADING_IDENTIFIER.exec(rest);
+    if (!match) throw new SqlSyntaxError(`not an identifier: "${name}"`, 0);
+    parts.push(identifier(match[0]));
+    rest = rest.slice(match[0].length);
+    if (rest.length === 0) return parts;
+    if (!rest.startsWith('.')) throw new SqlSyntaxError(`not an identifier: "${name}"`, 0);
+    rest = rest.slice(1);
+  }
+};
+
 const unqualified = (name: string): string => {
-  const parts = name.split('.');
-  // `noUncheckedIndexedAccess` is on; `split` always yields at least one element, but prove it.
-  return (parts[parts.length - 1] ?? name).replace(/"/g, '');
+  const parts = nameParts(name);
+  // `noUncheckedIndexedAccess` is on; `nameParts` always yields at least one part, but prove it.
+  return parts[parts.length - 1] ?? name;
 };
 
 const schemaOf = (name: string): string | null => {
-  const parts = name.split('.');
-  return parts.length > 1 ? (parts[0] ?? '').replace(/"/g, '') : null;
+  const parts = nameParts(name);
+  return parts.length > 1 ? (parts[0] ?? null) : null;
 };
+
+/** A name that must not be qualified, such as a policy's. */
+const bareName = (name: string): string => {
+  const parts = nameParts(name);
+  if (parts.length !== 1) throw new SqlSyntaxError(`expected an unqualified name: "${name}"`, 0);
+  return parts[0] ?? name;
+};
+
+/** The role every role is a member of. A privilege granted to it is held by `authenticated` too. */
+const PUBLIC_ROLE = 'public';
+
+/** One role in a `to …` / `from …` list: an identifier, optionally after the noise word `group`. */
+const ROLE_SPEC = new RegExp(`^(?:group\\s+)?(${IDENTIFIER})$`, 'i');
+
+/**
+ * Read a role list strictly. Anything that is not a comma-separated list of role identifiers throws:
+ * the old reader took `authenticated granted by postgres` as one role name, which silently hid the
+ * grant (#131). Guessing a role name is how a check stops seeing a grant.
+ */
+const rolesIn = (list: string): string[] =>
+  list.split(',').map((item) => {
+    const match = ROLE_SPEC.exec(item.trim());
+    if (!match) throw new SqlSyntaxError(`not a role list: "${list}"`, 0);
+    // `"public"` is PUBLIC as well: Postgres resolves the name before it looks for the keyword.
+    return identifier(match[1] as string);
+  });
 
 /**
  * Split into statements, stripping comments. Respects `'…'` (with `''` escapes), `"…"` quoted
@@ -408,18 +466,13 @@ function parsePolicy(statement: string, origin: string): ParsedPolicy | null {
   }
 
   const rolesMatch = /\bto\s+([\w",\s]+?)(?=\s+(?:using|with\s+check)\b|$)/i.exec(rest);
-  const roles = rolesMatch?.[1]
-    ? rolesMatch[1]
-        .split(',')
-        .map((role) => role.trim().replace(/"/g, ''))
-        .filter((role) => role.length > 0)
-    : [];
+  const roles = rolesMatch?.[1] ? rolesIn(rolesMatch[1]) : [];
 
   const usingAt = /\busing\s*\(/i.exec(rest);
   const withCheckAt = /\bwith\s+check\s*\(/i.exec(rest);
 
   return {
-    name: (head[1] as string).replace(/"/g, ''),
+    name: bareName(head[1] as string),
     table: unqualified(head[2] as string),
     command,
     roles,
@@ -435,9 +488,14 @@ function parsePolicy(statement: string, origin: string): ParsedPolicy | null {
 const CREATE_INDEX =
   /^create\s+(?:unique\s+)?index\s+(?:concurrently\s+)?(?:if\s+not\s+exists\s+)?[\w".]+\s+on\s+[\w".]+\s*\(/is;
 const DROP_POLICY = /^drop\s+policy\s+(?:if\s+exists\s+)?([\w"]+)\s+on\s+([\w".]+)$/i;
-const GRANT = /^grant\s+(.+?)\s+on\s+(?:table\s+)?([\w".]+)\s+to\s+(.+?)(?:\s+with\s+grant\s+option)?$/i;
+/**
+ * `granted by` names the grantor, not a grantee: it is matched off the end so it never reaches the
+ * role list (#131). Its role is not recorded — it does not change who holds the privilege.
+ */
+const GRANT =
+  /^grant\s+(.+?)\s+on\s+(?:table\s+)?([\w".]+)\s+to\s+(.+?)(?:\s+with\s+grant\s+option)?(?:\s+granted\s+by\s+\S+)?$/i;
 const REVOKE =
-  /^revoke\s+(?:grant\s+option\s+for\s+)?(.+?)\s+on\s+(?:table\s+)?([\w".]+)\s+from\s+(.+?)(?:\s+(?:cascade|restrict))?$/i;
+  /^revoke\s+(?:grant\s+option\s+for\s+)?(.+?)\s+on\s+(?:table\s+)?([\w".]+)\s+from\s+(.+?)(?:\s+granted\s+by\s+\S+)?(?:\s+(?:cascade|restrict))?$/i;
 
 const RLS =
   /^alter\s+table\s+(?:if\s+exists\s+)?([\w".]+)\s+(enable|force|disable|no\s+force)\s+row\s+level\s+security$/i;
@@ -450,12 +508,6 @@ const privilegesIn = (list: string): string[] =>
     const privilege = squash(item).toLowerCase().replace(/\s+privileges$/, '');
     return privilege === 'all' ? ALL_PRIVILEGES : [privilege];
   });
-
-const rolesIn = (list: string): string[] =>
-  list
-    .split(',')
-    .map((role) => role.trim().replace(/"/g, ''))
-    .filter((role) => role.length > 0);
 
 type MutableRls = { -readonly [K in keyof ParsedRls]: ParsedRls[K] };
 
@@ -515,7 +567,7 @@ export function parseMigrations(sources: readonly MigrationSource[]): ParsedSql 
 
       const dropped = DROP_POLICY.exec(flat);
       if (dropped) {
-        policies.delete(`${unqualified(dropped[2] as string)}.${(dropped[1] as string).replace(/"/g, '')}`);
+        policies.delete(`${unqualified(dropped[2] as string)}.${bareName(dropped[1] as string)}`);
         continue;
       }
 
@@ -575,8 +627,17 @@ export function parseMigrations(sources: readonly MigrationSource[]): ParsedSql 
       }
       return found[0];
     },
-    privilegeState: (table, role, privilege) =>
-      privileges.get(`${table}|${role}|${privilege.toLowerCase()}`) ?? 'unstated',
+    privilegeState: (table, role, privilege) => {
+      const stated = (grantee: string): PrivilegeState =>
+        privileges.get(`${table}|${grantee}|${privilege.toLowerCase()}`) ?? 'unstated';
+      const own = stated(role);
+      // Privileges are additive: a role holds what it was granted *or* what public was granted, and
+      // revoking from one does not take away the other (#131). A public revoke proves nothing about
+      // the role. An unstated public is not held: Postgres grants public no table privileges, and
+      // Supabase's bootstrap grants to named roles, not to public.
+      if (role !== PUBLIC_ROLE && stated(PUBLIC_ROLE) === 'granted') return 'granted';
+      return own;
+    },
   };
 }
 
