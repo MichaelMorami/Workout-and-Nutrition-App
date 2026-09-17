@@ -399,6 +399,110 @@ describe('a later migration that weakens RLS turns the suite red', () => {
     expect(rlsViolations(withLater(sql)).join('\n')).toContain(violation);
   });
 
+  /**
+   * Regression for #130: Postgres folds unquoted identifiers to lower case, so `public.Food_Log` *is*
+   * `food_log`. The reader used to key names as written, and every one of these passed with zero
+   * violations.
+   */
+  it.each([
+    [
+      'disables RLS on a mixed-case name',
+      'ALTER TABLE public.Food_Log DISABLE ROW LEVEL SECURITY;',
+      'food_log: RLS not enabled',
+    ],
+    [
+      'un-forces RLS on an upper-case name',
+      'alter table PUBLIC.FOODS no force row level security;',
+      'foods: RLS not forced',
+    ],
+    [
+      'adds a permissive DELETE policy on an upper-case name',
+      'create policy x on public.FOOD_LOG for delete to authenticated using (true);',
+      'food_log: permissive delete policy x',
+    ],
+    [
+      'adds a using (true) SELECT policy on a mixed-case name',
+      'create policy x on public.Foods for select to authenticated using (true);',
+      'foods: 2 select policies',
+    ],
+    [
+      'grants DELETE on a mixed-case name',
+      'grant delete on public.Food_Log to authenticated;',
+      'food_log: DELETE is granted',
+    ],
+    [
+      'grants DELETE to an upper-case role',
+      'grant delete on public.food_log to AUTHENTICATED;',
+      'food_log: DELETE is granted',
+    ],
+    [
+      'drops the owner policy by an upper-case name',
+      'DROP POLICY FOOD_LOG_SELECT_OWN ON PUBLIC.FOOD_LOG;',
+      'food_log: 0 select policies',
+    ],
+    // PR #134 review: the policy's table name used to end at any word boundary, so these keyed the
+    // policy to table `public` and passed. Postgres reads the whole qualified name.
+    [
+      'adds a SELECT policy with spaces around the dot',
+      'create policy x on public . foods for select to authenticated using (true);',
+      'foods: 2 select policies',
+    ],
+    [
+      'adds a SELECT policy with the table name wrapped after the dot',
+      'create policy x on public.\n  foods for select to authenticated using (true);',
+      'foods: 2 select policies',
+    ],
+    [
+      'adds a DELETE policy with the table name wrapped after the dot',
+      'create policy x on public.\n  food_log for delete to authenticated using (true);',
+      'food_log: permissive delete policy x',
+    ],
+  ])('%s', (_label, sql, violation) => {
+    expect(rlsViolations(withLater(sql)).join('\n')).toContain(violation);
+  });
+
+  it.each([
+    ['a Unicode-escape table name', 'create policy x on U&"foods" for select to authenticated using (true);'],
+    [
+      'a qualified Unicode-escape table name',
+      'create policy x on public.U&"food_log" for all to authenticated using (true);',
+    ],
+  ])('fails closed on a policy over %s', (_label, sql) => {
+    // The reader does not decode U& escapes, so it must refuse the statement rather than guess a table.
+    expect(() => withLater(sql)).toThrow(/unrecognised statement/);
+  });
+
+  it('does not fold a quoted identifier: "Food_Log" is a different table', () => {
+    // Quoted names keep their case in Postgres, so this touches a table that is not synced.
+    expect(rlsViolations(withLater('alter table public."Food_Log" disable row level security;'))).toEqual([]);
+  });
+
+  /**
+   * Regression for #131: `public` covers every role, and `granted by` used to be read as part of the
+   * role name. Both re-granted DELETE with zero violations.
+   */
+  it.each([
+    ['grants DELETE to public', 'grant delete on public.food_log to public;', 'food_log: DELETE is granted'],
+    ['grants DELETE to PUBLIC', 'grant delete on public.foods to PUBLIC;', 'foods: DELETE is granted'],
+    [
+      'grants DELETE with granted by',
+      'grant delete on public.food_log to authenticated granted by postgres;',
+      'food_log: DELETE is granted',
+    ],
+    [
+      'grants ALL to public with grant option and granted by',
+      'grant all on public.foods to public with grant option granted by postgres;',
+      'foods: DELETE is granted',
+    ],
+    [
+      'grants DELETE to group authenticated',
+      'grant delete on public.food_log to group authenticated;',
+      'food_log: DELETE is granted',
+    ],
+  ])('%s', (_label, sql, violation) => {
+    expect(rlsViolations(withLater(sql)).join('\n')).toContain(violation);
+  });
+
   it('the reviewer\'s exact reproduction fails', () => {
     const set = withLater(`
       alter table public.food_log disable row level security;

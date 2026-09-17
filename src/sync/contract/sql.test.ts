@@ -232,3 +232,131 @@ describe('reading grants and revokes, in order', () => {
     expect(set.privilegeState('t', 'authenticated', 'delete')).toBe('granted');
   });
 });
+
+/**
+ * #130: Postgres folds an unquoted identifier to lower case and keeps a quoted one as written. The
+ * reader must key every table, schema, policy and role name the same way, or a mixed-case statement
+ * lands under a key no check looks at.
+ */
+describe('identifier case, the way Postgres folds it', () => {
+  it('lower-cases unquoted table and schema names', () => {
+    const set = parseSql('create table PUBLIC.Thing (id uuid primary key);');
+    expect(set.tables.get('thing')?.schema).toBe('public');
+    expect(set.tables.has('Thing')).toBe(false);
+  });
+
+  it('keeps a quoted name as written', () => {
+    const set = parseSql('create table "Public"."Thing" (id uuid primary key);');
+    expect(set.tables.get('Thing')?.schema).toBe('Public');
+    expect(set.tables.has('thing')).toBe(false);
+  });
+
+  it('reads a doubled quote inside a quoted name as one quote', () => {
+    expect(parseSql('create table public."a""b" (id uuid primary key);').tables.has('a"b')).toBe(true);
+  });
+
+  it('folds RLS toggles onto the same table', () => {
+    const set = parseSql(
+      'alter table public.Thing enable row level security; ALTER TABLE PUBLIC.THING FORCE ROW LEVEL SECURITY;',
+    );
+    expect(set.rlsEnabled.has('thing')).toBe(true);
+    expect(set.rlsForced.has('thing')).toBe(true);
+  });
+
+  it('folds policy names, tables and roles', () => {
+    const set = parseSql('create policy Thing_Read on public.THING for select to AUTHENTICATED using (true);');
+    expect(set.policyFor('thing', 'select')).toMatchObject({ name: 'thing_read', roles: ['authenticated'] });
+  });
+
+  it('drops a policy named in a different case', () => {
+    const set = parseSql(
+      'create policy p on public.thing for select to authenticated using (true); drop policy P on PUBLIC.Thing;',
+    );
+    expect(set.policies).toEqual([]);
+  });
+
+  it('reads a policy table name with whitespace around the dot as one name', () => {
+    const set = parseSql('create policy p on public .\n thing for select to authenticated using (true);');
+    expect(set.policyFor('thing', 'select')).toMatchObject({ name: 'p', table: 'thing' });
+  });
+
+  it.each([
+    ['a word between the table name and its clauses', 'create policy p on public.thing junk for select using (true)'],
+    ['a Unicode-escape table name', 'create policy p on U&"thing" for select using (true)'],
+    ['a name that stops at a dot', 'create policy p on public. for select using (true)'],
+  ])('throws on a policy with %s rather than keying it to part of a name', (_label, statement) => {
+    expect(() => parseSql(`${statement};`)).toThrow(SqlSyntaxError);
+  });
+
+  it('keeps a quoted role as written, so "AUTHENTICATED" is not authenticated', () => {
+    const set = parseSql('grant delete on public.t to "AUTHENTICATED";');
+    expect(set.privilegeState('t', 'authenticated', 'delete')).toBe('unstated');
+    expect(set.privilegeState('t', 'AUTHENTICATED', 'delete')).toBe('granted');
+  });
+
+  it('folds grants on a mixed-case table and role', () => {
+    const set = parseSql('grant delete on Public.T to Authenticated;');
+    expect(set.privilegeState('t', 'authenticated', 'delete')).toBe('granted');
+  });
+});
+
+/** #131: every route by which a grant reaches a role is folded into `privilegeState`. */
+describe('grants that reach a role by another route', () => {
+  const deleteFor = (sql: string, role = 'authenticated'): string =>
+    parseSql(sql).privilegeState('t', role, 'delete');
+
+  it('treats a grant to public as a grant to every role', () => {
+    const sql = 'revoke delete on public.t from authenticated; grant delete on public.t to public;';
+    expect(deleteFor(sql)).toBe('granted');
+    expect(deleteFor(sql, 'anon')).toBe('granted');
+  });
+
+  it('keeps a public grant in force when the role alone is revoked afterwards', () => {
+    // Privileges are additive: revoking from authenticated does not take away what public holds.
+    expect(deleteFor('grant delete on public.t to public; revoke delete on public.t from authenticated;')).toBe(
+      'granted',
+    );
+  });
+
+  it('does not let a revoke from public stand in for a revoke from the role', () => {
+    expect(deleteFor('revoke delete on public.t from public;')).toBe('unstated');
+  });
+
+  it('is revoked once both public and the role are revoked', () => {
+    expect(
+      deleteFor(
+        'grant delete on public.t to public; revoke delete on public.t from public; ' +
+          'revoke delete on public.t from authenticated;',
+      ),
+    ).toBe('revoked');
+  });
+
+  it('reads the role list before granted by', () => {
+    const sql = 'grant delete on public.t to authenticated, anon granted by postgres;';
+    expect(deleteFor(sql)).toBe('granted');
+    expect(deleteFor(sql, 'anon')).toBe('granted');
+  });
+
+  it('reads with grant option followed by granted by', () => {
+    expect(deleteFor('grant delete on public.t to authenticated with grant option granted by current_user;')).toBe(
+      'granted',
+    );
+  });
+
+  it('reads a revoke that carries granted by', () => {
+    expect(deleteFor('revoke delete on public.t from authenticated granted by postgres cascade;')).toBe('revoked');
+  });
+
+  it('reads the optional group keyword', () => {
+    expect(deleteFor('grant delete on public.t to group authenticated;')).toBe('granted');
+  });
+
+  it.each([
+    ['trailing words after the roles', 'grant delete on public.t to authenticated whatever'],
+    ['a role that is not an identifier', 'grant delete on public.t to authenticated-ish'],
+    ['an empty role in the list', 'grant delete on public.t to authenticated, , anon'],
+    ['a granted by with no role', 'grant delete on public.t to authenticated granted by'],
+  ])('throws on %s rather than guessing a role name', (_label, statement) => {
+    expect(() => parseSql(`${statement};`)).toThrow(SqlSyntaxError);
+  });
+});
