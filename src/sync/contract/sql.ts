@@ -55,6 +55,8 @@ export interface ParsedTable {
   readonly columns: readonly ParsedColumn[];
   readonly checks: readonly ParsedCheck[];
   readonly primaryKey: readonly string[];
+  /** The migration that created it. */
+  readonly origin: string;
   column(name: string): ParsedColumn | undefined;
   check(name: string): ParsedCheck | undefined;
 }
@@ -68,18 +70,49 @@ export interface ParsedPolicy {
   readonly roles: readonly string[];
   readonly using: string | null;
   readonly withCheck: string | null;
+  /** `false` for `as restrictive`. Permissive policies OR together; restrictive ones AND. */
+  readonly permissive: boolean;
+  /** The migration that created it. */
+  readonly origin: string;
 }
 
+/** One migration file: its name (for ordering and error messages) and its text. */
+export interface MigrationSource {
+  readonly name: string;
+  readonly sql: string;
+}
+
+/** Effective RLS for one table after the whole migration set has run. */
+export interface ParsedRls {
+  readonly enabled: boolean;
+  readonly forced: boolean;
+  /** The migration whose statement last enabled or disabled RLS, or `null` if none did. */
+  readonly enabledIn: string | null;
+  /** The migration whose statement last forced or un-forced RLS, or `null` if none did. */
+  readonly forcedIn: string | null;
+}
+
+/**
+ * The schema a migration set describes **after every statement in every file has run, in order** —
+ * not the contents of any one file. RLS is a property of the final schema, so a later migration that
+ * disables it, drops a policy or adds a permissive one must show up here.
+ */
 export interface ParsedSql {
-  /** Statements in file order, comments stripped and trimmed. Empty ones are dropped. */
+  /** Every statement across every source, in order, comments stripped and trimmed. */
   readonly statements: readonly string[];
   /** Created tables, keyed by unqualified name. */
   readonly tables: ReadonlyMap<string, ParsedTable>;
+  /** Policies still standing at the end — a dropped policy is gone. */
   readonly policies: readonly ParsedPolicy[];
-  /** Unqualified names of tables with `enable row level security`. */
+  /** Effective RLS per table, keyed by unqualified name. */
+  readonly rls: ReadonlyMap<string, ParsedRls>;
+  /** Tables whose RLS is enabled at the end. Derived from `rls`. */
   readonly rlsEnabled: ReadonlySet<string>;
-  /** Unqualified names of tables with `force row level security`. */
+  /** Tables whose RLS is forced at the end. Derived from `rls`. */
   readonly rlsForced: ReadonlySet<string>;
+  /** Every standing policy on `table` for `command`. Several permissive ones OR together. */
+  policiesFor(table: string, command: PolicyCommand): readonly ParsedPolicy[];
+  /** The only policy for `command`, or `undefined`. Throws if there is more than one. */
   policyFor(table: string, command: PolicyCommand): ParsedPolicy | undefined;
 }
 
@@ -298,7 +331,7 @@ function parseColumn(item: string): ParsedColumn {
   };
 }
 
-function parseCreateTable(statement: string): ParsedTable | null {
+function parseCreateTable(statement: string, origin: string): ParsedTable | null {
   const head = /^create\s+table\s+(?:if\s+not\s+exists\s+)?([\w".]+)\s*\(/is.exec(statement);
   if (!head) return null;
   const qualified = head[1] as string;
@@ -341,21 +374,26 @@ function parseCreateTable(statement: string): ParsedTable | null {
     columns,
     checks,
     primaryKey,
+    origin,
     column: (name) => columns.find((c) => c.name === name),
     check: (name) => checks.find((c) => c.name === name),
   };
   return table;
 }
 
-function parsePolicy(statement: string): ParsedPolicy | null {
+function parsePolicy(statement: string, origin: string): ParsedPolicy | null {
   const head = /^create\s+policy\s+([\w"]+)\s+on\s+([\w".]+)\b/is.exec(statement);
   if (!head) return null;
-  const rest = squash(statement.slice(head[0].length));
+  let rest = squash(statement.slice(head[0].length));
+
+  // `as restrictive` precedes `for`; without this a restrictive SELECT would misread as an ALL policy.
+  const mode = /^as\s+(permissive|restrictive)\b/i.exec(rest);
+  if (mode) rest = rest.slice(mode[0].length).trim();
 
   const commandMatch = /^for\s+(\w+)\b/i.exec(rest);
   const command = (commandMatch?.[1]?.toLowerCase() ?? 'all') as PolicyCommand;
   if (!POLICY_COMMANDS.includes(command)) {
-    throw new SqlSyntaxError(`unknown policy command "${command}"`, 0);
+    throw new SqlSyntaxError(`unknown policy command "${command}" in ${origin}`, 0);
   }
 
   const rolesMatch = /\bto\s+([\w",\s]+?)(?=\s+(?:using|with\s+check)\b|$)/i.exec(rest);
@@ -378,6 +416,8 @@ function parsePolicy(statement: string): ParsedPolicy | null {
     withCheck: withCheckAt
       ? squash(parenBody(rest, withCheckAt.index + withCheckAt[0].length - 1))
       : null,
+    permissive: (mode?.[1] ?? 'permissive').toLowerCase() === 'permissive',
+    origin,
   };
 }
 
@@ -388,60 +428,112 @@ const GRANT = /^grant\s+(.+?)\s+on\s+(?:table\s+)?([\w".]+)\s+to\s+(.+?)(?:\s+wi
 const REVOKE =
   /^revoke\s+(?:grant\s+option\s+for\s+)?(.+?)\s+on\s+(?:table\s+)?([\w".]+)\s+from\s+(.+?)(?:\s+(?:cascade|restrict))?$/i;
 
-/** Read a migration file's text. Throws `SqlSyntaxError` rather than reporting a broken file as fine. */
-export function parseSql(sql: string): ParsedSql {
-  const statements = splitStatements(sql);
+const RLS =
+  /^alter\s+table\s+(?:if\s+exists\s+)?([\w".]+)\s+(enable|force|disable|no\s+force)\s+row\s+level\s+security$/i;
+
+type MutableRls = { -readonly [K in keyof ParsedRls]: ParsedRls[K] };
+
+/**
+ * Read a whole migration set, applying every statement in order, into the schema it leaves behind.
+ * Throws `SqlSyntaxError` on any statement outside the allowlist — never skips one.
+ */
+export function parseMigrations(sources: readonly MigrationSource[]): ParsedSql {
+  const statements: string[] = [];
   const tables = new Map<string, ParsedTable>();
-  const policies: ParsedPolicy[] = [];
-  const rlsEnabled = new Set<string>();
-  const rlsForced = new Set<string>();
+  /** Keyed `table.policy` — Postgres policy names are unique per table. */
+  const policies = new Map<string, ParsedPolicy>();
+  const rls = new Map<string, MutableRls>();
 
-  for (const statement of statements) {
-    const table = parseCreateTable(statement);
-    if (table) {
-      tables.set(table.name, table);
-      continue;
+  const rlsOf = (table: string): MutableRls => {
+    let state = rls.get(table);
+    if (!state) {
+      state = { enabled: false, forced: false, enabledIn: null, forcedIn: null };
+      rls.set(table, state);
     }
+    return state;
+  };
 
-    const policy = parsePolicy(statement);
-    if (policy) {
-      policies.push(policy);
-      continue;
+  for (const source of sources) {
+    for (const statement of splitStatements(source.sql)) {
+      statements.push(statement);
+      const flat = squash(statement);
+
+      const table = parseCreateTable(statement, source.name);
+      if (table) {
+        if (tables.has(table.name)) {
+          throw new SqlSyntaxError(`${source.name}: table ${table.name} is created twice`, 0);
+        }
+        tables.set(table.name, table);
+        continue;
+      }
+
+      const policy = parsePolicy(statement, source.name);
+      if (policy) {
+        const key = `${policy.table}.${policy.name}`;
+        if (policies.has(key)) {
+          throw new SqlSyntaxError(`${source.name}: policy ${key} is created twice`, 0);
+        }
+        policies.set(key, policy);
+        continue;
+      }
+
+      const dropped = DROP_POLICY.exec(flat);
+      if (dropped) {
+        policies.delete(`${unqualified(dropped[2] as string)}.${(dropped[1] as string).replace(/"/g, '')}`);
+        continue;
+      }
+
+      const toggled = RLS.exec(flat);
+      if (toggled) {
+        const state = rlsOf(unqualified(toggled[1] as string));
+        const mode = squash((toggled[2] as string).toLowerCase());
+        if (mode === 'enable' || mode === 'disable') {
+          state.enabled = mode === 'enable';
+          state.enabledIn = source.name;
+        } else {
+          state.forced = mode === 'force';
+          state.forcedIn = source.name;
+        }
+        continue;
+      }
+
+      if (CREATE_INDEX.test(statement)) continue;
+      if (GRANT.test(flat)) continue;
+      if (REVOKE.test(flat)) continue;
+
+      throw new SqlSyntaxError(
+        `${source.name}: unrecognised statement: this reader vouches only for create table, create ` +
+          'index, alter table ... row level security, create policy, drop policy, grant and revoke. ' +
+          `Teach it the construct with a test instead of letting it pass unread: "${flat.slice(0, 80)}"`,
+        0,
+      );
     }
-
-    if (CREATE_INDEX.test(statement)) continue;
-    if (DROP_POLICY.test(squash(statement))) continue;
-    if (GRANT.test(squash(statement))) continue;
-    if (REVOKE.test(squash(statement))) continue;
-
-    const rls = /^alter\s+table\s+([\w".]+)\s+(enable|force|disable|no\s+force)\s+row\s+level\s+security$/is.exec(
-      squash(statement),
-    );
-    if (rls) {
-      const name = unqualified(rls[1] as string);
-      const mode = squash((rls[2] as string).toLowerCase());
-      if (mode === 'enable') rlsEnabled.add(name);
-      if (mode === 'force') rlsForced.add(name);
-      if (mode === 'disable') rlsEnabled.delete(name);
-      if (mode === 'no force') rlsForced.delete(name);
-      continue;
-    }
-
-    throw new SqlSyntaxError(
-      'unrecognised statement: this reader vouches only for create table, create index, alter table ' +
-        '... row level security, create policy, drop policy, grant and revoke. Teach it the construct ' +
-        `with a test instead of letting it pass unread: "${squash(statement).slice(0, 80)}"`,
-      0,
-    );
   }
+
+  const standing = [...policies.values()];
+  const policiesFor = (table: string, command: PolicyCommand): ParsedPolicy[] =>
+    standing.filter((p) => p.table === table && p.command === command);
 
   return {
     statements,
     tables,
-    policies,
-    rlsEnabled,
-    rlsForced,
-    policyFor: (table, command) =>
-      policies.find((p) => p.table === table && p.command === command),
+    policies: standing,
+    rls,
+    rlsEnabled: new Set([...rls].filter(([, state]) => state.enabled).map(([name]) => name)),
+    rlsForced: new Set([...rls].filter(([, state]) => state.forced).map(([name]) => name)),
+    policiesFor,
+    policyFor: (table, command) => {
+      const found = policiesFor(table, command);
+      if (found.length > 1) {
+        // Permissive policies OR together: naming one of several as "the" policy would be a lie.
+        throw new SqlSyntaxError(`${found.length} ${command} policies on ${table}; use policiesFor`, 0);
+      }
+      return found[0];
+    },
   };
+}
+
+/** Read a single migration's text. The one-file case of {@link parseMigrations}. */
+export function parseSql(sql: string): ParsedSql {
+  return parseMigrations([{ name: '<inline>', sql }]);
 }
