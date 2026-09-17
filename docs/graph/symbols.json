@@ -1472,16 +1472,21 @@
     "src/sync/contract/sql.ts": {
       "exports": [
         "class SqlSyntaxError",
+        "function parseMigrations(sources: readonly MigrationSource[]): ParsedSql",
         "function parseSql(sql: string): ParsedSql",
+        "function splitStatements(sql: string): string[]",
+        "interface MigrationSource",
         "interface ParsedCheck",
         "interface ParsedColumn",
         "interface ParsedPolicy",
+        "interface ParsedRls",
         "interface ParsedSql",
         "interface ParsedTable",
-        "type PolicyCommand = 'select' | 'insert' | 'update' | 'delete' | 'all'"
+        "type PolicyCommand = 'select' | 'insert' | 'update' | 'delete' | 'all'",
+        "type PrivilegeState = 'granted' | 'revoked' | 'unstated'"
       ],
       "imports": [],
-      "loc": 419
+      "loc": 587
     },
     "src/sync/errors.ts": {
       "exports": [

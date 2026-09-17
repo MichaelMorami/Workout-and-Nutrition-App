@@ -1177,16 +1177,21 @@ _no exports_
 
 ## `src/sync/contract/`
 
-### `src/sync/contract/sql.ts`  <sub>419 lines</sub>
+### `src/sync/contract/sql.ts`  <sub>587 lines</sub>
 
 - `class SqlSyntaxError`
+- `function parseMigrations(sources: readonly MigrationSource[]): ParsedSql`
 - `function parseSql(sql: string): ParsedSql`
+- `function splitStatements(sql: string): string[]`
+- `interface MigrationSource`
 - `interface ParsedCheck`
 - `interface ParsedColumn`
 - `interface ParsedPolicy`
+- `interface ParsedRls`
 - `interface ParsedSql`
 - `interface ParsedTable`
 - `type PolicyCommand = 'select' | 'insert' | 'update' | 'delete' | 'all'`
+- `type PrivilegeState = 'granted' | 'revoked' | 'unstated'`
 
 ## `src/sync/`
 
