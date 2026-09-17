@@ -602,3 +602,201 @@ describe('policies and the functions a migration creates (PR #138 re-review)', (
     );
   });
 });
+
+/**
+ * #135, the bypass. `revoke grant option for delete on t from authenticated` takes away only the
+ * right to *re-grant* DELETE. The DELETE privilege itself stays exactly as it was. The reader used
+ * to swallow the `grant option for` prefix and record a full revoke, so a migration that granted
+ * DELETE and then wrote this passed the contract check while every authenticated user could still
+ * delete history.
+ *
+ * The rule: a `grant option for` revoke is read (a malformed one still throws) and then changes no
+ * privilege state at all.
+ */
+describe('revoke grant option for, which does not revoke the privilege (#135)', () => {
+  const deleteFor = (sql: string, role = 'authenticated'): string =>
+    parseSql(sql).privilegeState('t', role, 'delete');
+
+  it('leaves a granted privilege granted', () => {
+    expect(
+      deleteFor(
+        'grant delete on public.t to authenticated; ' +
+          'revoke grant option for delete on public.t from authenticated;',
+      ),
+    ).toBe('granted');
+  });
+
+  it('leaves an unstated privilege unstated, never revoked', () => {
+    expect(deleteFor('revoke grant option for delete on public.t from authenticated;')).toBe('unstated');
+  });
+
+  it('leaves a revoked privilege revoked', () => {
+    expect(
+      deleteFor(
+        'revoke delete on public.t from authenticated; ' +
+          'revoke grant option for delete on public.t from authenticated;',
+      ),
+    ).toBe('revoked');
+  });
+
+  it('does not clear a grant made with grant option', () => {
+    expect(
+      deleteFor(
+        'grant delete on public.t to authenticated with grant option; ' +
+          'revoke grant option for delete on public.t from authenticated;',
+      ),
+    ).toBe('granted');
+  });
+
+  it('leaves every privilege of an all-privileges grant standing', () => {
+    const set = parseSql(
+      'grant all privileges on public.t to authenticated; ' +
+        'revoke grant option for all privileges on public.t from authenticated;',
+    );
+    for (const privilege of ['select', 'insert', 'update', 'delete', 'truncate']) {
+      expect(set.privilegeState('t', 'authenticated', privilege)).toBe('granted');
+    }
+  });
+
+  it('leaves a grant to public standing, so the role still holds it', () => {
+    expect(
+      deleteFor(
+        'grant delete on public.t to public; revoke grant option for delete on public.t from public;',
+      ),
+    ).toBe('granted');
+  });
+
+  it('is not confused by case, block comments or line comments between the words', () => {
+    expect(
+      deleteFor(
+        'GRANT DELETE ON Public.T TO Authenticated; ' +
+          'REVOKE /* re-grant only */ GRANT OPTION -- not the privilege\n FOR DELETE ON Public.T FROM Authenticated;',
+      ),
+    ).toBe('granted');
+  });
+
+  it('still reads a plain revoke as a full revoke', () => {
+    expect(
+      deleteFor('grant delete on public.t to authenticated; revoke delete on public.t from authenticated;'),
+    ).toBe('revoked');
+  });
+
+  it('still reads granted by and cascade after a grant option revoke', () => {
+    expect(
+      deleteFor(
+        'grant delete on public.t to authenticated; ' +
+          'revoke grant option for delete on public.t from authenticated granted by postgres cascade;',
+      ),
+    ).toBe('granted');
+  });
+
+  it.each([
+    ['a role that is not an identifier', 'revoke grant option for delete on public.t from authenticated-ish'],
+    ['an empty role in the list', 'revoke grant option for delete on public.t from authenticated, , anon'],
+    ['a privilege that is not one', 'revoke grant option for deletion on public.t from authenticated'],
+    ['no privilege at all', 'revoke grant option for on public.t from authenticated'],
+  ])('throws on %s rather than passing unread', (_label, statement) => {
+    expect(() => parseSql(`${statement};`)).toThrow(SqlSyntaxError);
+  });
+
+  it.each([
+    ['revoke', 'revoke delete on all tables in schema public from authenticated'],
+    ['grant', 'grant delete on all tables in schema public to authenticated'],
+    ['revoke grant option for', 'revoke grant option for delete on all tables in schema public from authenticated'],
+    ['revoke admin option for', 'revoke admin option for authenticated from postgres'],
+  ])('throws on a schema-wide or role %s, which it cannot key to a table', (_label, statement) => {
+    expect(() => parseSql(`${statement};`)).toThrow(SqlSyntaxError);
+  });
+
+  it.each([
+    ['an unknown privilege', 'revoke deleet on public.t from authenticated'],
+    ['a privilege list with a stray word', 'grant select, delete rows on public.t to authenticated'],
+  ])('throws on %s rather than filing it under a name no check reads', (_label, statement) => {
+    expect(() => parseSql(`${statement};`)).toThrow(SqlSyntaxError);
+  });
+});
+
+/**
+ * #135, second half: #130 folded table, schema, policy and role names the way Postgres does. Column
+ * and CHECK-constraint names were still compared as typed, so a mixed-case migration made the
+ * contract check fail (or, for a name the old regexes could not read at all, silently drop the
+ * constraint). Same rule, same helper: unquoted folds to lower case, quoted keeps its case.
+ */
+describe('column and check names fold the way Postgres folds them (#135)', () => {
+  it('lower-cases unquoted column names, in the table and in the primary key', () => {
+    const table = parseSql('create table public.T (Id uuid primary key, User_Id uuid not null);').tables.get('t');
+    expect(table?.columns.map((c) => c.name)).toEqual(['id', 'user_id']);
+    expect(table?.primaryKey).toEqual(['id']);
+    expect(table?.column('id')?.type).toBe('uuid');
+  });
+
+  it('keeps a quoted column name as written, so "Id" is not id', () => {
+    const table = parseSql('create table public.t ("Id" uuid primary key);').tables.get('t');
+    expect(table?.column('Id')).toMatchObject({ type: 'uuid', notNull: true });
+    expect(table?.column('id')).toBeUndefined();
+  });
+
+  it('reads a doubled quote inside a column name as one quote', () => {
+    const table = parseSql('create table public.t (id uuid primary key, "a""b" text);').tables.get('t');
+    expect(table?.column('a"b')?.type).toBe('text');
+  });
+
+  it('reads a quoted column name that contains a space as one name', () => {
+    const table = parseSql('create table public.t (id uuid primary key, "my col" text not null);').tables.get('t');
+    expect(table?.columns.map((c) => c.name)).toEqual(['id', 'my col']);
+    expect(table?.column('my col')).toMatchObject({ type: 'text', notNull: true });
+  });
+
+  it('folds a table-level primary key column list', () => {
+    const table = parseSql(
+      'create table public.t (A uuid not null, "B" uuid not null, primary key (A, "B"));',
+    ).tables.get('t');
+    expect(table?.primaryKey).toEqual(['a', 'B']);
+  });
+
+  it('lower-cases an unquoted check constraint name', () => {
+    const table = parseSql(
+      'create table public.t (id uuid primary key, n int, constraint T_N_Check check (n > 0));',
+    ).tables.get('t');
+    expect(table?.checks.map((c) => c.name)).toEqual(['t_n_check']);
+    expect(table?.check('t_n_check')?.expression).toBe('n > 0');
+  });
+
+  it('keeps a quoted check constraint name as written', () => {
+    const table = parseSql(
+      'create table public.t (id uuid primary key, n int, constraint "T_N_Check" check (n > 0));',
+    ).tables.get('t');
+    expect(table?.check('T_N_Check')?.expression).toBe('n > 0');
+    expect(table?.check('t_n_check')).toBeUndefined();
+  });
+
+  it('reads a quoted check name that contains a space rather than dropping the constraint', () => {
+    const table = parseSql(
+      'create table public.t (id uuid primary key, n int, constraint "my check" check (n > 0));',
+    ).tables.get('t');
+    expect(table?.checks.map((c) => c.name)).toEqual(['my check']);
+  });
+
+  it('folds the name of a column added by alter table', () => {
+    const table = parseSql(
+      'create table public.t (id uuid primary key); alter table public.T add column Note Text;',
+    ).tables.get('t');
+    expect(table?.columns.map((c) => c.name)).toEqual(['id', 'note']);
+    expect(table?.column('note')?.type).toBe('text');
+  });
+
+  it('does not take a column whose name merely starts with a constraint keyword for a constraint', () => {
+    const table = parseSql(
+      'create table public.t (id uuid primary key, unique_code text not null, checkpoint bigint);',
+    ).tables.get('t');
+    expect(table?.columns.map((c) => c.name)).toEqual(['id', 'unique_code', 'checkpoint']);
+  });
+
+  it.each([
+    ['a Unicode-escaped column name', 'create table public.t (U&"\\0069d" uuid primary key)'],
+    ['a Unicode-escaped check name', 'create table public.t (id uuid primary key, constraint U&"\\0063k" check (true))'],
+    ['an item that is not a column definition', 'create table public.t (id uuid primary key, 42 int)'],
+  ])('throws on %s rather than guessing the name', (_label, statement) => {
+    expect(() => parseSql(`${statement};`)).toThrow(SqlSyntaxError);
+  });
+});
