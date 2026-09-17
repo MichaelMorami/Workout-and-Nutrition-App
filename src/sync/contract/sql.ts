@@ -93,6 +93,15 @@ export interface ParsedRls {
 }
 
 /**
+ * Whether a privilege was explicitly granted, explicitly revoked, or never mentioned.
+ *
+ * `'unstated'` is not `'revoked'`: Supabase's own bootstrap grants broad privileges to
+ * `authenticated`, so a privilege the migrations never mention may well be held. Only `'revoked'`,
+ * with no later grant, is a guarantee.
+ */
+export type PrivilegeState = 'granted' | 'revoked' | 'unstated';
+
+/**
  * The schema a migration set describes **after every statement in every file has run, in order** —
  * not the contents of any one file. RLS is a property of the final schema, so a later migration that
  * disables it, drops a policy or adds a permissive one must show up here.
@@ -114,6 +123,8 @@ export interface ParsedSql {
   policiesFor(table: string, command: PolicyCommand): readonly ParsedPolicy[];
   /** The only policy for `command`, or `undefined`. Throws if there is more than one. */
   policyFor(table: string, command: PolicyCommand): ParsedPolicy | undefined;
+  /** The last explicit grant or revoke of `privilege` on `table` to `role`, across the whole set. */
+  privilegeState(table: string, role: string, privilege: string): PrivilegeState;
 }
 
 const POLICY_COMMANDS: readonly PolicyCommand[] = ['select', 'insert', 'update', 'delete', 'all'];
@@ -431,6 +442,21 @@ const REVOKE =
 const RLS =
   /^alter\s+table\s+(?:if\s+exists\s+)?([\w".]+)\s+(enable|force|disable|no\s+force)\s+row\s+level\s+security$/i;
 
+/** What `grant all` / `revoke all` expand to, so `grant all` visibly undoes an earlier `revoke delete`. */
+const ALL_PRIVILEGES = ['select', 'insert', 'update', 'delete', 'truncate', 'references', 'trigger'];
+
+const privilegesIn = (list: string): string[] =>
+  list.split(',').flatMap((item) => {
+    const privilege = squash(item).toLowerCase().replace(/\s+privileges$/, '');
+    return privilege === 'all' ? ALL_PRIVILEGES : [privilege];
+  });
+
+const rolesIn = (list: string): string[] =>
+  list
+    .split(',')
+    .map((role) => role.trim().replace(/"/g, ''))
+    .filter((role) => role.length > 0);
+
 type MutableRls = { -readonly [K in keyof ParsedRls]: ParsedRls[K] };
 
 /**
@@ -443,6 +469,16 @@ export function parseMigrations(sources: readonly MigrationSource[]): ParsedSql 
   /** Keyed `table.policy` — Postgres policy names are unique per table. */
   const policies = new Map<string, ParsedPolicy>();
   const rls = new Map<string, MutableRls>();
+  /** Keyed `table|role|privilege`; later statements overwrite earlier ones. */
+  const privileges = new Map<string, PrivilegeState>();
+  const setPrivileges = (match: RegExpExecArray, state: PrivilegeState): void => {
+    const table = unqualified(match[2] as string);
+    for (const role of rolesIn(match[3] as string)) {
+      for (const privilege of privilegesIn(match[1] as string)) {
+        privileges.set(`${table}|${role}|${privilege}`, state);
+      }
+    }
+  };
 
   const rlsOf = (table: string): MutableRls => {
     let state = rls.get(table);
@@ -498,8 +534,17 @@ export function parseMigrations(sources: readonly MigrationSource[]): ParsedSql 
       }
 
       if (CREATE_INDEX.test(statement)) continue;
-      if (GRANT.test(flat)) continue;
-      if (REVOKE.test(flat)) continue;
+      const granted = GRANT.exec(flat);
+      if (granted) {
+        setPrivileges(granted, 'granted');
+        continue;
+      }
+
+      const revoked = REVOKE.exec(flat);
+      if (revoked) {
+        setPrivileges(revoked, 'revoked');
+        continue;
+      }
 
       throw new SqlSyntaxError(
         `${source.name}: unrecognised statement: this reader vouches only for create table, create ` +
@@ -530,6 +575,8 @@ export function parseMigrations(sources: readonly MigrationSource[]): ParsedSql 
       }
       return found[0];
     },
+    privilegeState: (table, role, privilege) =>
+      privileges.get(`${table}|${role}|${privilege.toLowerCase()}`) ?? 'unstated',
   };
 }
 
