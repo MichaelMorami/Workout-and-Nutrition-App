@@ -23,6 +23,24 @@ function setup() {
   return { db, sqlite };
 }
 
+/**
+ * `Meal` (`test/model.ts`) doesn't carry the usage-cache columns yet — same gap `nutrition.test.ts`
+ * documents its own copy of this helper against (issue #17 deviation 6: `use_count`/`last_used_at`
+ * landed on the schema without a matching update to the qa-owned factory type). `schema.meals`'s
+ * own insert type has them, so splicing them onto a factory-built row after the fact is exactly as
+ * valid an insert as the factory's own fields.
+ */
+function makeMealWithUsage(
+  overrides: Partial<Parameters<typeof makeMeal>[0]> & { useCount?: number; lastUsedAt?: number | null } = {},
+): typeof schema.meals.$inferInsert {
+  const { useCount, lastUsedAt, ...rest } = overrides;
+  return {
+    ...makeMeal(rest),
+    ...(useCount !== undefined ? { useCount } : {}),
+    ...(lastUsedAt !== undefined ? { lastUsedAt } : {}),
+  };
+}
+
 /** Every write throws `VitalsDbError`, never a raw `Error` — assert the code, not just "it threw". */
 function expectDbError(fn: () => unknown, code: VitalsDbErrorCode): void {
   let caught: unknown;
@@ -648,7 +666,7 @@ describe('libraryByUsage', () => {
   it('includes a saved meal with at least one live item', () => {
     const { db } = setup();
     const food = makeFood({ name: 'Oats' });
-    const meal = makeMeal({ name: 'Usual breakfast', useCount: 2 });
+    const meal = makeMealWithUsage({ name: 'Usual breakfast', useCount: 2 });
     db.insert(schema.foods).values(food).run();
     db.insert(schema.meals).values(meal).run();
     db.insert(schema.mealItems).values(makeMealItem({ mealId: meal.id, foodId: food.id })).run();
@@ -660,7 +678,7 @@ describe('libraryByUsage', () => {
   it('excludes a meal whose every item is deleted (no live item)', () => {
     const { db } = setup();
     const food = makeFood({ name: 'Oats' });
-    const meal = makeMeal({ name: 'Emptied meal', useCount: 9 });
+    const meal = makeMealWithUsage({ name: 'Emptied meal', useCount: 9 });
     db.insert(schema.foods).values(food).run();
     db.insert(schema.meals).values(meal).run();
     db.insert(schema.mealItems).values(makeMealItem({ mealId: meal.id, foodId: food.id, deleted: 1 })).run();
@@ -671,8 +689,10 @@ describe('libraryByUsage', () => {
 
   it('excludes a tombstoned meal even with a live item', () => {
     const { db } = setup();
-    const food = makeFood({ name: 'Oats' });
-    const meal = makeMeal({ name: 'Deleted meal', deleted: 1, useCount: 9 });
+    // Archived so only the meal itself is under test here — same pattern `recentFoods`'s own
+    // equivalent case uses.
+    const food = makeFood({ name: 'Oats', archived: 1 });
+    const meal = makeMealWithUsage({ name: 'Deleted meal', deleted: 1, useCount: 9 });
     db.insert(schema.foods).values(food).run();
     db.insert(schema.meals).values(meal).run();
     db.insert(schema.mealItems).values(makeMealItem({ mealId: meal.id, foodId: food.id })).run();
@@ -683,7 +703,7 @@ describe('libraryByUsage', () => {
   it('foods and meals are ranked together by the same use_count/last_used_at order', () => {
     const { db } = setup();
     const food = makeFood({ name: 'Low use food', useCount: 1 });
-    const meal = makeMeal({ name: 'High use meal', useCount: 5 });
+    const meal = makeMealWithUsage({ name: 'High use meal', useCount: 5 });
     db.insert(schema.foods).values(food).run();
     db.insert(schema.meals).values(meal).run();
     db.insert(schema.mealItems).values(makeMealItem({ mealId: meal.id, foodId: food.id })).run();
