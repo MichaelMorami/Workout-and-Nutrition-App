@@ -7,8 +7,9 @@
  * quotes, and a hard error on anything unbalanced — a migration that fails to parse here must never
  * be reported as passing.
  */
-import { parseSql, SqlSyntaxError } from './sql';
+import { parseSql, splitStatements, SqlSyntaxError } from './sql';
 
+/** The lexical layer. It will split a `select`; vouching for a statement is `parseSql`'s job. */
 describe('splitting statements', () => {
   it('splits on top-level semicolons and drops blank statements', () => {
     expect(parseSql('select 1; select 2;;').statements).toEqual(['select 1', 'select 2']);
@@ -24,7 +25,7 @@ describe('splitting statements', () => {
 
   it('keeps a semicolon inside a dollar-quoted body', () => {
     const sql = `create function f() returns int as $fn$ begin; return 1; end $fn$ language plpgsql; select 2`;
-    expect(parseSql(sql).statements).toHaveLength(2);
+    expect(splitStatements(sql)).toHaveLength(2);
   });
 
   it('strips line comments', () => {
@@ -42,23 +43,58 @@ describe('splitting statements', () => {
 
 describe('rejecting malformed SQL', () => {
   it('throws on an unterminated string literal', () => {
-    expect(() => parseSql(`select 'oops`)).toThrow(SqlSyntaxError);
+    expect(() => splitStatements(`select 'oops`)).toThrow(SqlSyntaxError);
   });
 
   it('throws on an unterminated block comment', () => {
-    expect(() => parseSql('select 1 /* oops')).toThrow(SqlSyntaxError);
+    expect(() => splitStatements('select 1 /* oops')).toThrow(SqlSyntaxError);
   });
 
   it('throws on unbalanced parentheses', () => {
-    expect(() => parseSql('create table t (a int;')).toThrow(SqlSyntaxError);
+    expect(() => splitStatements('create table t (a int;')).toThrow(SqlSyntaxError);
   });
 
   it('throws on a stray closing parenthesis', () => {
-    expect(() => parseSql('select 1);')).toThrow(SqlSyntaxError);
+    expect(() => splitStatements('select 1);')).toThrow(SqlSyntaxError);
   });
 
   it('throws on a trailing statement with no terminator', () => {
-    expect(() => parseSql('select 1; select 2 /* unterminated')).toThrow(SqlSyntaxError);
+    expect(() => splitStatements('select 1; select 2 /* unterminated')).toThrow(SqlSyntaxError);
+  });
+});
+
+/**
+ * Regression for PR #128 review, hole 3: the reader used to skip statements it did not recognise, so
+ * a migration could hide anything behind an unknown verb and still pass. It must fail closed.
+ */
+describe('fail-closed: a statement outside the allowlist is an error, never skipped', () => {
+  it.each([
+    ['a query', 'select * from public.foods'],
+    ['a table drop', 'drop table public.food_log'],
+    ['a truncate', 'truncate public.food_log'],
+    ['a data write', 'update public.foods set deleted = 1'],
+    ['a policy alteration', 'alter policy foods_select_own on public.foods using (true)'],
+    ['a trigger', 'create trigger t before update on public.foods for each row execute function f()'],
+    ['a column change', 'alter table public.foods drop column basis'],
+    ['a function', 'create function f() returns int as $fn$ select 1 $fn$ language sql'],
+  ])('rejects %s', (_label, statement) => {
+    expect(() => parseSql(`create index i on public.foods (id); ${statement};`)).toThrow(SqlSyntaxError);
+  });
+
+  it('names the offending statement in the error', () => {
+    expect(() => parseSql('truncate public.food_log;')).toThrow(/unrecognised statement.*truncate/);
+  });
+
+  it.each([
+    ['create index', 'create index foods_user_updated_idx on public.foods (user_id, updated_at)'],
+    ['create unique index', 'create unique index u on public.foods (id)'],
+    ['grant', 'grant select, insert on public.foods to authenticated'],
+    ['revoke', 'revoke delete on public.foods from authenticated'],
+    ['drop policy', 'drop policy if exists foods_select_own on public.foods'],
+    ['disable row level security', 'alter table public.foods disable row level security'],
+    ['no force row level security', 'alter table public.foods no force row level security'],
+  ])('accounts for %s', (_label, statement) => {
+    expect(() => parseSql(`${statement};`)).not.toThrow();
   });
 });
 
