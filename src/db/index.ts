@@ -86,4 +86,4 @@ export { weightSummary } from './queries/weight';
 
 // Search, recents and create-and-log (#37). searchFoodsOnly (#98): the meal-ingredient picker's
 // foods-only search — same fold/tier/ranking rules as searchFoods, never a meal.
-export { createFoodAndLog, recentFoods, searchFoods, searchFoodsOnly } from './queries/search';
+export { createFoodAndLog, libraryByUsage, recentFoods, searchFoods, searchFoodsOnly } from './queries/search';
