@@ -81,3 +81,5 @@ For the sprint-by-sprint plan see [`README.md`](README.md); for open work see th
 - 2026-09-17  feat: Ionicons tab and trash glyph names, delete-pane icon size, and the tab-icons canvas (issue #80)  (PR #136 closes #80)
 - 2026-09-17  fix: migration reader accepts add column, comment on, and security-neutral functions and extensions; dollar-quote tags follow the Postgres rule (issues #132, #133)  (PR #138 closes #132 #133)
 - 2026-09-17  chore: add @expo/vector-icons dependency  (PR #139 closes #81)
+- 2026-09-17  feat: swipe-to-delete is a square trash button, and the row hides it at rest (issue #85)  (PR #140 closes #85)
+- 2026-09-17  feat: libraryByUsage query — never-blank library fallback (issue #96)  (PR #142 closes #96)

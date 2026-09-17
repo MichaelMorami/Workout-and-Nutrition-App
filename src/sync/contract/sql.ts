@@ -99,6 +99,9 @@ export interface ParsedRls {
  * `'unstated'` is not `'revoked'`: Supabase's own bootstrap grants broad privileges to
  * `authenticated`, so a privilege the migrations never mention may well be held. Only `'revoked'`,
  * with no later grant, is a guarantee.
+ *
+ * `revoke grant option for <privilege>` is not a revoke either: it takes away the right to re-grant
+ * the privilege and leaves the privilege itself untouched, so it moves this state not at all (#135).
  */
 export type PrivilegeState = 'granted' | 'revoked' | 'unstated';
 
@@ -148,14 +151,25 @@ const COLUMN_MODIFIERS = new Set([
   'constraint',
 ]);
 
-/** Item prefixes that make a `create table` entry a table constraint rather than a column. */
-const TABLE_CONSTRAINT_PREFIXES = ['constraint ', 'primary key', 'unique', 'check ', 'foreign key', 'exclude '];
+/**
+ * What makes a `create table` entry — or an `alter table … add` action — a table constraint rather
+ * than a column. Matched on word boundaries: the old prefix list took the bare string `unique`, so a
+ * column named `unique_code` was read as a constraint and vanished from the parsed table.
+ */
+const TABLE_CONSTRAINT =
+  /^(?:constraint\s|primary\s+key\b|unique\b|check\s*\(|foreign\s+key\b|exclude\b)/i;
 
 const squash = (text: string): string => text.replace(/\s+/g, ' ').trim();
 
 /** One identifier as written: a `"quoted"` one (with `""` escapes) or a plain word. */
 const IDENTIFIER = '(?:"(?:[^"]|"")+"|[A-Za-z_][A-Za-z0-9_$]*)';
 const LEADING_IDENTIFIER = new RegExp(`^${IDENTIFIER}`);
+
+/**
+ * `constraint <name> check (…)`. The name is a whole identifier, quoted or not: the old `[\w"]+`
+ * could not read `"my check"`, and an unreadable constraint was skipped rather than reported.
+ */
+const NAMED_CHECK = new RegExp(`^constraint\\s+(${IDENTIFIER})\\s+check\\s*\\(`, 'i');
 
 /**
  * Resolve one identifier the way Postgres does (#130): an unquoted name folds to lower case, so
@@ -414,15 +428,25 @@ function splitItems(body: string): string[] {
   return items.map(squash).filter((item) => item.length > 0);
 }
 
+/**
+ * One column definition. The name is read as an identifier and resolved through {@link identifier}
+ * (#135), so `Note` keys as `note` and `"my col"` stays one name: splitting on spaces and stripping
+ * quotes made `"my col" text` a column called `my` of type `col"`, and a mixed-case column landed
+ * under a key the contract check never looks at.
+ */
 function parseColumn(item: string): ParsedColumn {
-  const tokens = item.split(' ');
-  const name = (tokens[0] ?? '').replace(/"/g, '');
+  const named = LEADING_IDENTIFIER.exec(item);
+  if (!named) {
+    throw new SqlSyntaxError(`not a column definition: "${squash(item).slice(0, 80)}"`, 0);
+  }
+  const raw = named[0];
+  const afterName = item.slice(raw.length).trimStart();
   const typeTokens: string[] = [];
-  for (const token of tokens.slice(1)) {
+  for (const token of afterName.split(' ')) {
     if (COLUMN_MODIFIERS.has(token.toLowerCase())) break;
     typeTokens.push(token);
   }
-  const rest = item.slice(name.length + typeTokens.join(' ').length + 1);
+  const rest = afterName.slice(typeTokens.join(' ').length);
 
   const defaultMatch = /\bdefault\s+(.+?)(?=\s+(?:not null|null|references|check|primary key|unique|collate)\b|$)/i.exec(
     rest,
@@ -430,7 +454,7 @@ function parseColumn(item: string): ParsedColumn {
   const referencesMatch = /\breferences\s+(.+?)(?=\s+on\s+(?:delete|update)\b|$)/i.exec(rest);
 
   return {
-    name,
+    name: identifier(raw),
     type: typeTokens.join(' ').toLowerCase(),
     // A PRIMARY KEY column is NOT NULL in Postgres whether or not it says so, and reporting it as
     // nullable would make the contract test pass on a schema that is not the one it checked.
@@ -451,23 +475,20 @@ function parseCreateTable(statement: string, origin: string): ParsedTable | null
   const primaryKey: string[] = [];
 
   for (const item of splitItems(body)) {
-    const lower = item.toLowerCase();
-    const isConstraint = TABLE_CONSTRAINT_PREFIXES.some((prefix) => lower.startsWith(prefix));
-
-    if (isConstraint) {
-      const named = /^constraint\s+([\w"]+)\s+check\s*\(/i.exec(item);
+    if (TABLE_CONSTRAINT.test(item)) {
+      const named = NAMED_CHECK.exec(item);
       if (named) {
         checks.push({
-          name: (named[1] as string).replace(/"/g, ''),
+          // Folded like every other name (#135): `constraint Thing_Check` is `thing_check`, and
+          // `constraint "my check"` is one name, not a constraint the old regex silently dropped.
+          name: bareName(named[1] as string),
           expression: squash(parenBody(item, item.indexOf('(', named[0].length - 1))),
         });
         continue;
       }
       const tablePk = /^primary\s+key\s*\(/i.exec(item);
       if (tablePk) {
-        primaryKey.push(
-          ...splitItems(parenBody(item, item.indexOf('('))).map((c) => c.replace(/"/g, '')),
-        );
+        primaryKey.push(...splitItems(parenBody(item, item.indexOf('('))).map(bareName));
       }
       continue;
     }
@@ -530,8 +551,7 @@ function addColumns(
   for (const action of splitItems(head[2] as string)) {
     const match = ADD_COLUMN.exec(action);
     const definition = match?.[2] ?? '';
-    const lower = definition.toLowerCase();
-    if (!match || TABLE_CONSTRAINT_PREFIXES.some((prefix) => lower.startsWith(prefix))) {
+    if (!match || TABLE_CONSTRAINT.test(definition)) {
       throw new SqlSyntaxError(`${origin}: unrecognised alter table action: "${action.slice(0, 80)}"`, 0);
     }
     if (/\bprimary\s+key\b/i.test(definition)) {
@@ -539,12 +559,10 @@ function addColumns(
     }
     // A default or generated expression runs on every existing row while the table is rewritten.
     rejectUnsafeExpression(definition, `${origin}: add column`);
-    const columnName = LEADING_IDENTIFIER.exec(definition);
-    if (!columnName) {
+    if (!LEADING_IDENTIFIER.test(definition)) {
       throw new SqlSyntaxError(`${origin}: add column without a column name: "${action.slice(0, 80)}"`, 0);
     }
-    // Postgres folds the name; `parseColumn` only strips quotes, so the resolved name replaces its.
-    const column = { ...parseColumn(definition), name: identifier(columnName[0]) };
+    const column = parseColumn(definition);
     if (columns.some((c) => c.name === column.name)) {
       if (match[1]) continue;
       throw new SqlSyntaxError(`${origin}: column ${name}.${column.name} is added twice`, 0);
@@ -739,8 +757,14 @@ const DROP_POLICY = /^drop\s+policy\s+(?:if\s+exists\s+)?([\w"]+)\s+on\s+([\w".]
  */
 const GRANT =
   /^grant\s+(.+?)\s+on\s+(?:table\s+)?([\w".]+)\s+to\s+(.+?)(?:\s+with\s+grant\s+option)?(?:\s+granted\s+by\s+\S+)?$/i;
+/**
+ * `revoke [grant option for] … on … from …`. The `grant option for` prefix is **captured**, not
+ * swallowed (#135): in Postgres it takes away only the right to re-grant the privilege, and the
+ * privilege itself stays exactly as it was. Reading it as a full revoke let a migration grant DELETE,
+ * write this, and pass the contract check while every user could still delete history.
+ */
 const REVOKE =
-  /^revoke\s+(?:grant\s+option\s+for\s+)?(.+?)\s+on\s+(?:table\s+)?([\w".]+)\s+from\s+(.+?)(?:\s+granted\s+by\s+\S+)?(?:\s+(?:cascade|restrict))?$/i;
+  /^revoke\s+(grant\s+option\s+for\s+)?(.+?)\s+on\s+(?:table\s+)?([\w".]+)\s+from\s+(.+?)(?:\s+granted\s+by\s+\S+)?(?:\s+(?:cascade|restrict))?$/i;
 
 const RLS =
   /^alter\s+table\s+(?:if\s+exists\s+)?([\w".]+)\s+(enable|force|disable|no\s+force)\s+row\s+level\s+security$/i;
@@ -748,10 +772,24 @@ const RLS =
 /** What `grant all` / `revoke all` expand to, so `grant all` visibly undoes an earlier `revoke delete`. */
 const ALL_PRIVILEGES = ['select', 'insert', 'update', 'delete', 'truncate', 'references', 'trigger'];
 
+/**
+ * Every name a privilege list may contain. `maintain` (Postgres 17) is accepted but left out of the
+ * `all` expansion, since Supabase's Postgres may predate it — naming a privilege is not holding it.
+ *
+ * An unknown word throws rather than being filed under itself: `revoke grant option for delete` used
+ * to leave `grant option for` sitting in the privilege list of some other misread form, where it
+ * recorded nothing and no check ever noticed.
+ */
+const TABLE_PRIVILEGES = new Set([...ALL_PRIVILEGES, 'maintain']);
+
 const privilegesIn = (list: string): string[] =>
   list.split(',').flatMap((item) => {
     const privilege = squash(item).toLowerCase().replace(/\s+privileges$/, '');
-    return privilege === 'all' ? ALL_PRIVILEGES : [privilege];
+    if (privilege === 'all') return ALL_PRIVILEGES;
+    if (!TABLE_PRIVILEGES.has(privilege)) {
+      throw new SqlSyntaxError(`not a table privilege list: "${squash(list).slice(0, 80)}"`, 0);
+    }
+    return [privilege];
   });
 
 type MutableRls = { -readonly [K in keyof ParsedRls]: ParsedRls[K] };
@@ -768,10 +806,23 @@ export function parseMigrations(sources: readonly MigrationSource[]): ParsedSql 
   const rls = new Map<string, MutableRls>();
   /** Keyed `table|role|privilege`; later statements overwrite earlier ones. */
   const privileges = new Map<string, PrivilegeState>();
-  const setPrivileges = (match: RegExpExecArray, state: PrivilegeState): void => {
-    const table = unqualified(match[2] as string);
-    for (const role of rolesIn(match[3] as string)) {
-      for (const privilege of privilegesIn(match[1] as string)) {
+  /**
+   * Apply one grant or revoke. A `null` state means the statement is still read strictly — a role or
+   * privilege list that is not one throws — but records nothing, which is what `revoke grant option
+   * for` does to the privileges themselves (#135).
+   */
+  const applyPrivileges = (
+    privilegeList: string,
+    tableName: string,
+    roleList: string,
+    state: PrivilegeState | null,
+  ): void => {
+    const table = unqualified(tableName);
+    const roles = rolesIn(roleList);
+    const names = privilegesIn(privilegeList);
+    if (state === null) return;
+    for (const role of roles) {
+      for (const privilege of names) {
         privileges.set(`${table}|${role}|${privilege}`, state);
       }
     }
@@ -851,13 +902,16 @@ export function parseMigrations(sources: readonly MigrationSource[]): ParsedSql 
 
       const granted = GRANT.exec(flat);
       if (granted) {
-        setPrivileges(granted, 'granted');
+        applyPrivileges(granted[1] as string, granted[2] as string, granted[3] as string, 'granted');
         continue;
       }
 
       const revoked = REVOKE.exec(flat);
       if (revoked) {
-        setPrivileges(revoked, 'revoked');
+        // `revoke grant option for delete` removes the right to re-grant DELETE and nothing else, so
+        // a privilege that was granted stays granted (#135). Read it strictly, then change nothing.
+        const state = revoked[1] ? null : 'revoked';
+        applyPrivileges(revoked[2] as string, revoked[3] as string, revoked[4] as string, state);
         continue;
       }
 

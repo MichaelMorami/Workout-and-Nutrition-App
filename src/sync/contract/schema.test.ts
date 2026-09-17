@@ -539,6 +539,36 @@ describe('a missing DELETE revoke is noticed, even when its text is still in the
   });
 });
 
+/**
+ * #135: `revoke grant option for delete` removes only the right to re-grant DELETE — the privilege
+ * stays. The reader used to count it as a full revoke, so a migration that granted DELETE and then
+ * wrote this passed the whole contract check while every authenticated user could delete history.
+ * The violation has to be reported on the real contract file, weakened exactly that way.
+ */
+describe('a grant-option revoke does not stand in for a DELETE revoke', () => {
+  const REVOKE = 'revoke delete on public.food_log from authenticated;';
+
+  it('reports a DELETE grant when the revoke only takes the grant option away', () => {
+    const sql = read(contractFile());
+    expect(sql).toContain(REVOKE);
+    const weakened = sql.replace(
+      REVOKE,
+      'grant delete on public.food_log to authenticated; ' +
+        'revoke grant option for delete on public.food_log from authenticated;',
+    );
+    const set = parseMigrations([{ name: contractFile(), sql: weakened }]);
+    expect(set.privilegeState('food_log', 'authenticated', 'delete')).toBe('granted');
+    expect(rlsViolations(set)).toContain('food_log: DELETE is granted for authenticated');
+  });
+
+  it('keeps the real file clean: every synced table revokes DELETE outright', () => {
+    for (const name of SYNCED_TABLES) {
+      expect(parsed().privilegeState(name, 'authenticated', 'delete')).toBe('revoked');
+    }
+    expect(rlsViolations(parsed())).toEqual([]);
+  });
+});
+
 describe('no secret is checked in', () => {
   const sources = (dir: string): string[] =>
     fs
