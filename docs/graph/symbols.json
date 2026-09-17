@@ -187,7 +187,7 @@
         "src/hooks/useTheme.ts",
         "src/theme/tokens.ts"
       ],
-      "loc": 43
+      "loc": 42
     },
     "src/components/charts/ProgressArc.tsx": {
       "exports": [
@@ -459,8 +459,8 @@
     },
     "src/components/meals/MealForm.tsx": {
       "exports": [
-        "function MealForm({ foods, onSave, onCancel, theme, testID = 'meal-form' }: MealFormProps): import(\"react\").JSX.Element",
-        "type MealFormProps = {\n  /** Every live food the meal can be built from (`listFoods`). */\n  readonly foods: readonly FoodRow[];\n  readonly onSave: (values: MealFormValues) => void;\n  readonly onCancel: () => void;\n  readonly theme: Theme;\n  readonly testID?: string;\n}",
+        "function MealForm({ db, onSave, onCancel, locale, theme, testID = 'meal-form' }: MealFormProps): import(\"react\").JSX.Element",
+        "type MealFormProps = {\n  readonly db: VitalsDb;\n  readonly onSave: (values: MealFormValues) => void;\n  readonly onCancel: () => void;\n  /** Formatting locale for the dropdown's kcal/protein figures. Defaults to the device's. */\n  readonly locale?: string;\n  readonly theme: Theme;\n  readonly testID?: string;\n}",
         "type MealFormValues = { readonly name: string; readonly items: readonly MealItemInput[] }"
       ],
       "imports": [
@@ -468,9 +468,10 @@
         "react-native",
         "src/components/food-form/index.ts",
         "src/db/index.ts",
+        "src/hooks/deviceWhen.ts",
         "src/theme/tokens.ts"
       ],
-      "loc": 203
+      "loc": 423
     },
     "src/components/meals/MealList.tsx": {
       "exports": [
@@ -491,10 +492,10 @@
     },
     "src/components/meals/index.ts": {
       "exports": [
-        "function MealForm({ foods, onSave, onCancel, theme, testID = 'meal-form' }: MealFormProps): import(\"react\").JSX.Element",
+        "function MealForm({ db, onSave, onCancel, locale, theme, testID = 'meal-form' }: MealFormProps): import(\"react\").JSX.Element",
         "function MealList({ db, meals, onLogged, onCreate, locale, theme, testID = 'meal-list' }: MealListProps): import(\"react\").JSX.Element",
         "function candidateForMeal(meal: MealSummary): MealCandidate",
-        "type MealFormProps = {\n  /** Every live food the meal can be built from (`listFoods`). */\n  readonly foods: readonly FoodRow[];\n  readonly onSave: (values: MealFormValues) => void;\n  readonly onCancel: () => void;\n  readonly theme: Theme;\n  readonly testID?: string;\n}",
+        "type MealFormProps = {\n  readonly db: VitalsDb;\n  readonly onSave: (values: MealFormValues) => void;\n  readonly onCancel: () => void;\n  /** Formatting locale for the dropdown's kcal/protein figures. Defaults to the device's. */\n  readonly locale?: string;\n  readonly theme: Theme;\n  readonly testID?: string;\n}",
         "type MealFormValues = { readonly name: string; readonly items: readonly MealItemInput[] }",
         "type MealListProps = {\n  readonly db: VitalsDb;\n  readonly meals: readonly MealSummary[];\n  /** Called after a meal logs successfully, with the delta a caller's running totals need. */\n  readonly onLogged?: (delta: LogDelta) => void;\n  readonly onCreate: () => void;\n  readonly locale?: string;\n  readonly theme: Theme;\n  readonly testID?: string;\n}"
       ],
@@ -1331,6 +1332,7 @@
         "app/foods/new.tsx",
         "app/meals/new.tsx",
         "src/components/day-log/DayLogList.tsx",
+        "src/components/meals/MealForm.tsx",
         "src/components/meals/MealList.tsx",
         "src/components/quick-add/QuickAddGrid.tsx",
         "src/components/quick-add/UndoToast.tsx",
