@@ -12,7 +12,7 @@
  * boundaries as pure functions.
  */
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { act, fireEvent, render, screen } from '@testing-library/react-native';
+import { act, configure, fireEvent, render, screen } from '@testing-library/react-native';
 import { StyleSheet } from 'react-native';
 import type { DayLogEntry } from '../../db';
 import { glyph, radius, size, themes, type Theme } from '../../theme/tokens';
@@ -24,6 +24,18 @@ import {
   releasesOpen,
   timeLabel,
 } from './DayLogRow';
+
+// Issue #141 folds in the a11y fix opus's review of #140 asked for: the delete Pressable now leaves
+// the accessibility tree at rest (`accessibilityElementsHidden` / `importantForAccessibility`,
+// asserted directly below in "the delete control leaves the accessibility tree at rest"). RNTL 14
+// filters every query — `getByTestId` included — against exactly that same "hidden from
+// accessibility" definition by default, so it will not find a hidden node unless a query opts back
+// in. Every query in this file below predates that fix, from a time the row could never legitimately
+// be hidden, and none of them is asserting anything about visibility — they still need to reach the
+// button to prove the OTHER thing #85 already committed to, that a tap still lands even while the
+// button is covered/hidden. Opting the whole file in, rather than each call, is what keeps every one
+// of #85's original assertions byte-for-byte unchanged below.
+configure({ defaultIncludeHiddenElements: true });
 
 const foodEntry: DayLogEntry = {
   id: 'log-1',
@@ -460,5 +472,96 @@ describe('DayLogRow gesture gate (issue #85)', () => {
   it.each(gateCases)('%s', async (_, dx, dy, claimed) => {
     await renderRow();
     expect(rowClaimsDrag(dx, dy)).toBe(claimed);
+  });
+});
+
+/**
+ * Issue #141 — the a11y fix opus's review of #140 asked for, folded into the `<SwipeToDelete>`
+ * extraction: the delete control now leaves the accessibility tree at rest instead of sitting there
+ * invisibly (`opacity: 0`) but still reachable by a VoiceOver/TalkBack swipe. It re-enters the tree
+ * the moment the layer is actually painted — the same condition `deleteLayerOpacity` already computes
+ * for the *visual* opacity, so "in the tree" and "visible" can never disagree.
+ */
+describe('DayLogRow delete control accessibility (issue #141)', () => {
+  it('the delete control leaves the accessibility tree at rest, and re-enters once the row is swiped open', async () => {
+    await renderRow();
+
+    const shut = screen.getByTestId('row-delete-layer');
+    expect(shut.props.accessibilityElementsHidden).toBe(true);
+    expect(shut.props.importantForAccessibility).toBe('no-hide-descendants');
+
+    await swipeBy(-DELETE_SLIDE_WIDTH);
+
+    const open = screen.getByTestId('row-delete-layer');
+    expect(open.props.accessibilityElementsHidden).toBe(false);
+    expect(open.props.importantForAccessibility).toBe('yes');
+  });
+
+  it('the delete control leaves the tree again once a released drag springs it back shut', async () => {
+    await renderRow();
+
+    await swipeBy(-DELETE_SLIDE_WIDTH);
+    await swipeBy(DELETE_SLIDE_WIDTH);
+
+    const shut = screen.getByTestId('row-delete-layer');
+    expect(shut.props.accessibilityElementsHidden).toBe(true);
+    expect(shut.props.importantForAccessibility).toBe('no-hide-descendants');
+  });
+
+  it('the delete accessibilityAction still reaches onDelete — never a second-class path just because the control left the tree', async () => {
+    const onDelete = jest.fn();
+    await renderRow({ onDelete });
+
+    const row = screen.getByTestId('row');
+    fireEvent(row, 'accessibilityAction', { nativeEvent: { actionName: 'delete' } });
+
+    expect(onDelete).toHaveBeenCalledWith(foodEntry);
+  });
+});
+
+/**
+ * Follow-up #1 from the opus review of #140, parked on #141: `onPanResponderTerminate` had no test
+ * driving it. A terminated gesture (the OS handing the touch to a competing responder mid-drag, e.g.
+ * a system edge-swipe) must spring the row shut, not leave it stranded half-open with the delete
+ * layer still painted.
+ */
+type ResponderPropsWithTerminate = ResponderProps & {
+  readonly onResponderTerminate: (event: ResponderEvent) => void;
+};
+const frontPropsWithTerminate = (): ResponderPropsWithTerminate => frontProps() as unknown as ResponderPropsWithTerminate;
+
+describe('DayLogRow gesture termination (issue #141 follow-up)', () => {
+  it('a terminated drag springs the row shut instead of leaving it half-open', async () => {
+    await renderRow();
+
+    const front = frontPropsWithTerminate();
+    await act(() => {
+      front.onResponderGrant(touchEvent(200, 200));
+      front.onResponderMove(touchEvent(200, 200 - 30));
+    });
+    expect(frontOffset()).toBe(-30);
+    expect(layerOpacity()).toBe(1);
+
+    await act(() => {
+      front.onResponderTerminate(touchEvent(200, 200 - 30));
+    });
+
+    expect(frontOffset()).toBe(0);
+    expect(layerOpacity()).toBe(0);
+  });
+
+  it('a terminated drag also springs an already-open row shut', async () => {
+    await renderRow();
+    await swipeBy(-DELETE_SLIDE_WIDTH);
+    expect(frontOffset()).toBe(-DELETE_SLIDE_WIDTH);
+
+    const front = frontPropsWithTerminate();
+    await act(() => {
+      front.onResponderGrant(touchEvent(200, 200));
+      front.onResponderTerminate(touchEvent(200, 200));
+    });
+
+    expect(frontOffset()).toBe(0);
+    expect(layerOpacity()).toBe(0);
   });
 });
