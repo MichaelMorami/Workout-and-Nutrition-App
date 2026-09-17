@@ -16,8 +16,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { getTableConfig } from 'drizzle-orm/sqlite-core';
 import { foodLog, foods } from '@/src/db';
-import { parseSql } from './sql';
-import type { ParsedSql, PolicyCommand } from './sql';
+import { parseMigrations, parseSql } from './sql';
+import type { MigrationSource, ParsedSql, PolicyCommand } from './sql';
 
 const MIGRATIONS = path.join(__dirname, '..', '..', '..', 'supabase', 'migrations');
 
@@ -36,7 +36,59 @@ const contractFile = (): string => {
   return found;
 };
 
-const parsed = (): ParsedSql => parseSql(read(contractFile()));
+/** Every migration, in the order `supabase db push` applies them. */
+const migrationSet = (): MigrationSource[] => files().map((name) => ({ name, sql: read(name) }));
+
+/**
+ * The schema after **every** migration has run — not the contract file alone. RLS is a property of
+ * the final schema: a later migration that disables it, drops a policy or adds a permissive one has
+ * to turn this suite red (PR #128 review, hole 2).
+ */
+const parsed = (): ParsedSql => parseMigrations(migrationSet());
+
+const SYNCED_TABLES = ['foods', 'food_log'] as const;
+const OWNER = 'user_id = (select auth.uid())';
+
+/**
+ * Every RLS invariant as one pure check over a parsed migration set. The named tests below assert it
+ * piece by piece against the real set; the regression tests feed it deliberately weakened sets, so
+ * they prove this exact check — not a look-alike — catches each weakening.
+ */
+function rlsViolations(set: ParsedSql): string[] {
+  const found: string[] = [];
+  for (const name of SYNCED_TABLES) {
+    const table = set.tables.get(name);
+    const rls = set.rls.get(name);
+    if (!table) found.push(`${name}: never created`);
+    if (!set.rlsEnabled.has(name)) found.push(`${name}: RLS not enabled`);
+    if (!set.rlsForced.has(name)) found.push(`${name}: RLS not forced`);
+    if (table && rls?.enabledIn !== table.origin) {
+      found.push(`${name}: RLS last set in ${rls?.enabledIn ?? 'no migration'}, not in ${table.origin}`);
+    }
+    for (const command of ['select', 'insert', 'update'] as const) {
+      const policies = set.policiesFor(name, command);
+      if (policies.length !== 1) found.push(`${name}: ${policies.length} ${command} policies`);
+      for (const policy of policies) {
+        if (policy.roles.join(',') !== 'authenticated') found.push(`${name}: ${policy.name} roles`);
+        const predicate = command === 'insert' ? policy.withCheck : policy.using;
+        if (predicate !== OWNER) found.push(`${name}: ${policy.name} is not owner-scoped`);
+        if (command === 'update' && policy.withCheck !== OWNER) {
+          found.push(`${name}: ${policy.name} can move a row to another user`);
+        }
+      }
+    }
+    for (const command of ['delete', 'all'] as const) {
+      for (const policy of set.policiesFor(name, command)) {
+        if (policy.permissive) found.push(`${name}: permissive ${command} policy ${policy.name}`);
+      }
+    }
+  }
+  for (const policy of set.policies) {
+    if (policy.roles.length === 0) found.push(`${policy.table}: ${policy.name} applies to public`);
+    if (policy.roles.includes('anon')) found.push(`${policy.table}: ${policy.name} grants anon`);
+  }
+  return found;
+}
 
 describe('the migrations are valid SQL', () => {
   it('has at least one migration', () => {
@@ -234,10 +286,14 @@ describe('row level security', () => {
 
   it.each(['foods', 'food_log'])('%s declares RLS in the same migration that creates it', (name) => {
     // A separate migration is a window where the table exists and is world-readable, and a rebuild
-    // silently drops policies. Same file, or it is not enforced.
-    const sql = read(contractFile());
-    expect(sql).toContain(`create table public.${name}`);
-    expect(sql).toContain(`alter table public.${name} enable row level security`);
+    // silently drops policies. Same file, or it is not enforced. Asserted on parsed statements.
+    const set = parsed();
+    expect(set.tables.get(name)?.origin).toBe(contractFile());
+    expect(set.rls.get(name)?.enabledIn).toBe(contractFile());
+  });
+
+  it('holds every RLS invariant across the full migration set', () => {
+    expect(rlsViolations(parsed())).toEqual([]);
   });
 
   const POLICY_CASES: [string, PolicyCommand][] = [
@@ -250,6 +306,8 @@ describe('row level security', () => {
   ];
 
   it.each(POLICY_CASES)('%s allows %s only for the owning user', (name, command) => {
+    // More than one permissive policy ORs together, so "the" policy must be the only one.
+    expect(parsed().policiesFor(name, command)).toHaveLength(1);
     const policy = parsed().policyFor(name, command);
     expect(policy).toBeDefined();
     expect(policy?.roles).toEqual(['authenticated']);
@@ -262,8 +320,8 @@ describe('row level security', () => {
   });
 
   it.each(['foods', 'food_log'])('%s grants no DELETE — deletes are tombstones', (name) => {
-    expect(parsed().policyFor(name, 'delete')).toBeUndefined();
-    expect(parsed().policyFor(name, 'all')).toBeUndefined();
+    expect(parsed().policiesFor(name, 'delete')).toEqual([]);
+    expect(parsed().policiesFor(name, 'all')).toEqual([]);
     expect(read(contractFile())).toContain(`revoke delete on public.${name} from authenticated`);
   });
 
@@ -273,6 +331,67 @@ describe('row level security', () => {
 
   it('has no policy that omits a role, which would apply to public', () => {
     for (const policy of parsed().policies) expect(policy.roles.length).toBeGreaterThan(0);
+  });
+});
+
+/**
+ * Regression for PR #128 review, hole 2: the RLS assertions used to parse only the contract file, so
+ * a second migration that disabled RLS and added a permissive DELETE policy left all of them green.
+ * Each case appends one weakening migration after the real set and requires the suite's own check to
+ * notice.
+ */
+describe('a later migration that weakens RLS turns the suite red', () => {
+  const LATER = '99991231235959_later.sql';
+  const withLater = (sql: string): ParsedSql =>
+    parseMigrations([...migrationSet(), { name: LATER, sql }]);
+
+  it('the real set, unmodified, has no violations', () => {
+    expect(rlsViolations(withLater('create index noop_idx on public.foods (name);'))).toEqual([]);
+  });
+
+  it.each([
+    ['disables RLS', 'alter table public.food_log disable row level security;', 'food_log: RLS not enabled'],
+    ['un-forces RLS', 'alter table public.foods no force row level security;', 'foods: RLS not forced'],
+    [
+      're-enables RLS from another file',
+      'alter table public.foods enable row level security;',
+      `foods: RLS last set in ${LATER}`,
+    ],
+    [
+      'adds a permissive DELETE policy',
+      'create policy food_log_delete_any on public.food_log for delete to authenticated using (true);',
+      'food_log: permissive delete policy food_log_delete_any',
+    ],
+    [
+      'adds a permissive ALL policy',
+      'create policy foods_all on public.foods to authenticated using (true);',
+      'foods: permissive all policy foods_all',
+    ],
+    [
+      'adds a second, wider SELECT policy',
+      'create policy foods_read_all on public.foods for select to authenticated using (true);',
+      'foods: 2 select policies',
+    ],
+    [
+      'drops the owner SELECT policy',
+      'drop policy food_log_select_own on public.food_log;',
+      'food_log: 0 select policies',
+    ],
+    [
+      'opens a table to anon',
+      'create policy foods_anon on public.foods as restrictive for delete to anon using (true);',
+      'foods: foods_anon grants anon',
+    ],
+  ])('%s', (_label, sql, violation) => {
+    expect(rlsViolations(withLater(sql)).join('\n')).toContain(violation);
+  });
+
+  it('the reviewer\'s exact reproduction fails', () => {
+    const set = withLater(`
+      alter table public.food_log disable row level security;
+      create policy food_log_delete_any on public.food_log for delete to authenticated using (true);
+    `);
+    expect(rlsViolations(set).length).toBeGreaterThan(0);
   });
 });
 
