@@ -5,8 +5,9 @@
  * valid and says what we think it says" has to be provable from the file. `supabase db lint` needs a
  * running Postgres; a real Postgres parser is a native dependency this repo will not take on for a
  * test. So this reads the subset of DDL the contract actually uses — `create table`, `create index`,
- * `alter table … row level security`, `create policy`, `drop policy`, `grant`, `revoke` — and throws
- * `SqlSyntaxError` on **anything else**.
+ * `alter table … row level security`, `alter table … add column`, `create policy`, `drop policy`,
+ * `grant`, `revoke` — plus the security-neutral forms of `create function`, `comment on` and
+ * `create extension` (#132), and throws `SqlSyntaxError` on **anything else**.
  *
  * Fail-closed is the point, and it was learned the hard way (PR #128 review): an earlier version
  * silently skipped statements it did not recognise, so a migration could lose its `revoke delete`
@@ -228,6 +229,13 @@ const rolesIn = (list: string): string[] =>
   });
 
 /**
+ * A dollar-quote opener: `$$`, or a tag between dollars. Postgres's rule for the tag is an identifier's
+ * (#133): a letter or underscore, then letters, digits or underscores — so `$a1$` is a tag and `$1a$`
+ * is not. Postgres also allows non-ASCII letters; this reader does not, and fails closed on them.
+ */
+const DOLLAR_TAG = /^\$(?:[A-Za-z_][A-Za-z0-9_]*)?\$/;
+
+/**
  * Split into statements, stripping comments. Respects `'…'` (with `''` escapes), `"…"` quoted
  * identifiers, `$tag$…$tag$` bodies and nested block comments, so a `;` inside any of them is
  * not a statement boundary. Throws on anything left open.
@@ -307,7 +315,7 @@ export function splitStatements(sql: string): string[] {
     }
 
     if (ch === '$') {
-      const tag = /^\$[A-Za-z_]*\$/.exec(sql.slice(i));
+      const tag = DOLLAR_TAG.exec(sql.slice(i));
       if (tag) {
         const marker = tag[0];
         const end = sql.indexOf(marker, i + marker.length);
@@ -447,17 +455,146 @@ function parseCreateTable(statement: string, origin: string): ParsedTable | null
     if (/\bprimary\s+key\b/i.test(item)) primaryKey.push(column.name);
   }
 
-  const table: ParsedTable = {
+  return makeTable({
     name: unqualified(qualified),
     schema: schemaOf(qualified),
     columns,
     checks,
     primaryKey,
     origin,
-    column: (name) => columns.find((c) => c.name === name),
-    check: (name) => checks.find((c) => c.name === name),
+  });
+}
+
+function makeTable(fields: Omit<ParsedTable, 'column' | 'check'>): ParsedTable {
+  return {
+    ...fields,
+    column: (name) => fields.columns.find((c) => c.name === name),
+    check: (name) => fields.checks.find((c) => c.name === name),
   };
-  return table;
+}
+
+/**
+ * `alter table … add [column] …`, one or more comma-separated actions, every one of them an added
+ * column (#132). Any other action in the list — `add constraint`, `disable row level security`, a
+ * `drop` — makes the statement unmatched, and it is rejected. Returns `null` when the statement is not
+ * an `add` at all.
+ */
+const ALTER_TABLE_ADD = new RegExp(
+  `^alter\\s+table\\s+(?:if\\s+exists\\s+)?(?:only\\s+)?(${QUALIFIED_NAME})\\s+(add\\s.*)$`,
+  'is',
+);
+const ADD_COLUMN = /^add\s+(?:column\s+)?(if\s+not\s+exists\s+)?(.+)$/i;
+
+function addColumns(
+  statement: string,
+  tables: Map<string, ParsedTable>,
+  origin: string,
+): boolean {
+  const head = ALTER_TABLE_ADD.exec(statement);
+  if (!head) return false;
+  const name = unqualified(head[1] as string);
+  const table = tables.get(name);
+  if (!table) {
+    // A column on a table these migrations never created is a schema this reader cannot vouch for.
+    throw new SqlSyntaxError(`${origin}: add column on table ${name}, which no migration creates`, 0);
+  }
+
+  const columns = [...table.columns];
+  for (const action of splitItems(head[2] as string)) {
+    const match = ADD_COLUMN.exec(action);
+    const definition = match?.[2] ?? '';
+    const lower = definition.toLowerCase();
+    if (!match || TABLE_CONSTRAINT_PREFIXES.some((prefix) => lower.startsWith(prefix))) {
+      throw new SqlSyntaxError(`${origin}: unrecognised alter table action: "${action.slice(0, 80)}"`, 0);
+    }
+    if (/\bprimary\s+key\b/i.test(definition)) {
+      throw new SqlSyntaxError(`${origin}: add column with a primary key is not read: "${action}"`, 0);
+    }
+    const columnName = LEADING_IDENTIFIER.exec(definition);
+    if (!columnName) {
+      throw new SqlSyntaxError(`${origin}: add column without a column name: "${action.slice(0, 80)}"`, 0);
+    }
+    // Postgres folds the name; `parseColumn` only strips quotes, so the resolved name replaces its.
+    const column = { ...parseColumn(definition), name: identifier(columnName[0]) };
+    if (columns.some((c) => c.name === column.name)) {
+      if (match[1]) continue;
+      throw new SqlSyntaxError(`${origin}: column ${name}.${column.name} is added twice`, 0);
+    }
+    columns.push(column);
+  }
+  tables.set(name, makeTable({ ...table, columns }));
+  return true;
+}
+
+/**
+ * `create [or replace] function`, accepted only when nothing in it can change who may read or write
+ * what (#132). The whole statement — header and body — is searched, so a grant hidden in a
+ * dollar-quoted body is seen. The search is by keyword, not by parse: a harmless function that merely
+ * *mentions* one of these words (in a string or a comment) is rejected too. That is the fail-closed
+ * direction, and the fix for it is a rename, not a loosening here.
+ */
+const CREATE_FUNCTION = /^create\s+(?:or\s+replace\s+)?function\s+/i;
+const FUNCTION_LANGUAGES = new Set(['sql', 'plpgsql']);
+const FUNCTION_FORBIDDEN: readonly (readonly [RegExp, string])[] = [
+  // `security invoker` is the default and harmless; it is removed before this list is applied.
+  [/\bsecurity\b/i, 'security definer runs with its owner\'s rights'],
+  [/\b(?:grant|revoke)\b/i, 'a grant or revoke'],
+  [/\bpolicy\b|\brow\s+level\b/i, 'a policy or row level security change'],
+  [/\b(?:alter|create|drop|truncate|comment)\b/i, 'DDL'],
+  [/\bexecute\b/i, 'dynamic SQL (execute) that no reader can see into'],
+  [/\b(?:role|session_authorization|authorization|owner)\b/i, 'a role or ownership change'],
+];
+
+function checkFunction(statement: string, origin: string): boolean {
+  const head = CREATE_FUNCTION.exec(statement);
+  if (!head) return false;
+  const rest = statement.slice(head[0].length).replace(/\bsecurity\s+invoker\b/gi, ' ');
+  const fail = (why: string): never => {
+    throw new SqlSyntaxError(
+      `${origin}: create function rejected, ${why}: "${squash(statement).slice(0, 80)}"`,
+      0,
+    );
+  };
+
+  for (const [pattern, why] of FUNCTION_FORBIDDEN) if (pattern.test(rest)) fail(why);
+
+  const languages = [...rest.matchAll(/\blanguage\s+('?)([A-Za-z_]+)\1/gi)].map((m) =>
+    (m[2] as string).toLowerCase(),
+  );
+  if (languages.length === 0) fail('no language is stated');
+  for (const language of languages) {
+    if (!FUNCTION_LANGUAGES.has(language)) fail(`language ${language} is not sql or plpgsql`);
+  }
+  return true;
+}
+
+/** `comment on <object> is '<text>' | null`. A comment is catalogue metadata and grants nothing. */
+const COMMENT_ON = /^comment\s+on\s+[\w".\s(),]+?\s+is\s+(?:'(?:[^']|'')*'|null)$/i;
+
+/**
+ * Extensions this reader accepts. An extension runs its own install script, so an arbitrary one (for
+ * example `dblink`, which can run SQL as another role) is outside what a migration check can see.
+ * These only add types and functions. `cascade` is rejected: it installs dependencies not named here.
+ */
+const TRUSTED_EXTENSIONS = new Set(['pgcrypto', 'uuid-ossp', 'pg_trgm', 'citext']);
+const CREATE_EXTENSION = new RegExp(
+  `^create\\s+extension\\s+(?:if\\s+not\\s+exists\\s+)?(${IDENTIFIER})` +
+    `(?:\\s+with)?(?:\\s+schema\\s+${IDENTIFIER})?(?:\\s+version\\s+(?:'[^']*'|${IDENTIFIER}))?$`,
+  'i',
+);
+
+function checkExtension(statement: string, origin: string): boolean {
+  if (!/^create\s+extension\b/i.test(statement)) return false;
+  const match = CREATE_EXTENSION.exec(statement);
+  const name = match ? identifier(match[1] as string) : null;
+  if (!name || !TRUSTED_EXTENSIONS.has(name)) {
+    throw new SqlSyntaxError(
+      `${origin}: create extension is read only for ${[...TRUSTED_EXTENSIONS].join(', ')}, ` +
+        `without cascade: "${statement.slice(0, 80)}"`,
+      0,
+    );
+  }
+  return true;
 }
 
 /**
@@ -614,6 +751,11 @@ export function parseMigrations(sources: readonly MigrationSource[]): ParsedSql 
       }
 
       if (CREATE_INDEX.test(statement)) continue;
+      if (addColumns(flat, tables, source.name)) continue;
+      if (checkFunction(statement, source.name)) continue;
+      if (COMMENT_ON.test(flat)) continue;
+      if (checkExtension(flat, source.name)) continue;
+
       const granted = GRANT.exec(flat);
       if (granted) {
         setPrivileges(granted, 'granted');
@@ -628,7 +770,8 @@ export function parseMigrations(sources: readonly MigrationSource[]): ParsedSql 
 
       throw new SqlSyntaxError(
         `${source.name}: unrecognised statement: this reader vouches only for create table, create ` +
-          'index, alter table ... row level security, create policy, drop policy, grant and revoke. ' +
+          'index, alter table ... row level security or add column, create policy, drop policy, grant, ' +
+          'revoke, comment on, and security-neutral create function and create extension. ' +
           `Teach it the construct with a test instead of letting it pass unread: "${flat.slice(0, 80)}"`,
         0,
       );
