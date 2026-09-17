@@ -943,6 +943,7 @@
         "function getMeal(db: VitalsDb, id: string): MealDetail | null",
         "function getSettings(db: VitalsDb): SettingsView",
         "function inferSlot(localMinute: number): MealSlot",
+        "function libraryByUsage(db: VitalsDb, opts: { limit?: number }): Candidate[]",
         "function listFoods(db: VitalsDb, opts: { includeArchived?: boolean } = {}): FoodRow[]",
         "function listMeals(db: VitalsDb): MealSummary[]",
         "function localDateOf(at: number, timeZone: string): LocalDate",
@@ -1149,6 +1150,7 @@
     "src/db/queries/search.ts": {
       "exports": [
         "function createFoodAndLog(db: VitalsDb, opts: When & { food: FoodInput; amount?: Amount; slot?: MealSlot }): { food: FoodRow; receipt: LogReceipt }",
+        "function libraryByUsage(db: VitalsDb, opts: { limit?: number }): Candidate[]",
         "function recentFoods(db: VitalsDb, opts: When & { days: number; limit?: number }): Candidate[]",
         "function searchFoods(db: VitalsDb, opts: When & { query: string; limit?: number }): Candidate[]",
         "function searchFoodsOnly(db: VitalsDb, opts: When & { query: string; limit?: number }): FoodCandidate[]"
@@ -1166,7 +1168,7 @@
         "src/db/types.ts",
         "src/db/usage.ts"
       ],
-      "loc": 352
+      "loc": 405
     },
     "src/db/queries/settings.ts": {
       "exports": [
