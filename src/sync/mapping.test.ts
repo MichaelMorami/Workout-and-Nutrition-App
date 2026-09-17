@@ -440,12 +440,18 @@ describe('the mapping is pure', () => {
     expect(toRemoteFood(local, USER)).toEqual(toRemoteFood(local, USER));
   });
 
-  it('imports no Supabase client, no fetch and no storage', () => {
-    // The guarantee is structural, so it is asserted on the source: a mapping that reaches for a
-    // client is a mapping that can block, and a blocked mapping is a dropped log.
-    const source = fs.readFileSync(path.join(__dirname, 'mapping.ts'), 'utf8');
-    for (const forbidden of ['supabase', 'fetch(', 'AsyncStorage', 'expo-', 'Date.now']) {
-      expect(source).not.toContain(forbidden);
+  it('imports no client, no fetch, no storage and no clock', () => {
+    // The guarantee is structural, so it is asserted on the code: a mapping that reaches for a
+    // client is a mapping that can block, and a blocked mapping is a dropped log. Comments are
+    // stripped first — the module's own prose names the files it mirrors.
+    const code = fs
+      .readFileSync(path.join(__dirname, 'mapping.ts'), 'utf8')
+      .replace(/\/\*[\s\S]*?\*\//g, '')
+      .replace(/\/\/.*$/gm, '');
+    for (const forbidden of ['supabase', 'fetch(', 'AsyncStorage', 'expo-', 'Date.now', 'Intl.']) {
+      expect(code).not.toContain(forbidden);
     }
+    const specifiers = [...code.matchAll(/from '([^']+)'/g)].map((m) => m[1]);
+    expect(specifiers.sort()).toEqual(['./errors', './errors', './remote-rows', '@/src/db']);
   });
 });

@@ -17,7 +17,7 @@ import path from 'node:path';
 import { getTableConfig } from 'drizzle-orm/sqlite-core';
 import { foodLog, foods } from '@/src/db';
 import { parseSql } from './sql';
-import type { ParsedSql } from './sql';
+import type { ParsedSql, PolicyCommand } from './sql';
 
 const MIGRATIONS = path.join(__dirname, '..', '..', '..', 'supabase', 'migrations');
 
@@ -95,10 +95,13 @@ const FOOD_LOG_COLUMNS: readonly ExpectedColumn[] = [
   { name: 'slot', type: 'text', notNull: true },
 ];
 
-describe.each([
+/** `it.each` tuples must be mutable for jest's overloads — hence the explicit type, not `as const`. */
+const TABLES: [string, readonly ExpectedColumn[]][] = [
   ['foods', FOODS_COLUMNS],
   ['food_log', FOOD_LOG_COLUMNS],
-] as const)('public.%s', (name, expected) => {
+];
+
+describe.each(TABLES)('public.%s', (name, expected) => {
   it('exists in the public schema with id as its primary key', () => {
     const table = parsed().tables.get(name);
     expect(table?.schema).toBe('public');
@@ -123,7 +126,9 @@ describe.each([
   it('never defaults or rewrites updated_at — the device clock that made the edit owns it', () => {
     const table = parsed().tables.get(name);
     expect(table?.column('updated_at')?.default).toBeNull();
-    expect(read(contractFile())).not.toMatch(new RegExp(`trigger[\\s\\S]*on public\\.${name}`, 'i'));
+    // Asserted on statements, not on the file text, so a prose comment about triggers cannot
+    // accidentally satisfy — or accidentally break — the check.
+    expect(parsed().statements.filter((s) => /^create\s+trigger\b/i.test(s))).toEqual([]);
   });
 });
 
@@ -137,10 +142,12 @@ describe('the CHECK constraints the phone enforces are enforced remotely too', (
       .filter((name) => !DEVICE_LOCAL_CHECKS.includes(name))
       .sort();
 
-  it.each([
+  const LOCAL_TABLES: [string, typeof foods | typeof foodLog][] = [
     ['foods', foods],
     ['food_log', foodLog],
-  ] as const)('%s carries every local CHECK by name', (name, table) => {
+  ];
+
+  it.each(LOCAL_TABLES)('%s carries every local CHECK by name', (name, table) => {
     const remote = parsed().tables.get(name)?.checks.map((c) => c.name) ?? [];
     for (const check of localChecks(table)) expect(remote).toContain(check);
   });
@@ -233,14 +240,16 @@ describe('row level security', () => {
     expect(sql).toContain(`alter table public.${name} enable row level security`);
   });
 
-  it.each([
+  const POLICY_CASES: [string, PolicyCommand][] = [
     ['foods', 'select'],
     ['foods', 'insert'],
     ['foods', 'update'],
     ['food_log', 'select'],
     ['food_log', 'insert'],
     ['food_log', 'update'],
-  ] as const)('%s allows %s only for the owning user', (name, command) => {
+  ];
+
+  it.each(POLICY_CASES)('%s allows %s only for the owning user', (name, command) => {
     const policy = parsed().policyFor(name, command);
     expect(policy).toBeDefined();
     expect(policy?.roles).toEqual(['authenticated']);

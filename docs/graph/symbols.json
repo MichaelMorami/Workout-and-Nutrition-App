@@ -1,6 +1,6 @@
 {
   "generated": "scripts/graph-gen.mjs — do not edit by hand",
-  "moduleCount": 79,
+  "moduleCount": 84,
   "modules": {
     "app/(tabs)/_layout.tsx": {
       "exports": [
@@ -1004,7 +1004,9 @@
         "src/hooks/deviceWhen.ts",
         "src/hooks/useDb.ts",
         "src/store/logTracker.ts",
-        "src/store/undoToast.ts"
+        "src/store/undoToast.ts",
+        "src/sync/mapping.ts",
+        "src/sync/remote-rows.ts"
       ]
     },
     "src/db/local-time.ts": {
@@ -1465,6 +1467,82 @@
         "src/components/quick-add/UndoToast.tsx",
         "src/components/search/CreateFoodSheet.tsx",
         "src/components/search/SearchSheet.tsx"
+      ]
+    },
+    "src/sync/contract/sql.ts": {
+      "exports": [
+        "class SqlSyntaxError",
+        "function parseSql(sql: string): ParsedSql",
+        "interface ParsedCheck",
+        "interface ParsedColumn",
+        "interface ParsedPolicy",
+        "interface ParsedSql",
+        "interface ParsedTable",
+        "type PolicyCommand = 'select' | 'insert' | 'update' | 'delete' | 'all'"
+      ],
+      "imports": [],
+      "loc": 419
+    },
+    "src/sync/errors.ts": {
+      "exports": [
+        "class SyncMappingError",
+        "type SyncMappingErrorCode = | 'invalid-value'\n  /** A push was attempted with no signed-in user. An unattributed row would be rejected by RLS. */\n  | 'missing-user'",
+        "type SyncTable = 'foods' | 'food_log'"
+      ],
+      "imports": [],
+      "loc": 29,
+      "importedBy": [
+        "src/sync/mapping.ts"
+      ]
+    },
+    "src/sync/index.ts": {
+      "exports": [
+        "class SyncMappingError",
+        "const FOOD_SYNC_COLUMNS: readonly [\"id\", \"updatedAt\", \"deleted\", \"name\", \"brand\", \"basis\", \"servingLabel\", \"servingAmount\", \"kcalPer100\", \"proteinPer100\", \"archived\"]",
+        "function foodSyncFields(row: FoodTableRow): LocalFoodSync",
+        "function fromRemoteFood(row: RemoteFoodRow): LocalFoodSync",
+        "function fromRemoteFoodLog(row: RemoteFoodLogRow): LocalFoodLogSync",
+        "function toRemoteFood(row: LocalFoodSync, userId: string): RemoteFoodRow",
+        "function toRemoteFoodLog(row: LocalFoodLogSync, userId: string): RemoteFoodLogRow",
+        "interface RemoteFoodLogRow",
+        "interface RemoteFoodRow",
+        "type LocalFoodLogSync = FoodLogRow",
+        "type LocalFoodSync = Pick<FoodTableRow, (typeof FOOD_SYNC_COLUMNS)[number]>",
+        "type SyncMappingErrorCode = | 'invalid-value'\n  /** A push was attempted with no signed-in user. An unattributed row would be rejected by RLS. */\n  | 'missing-user'",
+        "type SyncTable = 'foods' | 'food_log'"
+      ],
+      "imports": [],
+      "loc": 22
+    },
+    "src/sync/mapping.ts": {
+      "exports": [
+        "const FOOD_SYNC_COLUMNS: readonly [\"id\", \"updatedAt\", \"deleted\", \"name\", \"brand\", \"basis\", \"servingLabel\", \"servingAmount\", \"kcalPer100\", \"proteinPer100\", \"archived\"]",
+        "function foodSyncFields(row: FoodTableRow): LocalFoodSync",
+        "function fromRemoteFood(row: RemoteFoodRow): LocalFoodSync",
+        "function fromRemoteFoodLog(row: RemoteFoodLogRow): LocalFoodLogSync",
+        "function toRemoteFood(row: LocalFoodSync, userId: string): RemoteFoodRow",
+        "function toRemoteFoodLog(row: LocalFoodLogSync, userId: string): RemoteFoodLogRow",
+        "type LocalFoodLogSync = FoodLogRow",
+        "type LocalFoodSync = Pick<FoodTableRow, (typeof FOOD_SYNC_COLUMNS)[number]>"
+      ],
+      "imports": [
+        "src/db/index.ts",
+        "src/sync/errors.ts",
+        "src/sync/remote-rows.ts"
+      ],
+      "loc": 248
+    },
+    "src/sync/remote-rows.ts": {
+      "exports": [
+        "interface RemoteFoodLogRow",
+        "interface RemoteFoodRow"
+      ],
+      "imports": [
+        "src/db/index.ts"
+      ],
+      "loc": 54,
+      "importedBy": [
+        "src/sync/mapping.ts"
       ]
     },
     "src/theme/tokens.ts": {
