@@ -76,3 +76,4 @@ For the sprint-by-sprint plan see [`README.md`](README.md); for open work see th
 - 2026-09-16  feat: foods get a weight/volume basis and nutrition per 100 g/ml  (PR #123 closes #86)
 - 2026-09-17  feat: add searchFoodsOnly, a foods-only search for the meal-ingredient picker (issue #98)  (PR #126 closes #98)
 - 2026-09-17  feat: the Supabase foods/food_log contract and the pure sync row mapping (issue #114)  (PR #128 closes #114)
+- 2026-09-17  fix: RLS contract check folds identifier case and sees grants to public or with granted by (issues #130, #131)  (PR #134 closes #130 #131)
