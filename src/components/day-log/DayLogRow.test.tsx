@@ -6,10 +6,12 @@
  * testID rather than simulating a real 60fps drag (the same shortcut `PortionSheet.test.tsx` takes
  * with its slider's nudge buttons instead of a drag).
  */
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { fireEvent, render, screen } from '@testing-library/react-native';
+import { StyleSheet } from 'react-native';
 import type { DayLogEntry } from '../../db';
-import { themes } from '../../theme/tokens';
-import { DayLogRow, timeLabel } from './DayLogRow';
+import { glyph, radius, size, themes, type Theme } from '../../theme/tokens';
+import { DayLogRow, DELETE_SLIDE_WIDTH, timeLabel } from './DayLogRow';
 
 const foodEntry: DayLogEntry = {
   id: 'log-1',
@@ -104,5 +106,76 @@ describe('DayLogRow', () => {
     const del = screen.getByTestId('row-delete');
     expect(del.props.accessibilityRole).toBe('button');
     expect(del.props.accessibilityLabel).toBe('Delete Greek yoghurt');
+  });
+});
+
+/** The literal character Ionicons paints for a glyph name — what lands on screen, not the name. */
+function renderedGlyph(name: string): string {
+  const codepoint = (Ionicons.glyphMap as Record<string, number>)[name];
+  if (codepoint === undefined) throw new Error(`no glyph named "${name}" in Ionicons.glyphMap`);
+  return String.fromCodePoint(codepoint);
+}
+
+const themeCases: readonly (readonly [string, Theme])[] = [
+  ['dark', themes.dark],
+  ['light', themes.light],
+];
+
+describe('DayLogRow delete button (issue #85)', () => {
+  it.each(themeCases)('%s: the delete button is the trash icon alone — no "Delete" text anywhere in the row', async (_, theme) => {
+    await renderRow({ theme });
+
+    expect(screen.queryByText(/delete/i)).toBeNull();
+    const icon = screen.getByTestId('row-delete-icon');
+    expect(icon.children).toEqual([renderedGlyph(glyph.delete)]);
+    expect(StyleSheet.flatten(icon.props.style)).toEqual(
+      expect.objectContaining({ fontSize: size.icon.deleteAction, color: theme.color.text.onDanger }),
+    );
+    expect(screen.getByTestId('row-delete')).toContainElement(icon);
+  });
+
+  it.each(themeCases)('%s: the button is a painted square in state.danger with a >=44pt hit area', async (_, theme) => {
+    await renderRow({ theme });
+
+    const del = screen.getByTestId('row-delete');
+    expect(StyleSheet.flatten(del.props.style)).toEqual(
+      expect.objectContaining({
+        width: size.deleteButton.side,
+        height: size.deleteButton.side,
+        borderRadius: radius.sm,
+        backgroundColor: theme.color.state.danger,
+      }),
+    );
+    const slop = (size.deleteButton.sideHit - size.deleteButton.side) / 2;
+    expect(del.props.hitSlop).toEqual({ top: slop, bottom: slop, left: slop, right: slop });
+    expect(size.deleteButton.side + 2 * slop).toBeGreaterThanOrEqual(size.tapTargetMin);
+  });
+
+  it('the row slides open by the gap plus the button, so the theme background shows between them', () => {
+    expect(DELETE_SLIDE_WIDTH).toBe(size.deleteButton.gap + size.deleteButton.side);
+  });
+
+  it.each(themeCases)('%s: at rest the front row is opaque and the delete layer is hidden, so nothing bleeds under the row', async (_, theme) => {
+    await renderRow({ theme });
+
+    expect(StyleSheet.flatten(screen.getByTestId('row').props.style)).toEqual(
+      expect.objectContaining({ backgroundColor: theme.color.bg.canvas }),
+    );
+    expect(StyleSheet.flatten(screen.getByTestId('row-delete-layer').props.style)).toEqual(
+      expect.objectContaining({ opacity: 0 }),
+    );
+  });
+
+  it('tapping the trash button still deletes, and the accessibility label and action are unchanged', async () => {
+    const onDelete = jest.fn();
+    await renderRow({ onDelete });
+
+    const del = screen.getByTestId('row-delete');
+    expect(del.props.accessibilityLabel).toBe('Delete Greek yoghurt');
+    await fireEvent.press(del);
+    expect(onDelete).toHaveBeenCalledWith(foodEntry);
+
+    const row = screen.getByTestId('row');
+    expect(row.props.accessibilityActions).toEqual([{ name: 'delete', label: 'Delete' }]);
   });
 });
