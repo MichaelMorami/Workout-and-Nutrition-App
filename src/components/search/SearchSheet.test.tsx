@@ -174,6 +174,9 @@ describe('SearchSheet — recent', () => {
     expect(mockRecent.mock.calls[0]?.[1]).not.toHaveProperty('excludeIds');
     expect(screen.getByTestId('search-sheet-row-food-food-2-name')).toHaveTextContent('Boiled eggs');
     expect(screen.getByTestId('search-sheet-section-recent')).toHaveTextContent('Recent', { exact: false });
+    // Issue #124: the row's protein figure renders through the shared `formatGrams`, not a
+    // hand-built `` `${n} g` ``.
+    expect(screen.getByTestId('search-sheet-row-food-food-2-protein')).toHaveTextContent('12 g');
   });
 
   it('reads Recent fresh each time the sheet opens: a food logged a moment ago appears at the top on reopen, no reload needed (issue #95)', async () => {

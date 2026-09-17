@@ -43,6 +43,13 @@ describe('FoodList', () => {
     expect(screen.getByTestId('food-list-row-food-2-serving')).toHaveTextContent('2 eggs');
   });
 
+  // Issue #124: the protein figure renders through `formatGrams`, not a hand-built `` `${n} g` ``.
+  it('renders the protein figure in grams, through the shared formatter', async () => {
+    await render(<FoodList foods={[yoghurt]} onSelect={jest.fn()} onAdd={jest.fn()} theme={theme} testID="food-list" />);
+
+    expect(screen.getByTestId('food-list-row-food-1-protein')).toHaveTextContent('20 g');
+  });
+
   it('tapping a row calls onSelect with that food', async () => {
     const onSelect = jest.fn();
     await render(<FoodList foods={[yoghurt]} onSelect={onSelect} onAdd={jest.fn()} theme={theme} testID="food-list" />);

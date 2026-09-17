@@ -36,6 +36,7 @@ import { createFoodAndLog, VitalsDbError, type FoodInput, type LogReceipt, type 
 import { deviceWhen } from '../../hooks/deviceWhen';
 import { useHapticFeedback } from '../../hooks/useHapticFeedback';
 import { useUndoToastStore } from '../../store/undoToast';
+import { formatGrams } from '../format/food';
 import { haptics, layout, radius, size, space, type, type Theme, type TypeStyle } from '../../theme/tokens';
 import { FoodForm } from '../food-form';
 
@@ -78,8 +79,7 @@ function totalsOf(entries: readonly { readonly kcal: number; readonly protein: n
  * exactly like a row's or a tile's. */
 function toastMeta(totals: { kcal: number; protein: number }, locale?: string): string {
   const kcal = Math.round(totals.kcal).toLocaleString(locale);
-  const protein = Math.round(totals.protein).toLocaleString(locale);
-  return `${kcal} kcal · ${protein} g protein`;
+  return `${kcal} kcal · ${formatGrams(totals.protein, locale)} protein`;
 }
 
 export function CreateFoodSheet({ db, query, onLogged, onClose, locale, presentation = 'modal', theme, testID = 'create-food-sheet' }: CreateFoodSheetProps) {

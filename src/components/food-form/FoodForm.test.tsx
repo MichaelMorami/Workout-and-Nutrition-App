@@ -65,6 +65,31 @@ describe('FoodForm', () => {
     expect(screen.getByTestId('food-form-serving-amount-unit')).toHaveTextContent('ml');
   });
 
+  // Issue #124: the "per 100 …" labels render their amount through the shared `formatGrams`/
+  // `formatMl` formatter (src/components/format/food.ts), not a hand-built `'g'`/`'ml'` string.
+  it('labels the per-100 steppers "100 g" for a weight food', async () => {
+    await render(<FoodForm theme={theme} onSave={jest.fn()} onCancel={jest.fn()} testID="food-form" />);
+
+    expect(screen.getByText('Kcal per 100 g')).toBeTruthy();
+    expect(screen.getByText('Protein per 100 g')).toBeTruthy();
+  });
+
+  it('labels the per-100 steppers "100 ml" for a volume food', async () => {
+    const initial: FoodInput = {
+      name: 'Whole milk',
+      brand: null,
+      servingLabel: '100 ml',
+      basis: 'volume',
+      servingAmount: 100,
+      kcalPer100: 60,
+      proteinPer100: 3,
+    };
+    await render(<FoodForm initial={initial} theme={theme} onSave={jest.fn()} onCancel={jest.fn()} testID="food-form" />);
+
+    expect(screen.getByText('Kcal per 100 ml')).toBeTruthy();
+    expect(screen.getByText('Protein per 100 ml')).toBeTruthy();
+  });
+
   it('saves a valid new food untouched except name, serving label and the numbers', async () => {
     const onSave = jest.fn();
     await render(<FoodForm theme={theme} onSave={onSave} onCancel={jest.fn()} testID="food-form" />);

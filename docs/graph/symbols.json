@@ -1,6 +1,6 @@
 {
   "generated": "scripts/graph-gen.mjs — do not edit by hand",
-  "moduleCount": 84,
+  "moduleCount": 85,
   "modules": {
     "app/(tabs)/_layout.tsx": {
       "exports": [
@@ -287,6 +287,7 @@
         "react-native",
         "src/components/day-log/DayLogRow.tsx",
         "src/components/day-log/entry-candidate.ts",
+        "src/components/format/food.ts",
         "src/components/quick-add/PortionSheet.tsx",
         "src/db/index.ts",
         "src/hooks/deviceWhen.ts",
@@ -296,7 +297,7 @@
         "src/store/undoToast.ts",
         "src/theme/tokens.ts"
       ],
-      "loc": 236
+      "loc": 237
     },
     "src/components/day-log/DayLogRow.tsx": {
       "exports": [
@@ -308,10 +309,11 @@
       "imports": [
         "react",
         "react-native",
+        "src/components/format/food.ts",
         "src/db/index.ts",
         "src/theme/tokens.ts"
       ],
-      "loc": 231,
+      "loc": 232,
       "importedBy": [
         "src/components/day-log/DayLogList.tsx"
       ]
@@ -381,10 +383,11 @@
         "react",
         "react-native",
         "src/components/food-form/Stepper.tsx",
+        "src/components/format/food.ts",
         "src/db/index.ts",
         "src/theme/tokens.ts"
       ],
-      "loc": 303
+      "loc": 308
     },
     "src/components/food-form/Stepper.tsx": {
       "exports": [
@@ -424,10 +427,11 @@
       ],
       "imports": [
         "react-native",
+        "src/components/format/food.ts",
         "src/db/index.ts",
         "src/theme/tokens.ts"
       ],
-      "loc": 146
+      "loc": 151
     },
     "src/components/food-list/index.ts": {
       "exports": [
@@ -438,6 +442,26 @@
       "loc": 2,
       "importedBy": [
         "app/foods/index.tsx"
+      ]
+    },
+    "src/components/format/food.ts": {
+      "exports": [
+        "function formatGrams(grams: number, locale?: string): string",
+        "function formatMl(ml: number, locale?: string): string"
+      ],
+      "imports": [],
+      "loc": 18,
+      "importedBy": [
+        "src/components/day-log/DayLogList.tsx",
+        "src/components/day-log/DayLogRow.tsx",
+        "src/components/food-form/FoodForm.tsx",
+        "src/components/food-list/FoodList.tsx",
+        "src/components/meals/MealForm.tsx",
+        "src/components/meals/MealList.tsx",
+        "src/components/quick-add/PortionSheet.tsx",
+        "src/components/quick-add/QuickAddGrid.tsx",
+        "src/components/search/CreateFoodSheet.tsx",
+        "src/components/search/SearchSheet.tsx"
       ]
     },
     "src/components/format/length.ts": {
@@ -467,11 +491,12 @@
         "react",
         "react-native",
         "src/components/food-form/index.ts",
+        "src/components/format/food.ts",
         "src/db/index.ts",
         "src/hooks/deviceWhen.ts",
         "src/theme/tokens.ts"
       ],
-      "loc": 423
+      "loc": 428
     },
     "src/components/meals/MealList.tsx": {
       "exports": [
@@ -480,6 +505,7 @@
       ],
       "imports": [
         "react-native",
+        "src/components/format/food.ts",
         "src/components/meals/meal-candidate.ts",
         "src/db/index.ts",
         "src/hooks/deviceWhen.ts",
@@ -488,7 +514,7 @@
         "src/store/undoToast.ts",
         "src/theme/tokens.ts"
       ],
-      "loc": 181
+      "loc": 186
     },
     "src/components/meals/index.ts": {
       "exports": [
@@ -527,11 +553,12 @@
       "imports": [
         "react",
         "react-native",
+        "src/components/format/food.ts",
         "src/db/index.ts",
         "src/hooks/useHapticFeedback.ts",
         "src/theme/tokens.ts"
       ],
-      "loc": 686,
+      "loc": 687,
       "importedBy": [
         "src/components/day-log/DayLogList.tsx",
         "src/components/quick-add/QuickAddGrid.tsx",
@@ -547,6 +574,7 @@
         "expo-router",
         "react",
         "react-native",
+        "src/components/format/food.ts",
         "src/components/quick-add/PortionSheet.tsx",
         "src/components/quick-add/QuickAddTile.tsx",
         "src/db/index.ts",
@@ -643,6 +671,7 @@
         "react",
         "react-native",
         "src/components/food-form/index.ts",
+        "src/components/format/food.ts",
         "src/db/index.ts",
         "src/hooks/deviceWhen.ts",
         "src/hooks/useHapticFeedback.ts",
@@ -660,6 +689,7 @@
       "imports": [
         "react",
         "react-native",
+        "src/components/format/food.ts",
         "src/components/quick-add/PortionSheet.tsx",
         "src/db/index.ts",
         "src/hooks/deviceWhen.ts",
@@ -668,7 +698,7 @@
         "src/store/undoToast.ts",
         "src/theme/tokens.ts"
       ],
-      "loc": 746
+      "loc": 750
     },
     "src/components/search/index.ts": {
       "exports": [

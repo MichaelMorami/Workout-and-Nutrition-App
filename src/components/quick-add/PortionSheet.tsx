@@ -40,6 +40,7 @@ import {
   type TextStyle,
 } from 'react-native';
 import type { Candidate } from '../../db';
+import { formatGrams } from '../format/food';
 import { useHapticFeedback } from '../../hooks/useHapticFeedback';
 import { haptics, interaction, radius, size, space, type, type Theme, type TypeStyle } from '../../theme/tokens';
 
@@ -471,9 +472,9 @@ function ExactControl({
 
   const portions = amount / unitSize;
   const kcalText = Math.round(candidate.kcal * portions).toLocaleString(locale);
-  const proteinText = Math.round(candidate.protein * portions).toLocaleString(locale);
-  const readout = isGrams ? `${Math.round(amount)} g` : `×${nearestHalfServing(portions)}`;
-  const logLabel = isGrams ? `Log ${Math.round(amount)} g` : `Log ×${nearestHalfServing(portions)}`;
+  const proteinText = formatGrams(candidate.protein * portions, locale);
+  const readout = isGrams ? formatGrams(amount, locale) : `×${nearestHalfServing(portions)}`;
+  const logLabel = isGrams ? `Log ${formatGrams(amount, locale)}` : `Log ×${nearestHalfServing(portions)}`;
 
   return (
     <View testID={testID}>
@@ -482,7 +483,7 @@ function ExactControl({
       </Text>
       <View style={styles.figuresRow}>
         <Text style={textStyle(type.numericLg, portionSheet.kcalText)}>{`${kcalText} kcal`}</Text>
-        <Text style={textStyle(type.numericLg, portionSheet.proteinText)}>{`${proteinText} g protein`}</Text>
+        <Text style={textStyle(type.numericLg, portionSheet.proteinText)}>{`${proteinText} protein`}</Text>
       </View>
 
       <View style={styles.sliderRow}>
@@ -549,7 +550,7 @@ export function PortionSheet({
   };
 
   const kcalText = Math.round(candidate.kcal).toLocaleString(locale);
-  const proteinText = Math.round(candidate.protein).toLocaleString(locale);
+  const proteinText = formatGrams(candidate.protein, locale);
   const unit = servingUnitLabel(candidate);
 
   const content = (
@@ -576,7 +577,7 @@ export function PortionSheet({
         <Text testID={`${testID}-title`} style={textStyle(type.title, portionSheet.titleText)}>
           {candidate.name}
         </Text>
-        <Text style={textStyle(type.label, portionSheet.metaText)}>{`${kcalText} kcal · ${proteinText} g protein per ${unit}`}</Text>
+        <Text style={textStyle(type.label, portionSheet.metaText)}>{`${kcalText} kcal · ${proteinText} protein per ${unit}`}</Text>
 
         <Segmented theme={theme} mode={mode} onChange={setMode} testID={`${testID}-mode`} />
 

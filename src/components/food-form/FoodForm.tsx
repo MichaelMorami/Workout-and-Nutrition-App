@@ -31,12 +31,17 @@
  */
 import { useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View, TextInput, type TextStyle } from 'react-native';
-import type { FoodBasis, FoodInput } from '../../db';
+import { UNIT_OF_BASIS, type FoodBasis, type FoodInput } from '../../db';
+import { formatGrams, formatMl } from '../format/food';
 import { radius, size, space, type, type Theme, type TypeStyle } from '../../theme/tokens';
 import { Stepper } from './Stepper';
 
-/** The unit a stepper labelled "per 100 …" is denominated in, following `basis`. */
-const UNIT_LABEL: Record<FoodBasis, string> = { weight: 'g', volume: 'ml' };
+/** "100 g" / "100 ml" — the per-100 steppers' denomination, through the same formatter every other
+ * food amount renders through (issue #124). Not a hand-built string: the unit itself comes from
+ * `UNIT_OF_BASIS`, the one map `basis` implies it from. */
+function per100Label(basis: FoodBasis): string {
+  return basis === 'weight' ? formatGrams(100) : formatMl(100);
+}
 
 export type FoodFormProps = {
   /** `undefined`/`null` — a fresh food, every field starts blank/zero. Given — an edit, pre-filled
@@ -178,7 +183,7 @@ export function FoodForm({ initial = null, onSave, onCancel, theme, testID = 'fo
     });
   };
 
-  const unit = UNIT_LABEL[basis];
+  const unit = UNIT_OF_BASIS[basis];
 
   return (
     // `handled`: with the name field's keyboard up, a tap on a stepper or Save must land on the
@@ -215,7 +220,7 @@ export function FoodForm({ initial = null, onSave, onCancel, theme, testID = 'fo
       />
 
       <Stepper
-        label={`Kcal per 100 ${unit}`}
+        label={`Kcal per ${per100Label(basis)}`}
         value={kcalPer100}
         step={5}
         max={5000}
@@ -225,11 +230,11 @@ export function FoodForm({ initial = null, onSave, onCancel, theme, testID = 'fo
         testID={`${testID}-kcal`}
       />
       <Stepper
-        label={`Protein per 100 ${unit}`}
+        label={`Protein per ${per100Label(basis)}`}
         value={proteinPer100}
         step={1}
         max={500}
-        unit="g"
+        unit={UNIT_OF_BASIS.weight}
         onChange={setProteinPer100}
         theme={theme}
         testID={`${testID}-protein`}

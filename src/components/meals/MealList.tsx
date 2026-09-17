@@ -13,6 +13,7 @@
  */
 import { FlatList, Pressable, StyleSheet, Text, View, type TextStyle } from 'react-native';
 import { logMeal, VitalsDbError, type MealSummary, type VitalsDb } from '../../db';
+import { formatGrams } from '../format/food';
 import { deviceWhen } from '../../hooks/deviceWhen';
 import { useHapticFeedback } from '../../hooks/useHapticFeedback';
 import { logTrackerKey } from '../../store/logTracker';
@@ -43,7 +44,7 @@ function textStyle(token: TypeStyle, color: string): TextStyle {
 }
 
 function toastMeta(kcal: number, protein: number, locale?: string): string {
-  return `${Math.round(kcal).toLocaleString(locale)} kcal · ${Math.round(protein).toLocaleString(locale)} g protein`;
+  return `${Math.round(kcal).toLocaleString(locale)} kcal · ${formatGrams(protein, locale)} protein`;
 }
 
 function EmptyState({ theme, testID }: { theme: Theme; testID: string }) {
@@ -106,8 +107,12 @@ export function MealList({ db, meals, onLogged, onCreate, locale, theme, testID 
           </Text>
         </View>
         <View style={styles.rowFigures}>
-          <Text style={textStyle(type.numeric, resultRow.kcalText)}>{`${kcalText} kcal`}</Text>
-          <Text style={textStyle(type.numeric, resultRow.proteinText)}>{`${proteinText} g`}</Text>
+          <Text testID={`${testID}-row-${item.id}-kcal`} style={textStyle(type.numeric, resultRow.kcalText)}>
+            {`${kcalText} kcal`}
+          </Text>
+          <Text testID={`${testID}-row-${item.id}-protein`} style={textStyle(type.numeric, resultRow.proteinText)}>
+            {formatGrams(item.protein, locale)}
+          </Text>
         </View>
       </Pressable>
     );

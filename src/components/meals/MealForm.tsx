@@ -22,6 +22,7 @@
 import { useMemo, useState } from 'react';
 import { FlatList, Pressable, ScrollView, StyleSheet, Text, TextInput, View, type TextStyle } from 'react-native';
 import { listFoods, searchFoodsOnly, type FoodCandidate, type MealItemInput, type VitalsDb } from '../../db';
+import { formatGrams } from '../format/food';
 import { deviceWhen } from '../../hooks/deviceWhen';
 import { radius, size, space, type, type Theme, type TypeStyle } from '../../theme/tokens';
 import { Stepper } from '../food-form';
@@ -105,8 +106,12 @@ function MatchRow({
         </Text>
       </View>
       <View style={styles.rowFigures}>
-        <Text style={textStyle(type.numericSm, resultRow.kcalText)}>{`${kcalText} kcal`}</Text>
-        <Text style={textStyle(type.numericSm, resultRow.proteinText)}>{`${proteinText} g`}</Text>
+        <Text testID={`${testID}-kcal`} style={textStyle(type.numericSm, resultRow.kcalText)}>
+          {`${kcalText} kcal`}
+        </Text>
+        <Text testID={`${testID}-protein`} style={textStyle(type.numericSm, resultRow.proteinText)}>
+          {formatGrams(candidate.protein, locale)}
+        </Text>
       </View>
     </Pressable>
   );

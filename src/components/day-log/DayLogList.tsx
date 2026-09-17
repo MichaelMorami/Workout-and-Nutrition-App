@@ -45,6 +45,7 @@ import { useDb } from '../../hooks/useDb';
 import { useTheme } from '../../hooks/useTheme';
 import { forgetLog, logTrackerKey } from '../../store/logTracker';
 import { useUndoToastStore, type LogDelta } from '../../store/undoToast';
+import { formatGrams } from '../format/food';
 import { PortionSheet } from '../quick-add/PortionSheet';
 import { space, type, type Theme, type TypeStyle } from '../../theme/tokens';
 import { candidateForEntry } from './entry-candidate';
@@ -86,7 +87,7 @@ function currentPortions(entry: DayLogEntry): number {
 /** "120 kcal · 20 g protein" — the undo toast's meta line, mirroring `QuickAddGrid`'s own `toastMeta`
  * so an edit or a delete's toast reads exactly like a fresh log's. */
 function toastMeta(kcal: number, protein: number, locale?: string): string {
-  return `${Math.round(kcal).toLocaleString(locale)} kcal · ${Math.round(protein).toLocaleString(locale)} g protein`;
+  return `${Math.round(kcal).toLocaleString(locale)} kcal · ${formatGrams(protein, locale)} protein`;
 }
 
 function EmptyState({ theme, testID }: { theme: Theme; testID: string }) {
