@@ -41,6 +41,66 @@ describe('splitting statements', () => {
   });
 });
 
+/**
+ * #133: Postgres's dollar-quote tag is a letter or underscore, then letters, digits or underscores.
+ * The old pattern stopped at a digit, so `$a1$` was not a tag and the body split on its inner `;`.
+ */
+describe('dollar-quote tags, by the Postgres rule', () => {
+  it('tokenises a DO $a1$ ... $a1$ block as one dollar-quoted body', () => {
+    expect(splitStatements('do $a1$ begin; perform 1; end $a1$; select 2')).toEqual([
+      'do $a1$ begin; perform 1; end $a1$',
+      'select 2',
+    ]);
+  });
+
+  it('reads a function body tagged $fn1$ whole', () => {
+    const sql = 'create function f() returns int as $fn1$ begin; return 1; end $fn1$ language plpgsql; select 2';
+    expect(splitStatements(sql)).toHaveLength(2);
+  });
+
+  it('accepts a tag that starts with an underscore and holds digits', () => {
+    expect(splitStatements('do $_9x$ begin; end $_9x$')).toHaveLength(1);
+  });
+
+  it('does not take a tag that starts with a digit', () => {
+    // `$1a$` is not a tag in Postgres, so the `;` between the two is a real boundary.
+    expect(splitStatements('select $1a$; select 2 $1a$')).toHaveLength(2);
+  });
+
+  it('leaves positional parameters alone', () => {
+    expect(splitStatements('select $1; select $2')).toEqual(['select $1', 'select $2']);
+  });
+
+  it('does not open a body on a $ glued to an identifier, as Postgres does not', () => {
+    // `a$$` is one identifier in Postgres; reading `$$` there as a body opener desyncs every later body.
+    expect(splitStatements('select a$$; select 2')).toEqual(['select a$$', 'select 2']);
+  });
+
+  it.each([
+    ['E', "select E'it\\'s; fine'"],
+    ['lower-case e', "select e'x'"],
+    ['U&', "select U&'x'"],
+  ])('throws on a %s-prefixed string, whose escapes this reader does not lex', (_label, sql) => {
+    expect(() => splitStatements(sql)).toThrow(SqlSyntaxError);
+  });
+
+  it('throws on a U&"…" name, whose escapes this reader does not decode', () => {
+    expect(() => splitStatements('select U&"\\0070g_class"')).toThrow(SqlSyntaxError);
+  });
+
+  it('still reads a quoted name after a word ending in u&-like text', () => {
+    expect(splitStatements('select a & "b"')).toEqual(['select a & "b"']);
+  });
+
+  it('still reads a plain string after a word ending in e', () => {
+    expect(splitStatements("select type = 'x'")).toEqual(["select type = 'x'"]);
+  });
+
+  it('does not close a body on a longer tag that shares a prefix', () => {
+    expect(splitStatements('do $a$ x $a1$; y $a$; select 2')).toHaveLength(2);
+  });
+});
+
 describe('rejecting malformed SQL', () => {
   it('throws on an unterminated string literal', () => {
     expect(() => splitStatements(`select 'oops`)).toThrow(SqlSyntaxError);
@@ -76,7 +136,8 @@ describe('fail-closed: a statement outside the allowlist is an error, never skip
     ['a policy alteration', 'alter policy foods_select_own on public.foods using (true)'],
     ['a trigger', 'create trigger t before update on public.foods for each row execute function f()'],
     ['a column change', 'alter table public.foods drop column basis'],
-    ['a function', 'create function f() returns int as $fn$ select 1 $fn$ language sql'],
+    ['a security definer function', 'create function f() returns int as $fn$ select 1 $fn$ language sql security definer'],
+    ['a constraint added by alter table', 'alter table public.foods add constraint c check (true)'],
   ])('rejects %s', (_label, statement) => {
     expect(() => parseSql(`create index i on public.foods (id); ${statement};`)).toThrow(SqlSyntaxError);
   });
@@ -358,5 +419,186 @@ describe('grants that reach a role by another route', () => {
     ['a granted by with no role', 'grant delete on public.t to authenticated granted by'],
   ])('throws on %s rather than guessing a role name', (_label, statement) => {
     expect(() => parseSql(`${statement};`)).toThrow(SqlSyntaxError);
+  });
+});
+
+/**
+ * #132: constructs a hosted-project migration (#127) is likely to carry. Each is accepted only in a
+ * form that cannot change RLS or privileges; anything that could still throws.
+ */
+describe('statements that do not touch RLS or privileges', () => {
+  const base = `
+    create table public.t (id uuid primary key, user_id uuid not null);
+    alter table public.t enable row level security;
+    alter table public.t force row level security;
+    create policy t_select_own on public.t for select to authenticated using (user_id = (select auth.uid()));
+    revoke delete, truncate on public.t from authenticated, anon;
+    grant select, insert, update on public.t to authenticated;
+  `;
+
+  const securityState = (sql: string): unknown => {
+    const set = parseSql(sql);
+    return {
+      rls: [...set.rls],
+      policies: set.policies,
+      privileges: ['authenticated', 'anon', 'public'].flatMap((role) =>
+        ['select', 'insert', 'update', 'delete', 'truncate', 'references', 'trigger'].map(
+          (privilege) => `${role}:${privilege}:${set.privilegeState('t', role, privilege)}`,
+        ),
+      ),
+    };
+  };
+
+  it.each([
+    ['alter table ... add column', 'alter table public.t add column note text'],
+    ['alter table ... add column if not exists', 'alter table if exists public.t add column if not exists note text default null'],
+    ['alter table ... add without the column keyword', 'alter table public.t add note text'],
+    ['several add column actions', 'alter table public.t add column a int not null default 0, add column b numeric(10, 2)'],
+    ['create function', 'create function public.f() returns int language sql as $fn$ select 1 $fn$'],
+    [
+      'create or replace function, plpgsql, security invoker, digit tag',
+      'create or replace function public.touch(x int) returns int language plpgsql security invoker ' +
+        "set search_path = '' as $fn1$ begin; return x + 1; end $fn1$",
+    ],
+    ['comment on table', "comment on table public.t is 'Food log rows; synced.'"],
+    ['comment on column', "comment on column public.t.user_id is 'owner'"],
+    ['comment on ... is null', 'comment on table public.t is null'],
+    ['a language clause given as a quoted name', 'create function public.f() returns int language "plpgsql" as $$ begin return 1; end $$'],
+    ['a plain default on an added column', 'alter table public.t add column n int not null default 0'],
+    ['create extension', 'create extension if not exists pgcrypto with schema extensions'],
+    ['create extension with a quoted name', 'create extension "uuid-ossp"'],
+  ])('parses %s without changing RLS or privilege state', (_label, statement) => {
+    const sql = `${base} ${statement};`;
+    expect(() => parseSql(sql)).not.toThrow();
+    expect(securityState(sql)).toEqual(securityState(base));
+  });
+
+  it('records an added column on the table', () => {
+    const table = parseSql(`${base} alter table public.t add column Note text not null default '';`).tables.get('t');
+    expect(table?.column('note')).toMatchObject({ type: 'text', notNull: true, default: "''" });
+    expect(table?.columns.map((c) => c.name)).toEqual(['id', 'user_id', 'note']);
+  });
+
+  it('keeps an add column if not exists on an existing column a no-op', () => {
+    const table = parseSql(`${base} alter table public.t add column if not exists user_id text;`).tables.get('t');
+    expect(table?.column('user_id')?.type).toBe('uuid');
+  });
+
+  it.each([
+    ['a security definer function', 'create function f() returns int language sql security definer as $$ select 1 $$'],
+    ['a grant inside a function body', 'create function f() returns void language sql as $b$ grant delete on public.t to anon $b$'],
+    ['a revoke inside a function body', 'create function f() returns void language sql as $b$ revoke select on public.t from anon $b$'],
+    [
+      'a policy change inside a function body',
+      'create function f() returns void language plpgsql as $b$ begin create policy p on public.t using (true); end $b$',
+    ],
+    [
+      'an RLS toggle inside a function body',
+      'create function f() returns void language plpgsql as $b$ begin alter table public.t disable row level security; end $b$',
+    ],
+    [
+      'dynamic SQL inside a function body',
+      "create function f() returns void language plpgsql as $b$ begin execute 'gr' || 'ant all on t to anon'; end $b$",
+    ],
+    ['a role switch in the function header', 'create function f() returns int language sql set role postgres as $$ select 1 $$'],
+    ['a set_config role switch', "create function f() returns text language sql as $$ select set_config('role', 'postgres', true) $$"],
+    ['a C-language function', "create function f() returns int language c as 'lib', 'f'"],
+    ['a function with no language', 'create function f() returns int as $$ select 1 $$'],
+    ['an extension outside the trusted list', 'create extension dblink'],
+    ['an extension installed with cascade', 'create extension pg_trgm cascade'],
+    ['an RLS toggle chained after add column', 'alter table public.t add column note text, disable row level security'],
+    ['an add column on a table the migrations never created', 'alter table public.other add column note text'],
+    ['an add column of a column that already exists', 'alter table public.t add column user_id text'],
+    ['an add column that declares a primary key', 'alter table public.t add column k uuid primary key'],
+    ['trailing words after a comment', "comment on table public.t is 'x' junk"],
+    ['a comment whose text is not a literal', 'comment on table public.t is current_user'],
+    // PR #138 review, blocker 1: Postgres lexes a block comment as whitespace.
+    ['security/**/definer', 'create function public.f() returns int language sql security/**/definer as $$ select 1 $$'],
+    // Blocker 2: the language clause is read outside the body, quoted names included, exactly once.
+    [
+      'a quoted language behind a decoy language sql in the body',
+      'create function public.f() returns int as $$ -- language sql\n import os $$ language "plpython3u"',
+    ],
+    ['a quoted C language', 'create function public.f() returns int language "c" as $$ select 1 $$'],
+    ['two language clauses', 'create function public.f() returns int language sql language plpgsql as $$ select 1 $$'],
+    // Blocker 3: catalog DML and obfuscated set_config need no forbidden keyword.
+    [
+      'catalog DML in a function body',
+      "create function public.f(uuid) returns int language sql immutable as $$ update pg_catalog.pg_class set relrowsecurity = false where relname = 't' returning 1 $$",
+    ],
+    [
+      'an obfuscated set_config in a function body',
+      "create function public.g() returns text language sql as $$ select set_config('ro'||'le', 'service_role', false) $$",
+    ],
+    ['information_schema in a function body', 'create function public.g() returns int language sql as $$ select 1 from information_schema.tables $$'],
+    ['set_config in an added column default', "alter table public.t add column x text default set_config('ro'||'le', 'service_role', false)"],
+    ['a catalog read in an added column default', 'alter table public.t add column x oid default pg_catalog.pg_my_temp_schema()'],
+    ['set_config in an index expression', "create index t_x on public.t ((set_config('ro'||'le', 'service_role', false)))"],
+    ['a catalog function in an index predicate', 'create index t_x on public.t (id) where pg_catalog.pg_has_role(user_id::text, \'x\')'],
+    // Found alongside blocker 1: places where the reader and Postgres would disagree on where a body ends.
+    [
+      'a $$ glued to an identifier, which Postgres reads as part of the name',
+      'create function public.a$$() returns int as $$ language sql $$ language "c" -- $$',
+    ],
+    // Re-review blocker A: a U&"…" name decodes to a forbidden one that no text pattern sees.
+    [
+      'a Unicode-escaped catalog name in a function body',
+      'create function public.f(uuid) returns int language sql immutable as $$ update U&"\\0070g_class" set relrowsecurity = false returning 1 $$',
+    ],
+    [
+      'a Unicode-escaped set_config in an added column check',
+      `alter table public.t add column y text check (U&"set\\005fconfig"('ro'||'le', 'service_role', false) is not null)`,
+    ],
+    [
+      'a Unicode-escaped set_config in an index predicate',
+      `create index t_p on public.t (id) where U&"set\\005fconfig"('ro'||'le', 'x', false) is not null`,
+    ],
+    // Re-review blocker B: replacing a function a policy calls rewrites the policy without touching it.
+    [
+      'a function created outside public',
+      'create function auth.uid() returns uuid language sql stable as $$ select null::uuid $$',
+    ],
+    [
+      'a public function whose name the policy calls',
+      'create or replace function public.uid() returns uuid language sql stable as $$ select user_id from public.t limit 1 $$',
+    ],
+    // Re-review suggestion: create table defaults follow the same expression rule.
+    [
+      'set_config in a create table default',
+      "create table public.u (id uuid primary key, r text default set_config('role', 'service_role', true))",
+    ],
+    // Suggestion: add column checks the schema, so auth.t is not public.t.
+    ['an add column on a same-named table in another schema', 'alter table auth.t add column y int'],
+  ])('still throws on %s', (_label, statement) => {
+    expect(() => parseSql(`${base} ${statement};`)).toThrow(SqlSyntaxError);
+  });
+});
+
+describe('policies and the functions a migration creates (PR #138 re-review)', () => {
+  it('throws when a policy calls a function the migrations redefine, in either order', () => {
+    const policy = 'create policy own on public.t for select to authenticated using (user_id = (select auth.uid()));';
+    const fn = 'create or replace function auth.uid() returns uuid language sql stable as $$ select null::uuid $$;';
+    expect(() => parseSql(`create table public.t (id uuid primary key, user_id uuid); ${policy} ${fn}`)).toThrow(SqlSyntaxError);
+    const helper = 'create function public.is_owner(u uuid) returns boolean language sql as $$ select true $$;';
+    const usesHelper = 'create policy own on public.t for select to authenticated using (public.is_owner(user_id));';
+    expect(() => parseSql(`create table public.t (id uuid primary key, user_id uuid); ${helper} ${usesHelper}`)).toThrow(
+      /policy.*is_owner/,
+    );
+  });
+
+  it('accepts a public function no policy calls', () => {
+    expect(() =>
+      parseSql(
+        'create table public.t (id uuid primary key, user_id uuid); ' +
+          'create policy own on public.t for select to authenticated using (user_id = (select auth.uid())); ' +
+          'create function touch() returns int language sql as $$ select 1 $$;',
+      ),
+    ).not.toThrow();
+  });
+
+  it("names a string-form language clause instead of misreading the next word as the language", () => {
+    expect(() => parseSql("create function public.f() returns int language 'plpgsql' as $$ begin return 1; end $$;")).toThrow(
+      /string-form language clause is not read/,
+    );
   });
 });
