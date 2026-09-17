@@ -8,7 +8,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import * as tokens from '../../src/theme/tokens.ts';
 
-const { themes, fontInstances, space, size, layout, glyph } = tokens;
+const { themes, fontInstances, space, size, layout, glyph, radius } = tokens;
 const TT = tokens.type;
 const HERE = dirname(fileURLToPath(import.meta.url));
 const OUT = join(HERE, 'canvas');
@@ -62,14 +62,16 @@ ${TABS.map(([key, label]) => `<div style="${s({ display: 'flex', flexDirection: 
 </div>`;
 }
 
-/* A Today's-log row swiped fully open: the row slides left by the pane width, the pane shows the trash. */
-const PANE = size.tapTargetMin + space[5];
+/* A Today's-log row swiped fully open: the row slides left by gap + side, revealing a square red
+   button on the row's trailing edge, with theme background between it and the protein figure. */
+const DB = size.deleteButton;
+const REVEAL = DB.gap + DB.side;
 const ROWH = size.row.log;
 function deleteBoard(th, label) {
   const c = th.color, L = c.logRow;
-  const row = (open) => `<div style="${s({ padding: `0 ${layout.gutterToday}px` })}"><div style="${s({ position: 'relative', height: ROWH + 'px', overflow: 'hidden' })}">
-  <div style="${s({ position: 'absolute', top: 0, bottom: 0, right: 0, width: PANE + 'px', background: c.state.danger, display: 'flex', alignItems: 'center', justifyContent: 'center' })}">${ion(glyph.delete, size.icon.deleteAction, c.text.onDanger)}</div>
-  <div style="${s({ position: 'absolute', top: 0, bottom: 0, left: (open ? -PANE : 0) + 'px', width: '100%', background: c.bg.canvas, display: 'flex', alignItems: 'center', gap: space[4] + 'px' })}">
+  const row = (open) => `<div style="${s({ padding: `0 ${layout.gutterToday}px` })}"><div style="${s({ position: 'relative', height: ROWH + 'px', overflow: 'hidden', background: c.bg.canvas })}">
+  <div style="${s({ position: 'absolute', top: (ROWH - DB.side) / 2 + 'px', right: 0, width: DB.side + 'px', height: DB.side + 'px', borderRadius: radius.sm + 'px', background: c.state.danger, display: 'flex', alignItems: 'center', justifyContent: 'center' })}">${ion(glyph.delete, size.icon.deleteAction, c.text.onDanger)}</div>
+  <div style="${s({ position: 'absolute', top: 0, bottom: 0, left: (open ? -REVEAL : 0) + 'px', width: '100%', background: c.bg.canvas, display: 'flex', alignItems: 'center', gap: space[4] + 'px' })}">
     <span style="${t('numericXs', { color: L.timeText, width: '38px', flex: 'none' })}">12:40</span>
     <span style="${t('body', { color: L.nameText, flex: '1', minWidth: '0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' })}">Chicken wrap</span>
     <span style="${t('numericSm', { color: L.kcalText })}">460</span>
@@ -90,7 +92,7 @@ function glyphBoard(th) {
   const c = th.color;
   const rows = [
     ...TABS.map(([key, label]) => [label + ' tab', glyph.tab[key].inactive, glyph.tab[key].active, `size.icon.tab · ${size.icon.tab}`, c.tabBar[`${key}ActiveText`]]),
-    ['Delete pane', null, glyph.delete, `size.icon.deleteAction · ${size.icon.deleteAction}`, c.text.primary],
+    ['Delete button', null, glyph.delete, `size.icon.deleteAction · ${size.icon.deleteAction}`, c.text.primary],
   ];
   const cell = (name, color, px) => name
     ? `<div style="${s({ display: 'flex', alignItems: 'center', gap: space[4] + 'px', width: '190px' })}">${ion(name, px * 2, color)}<span style="${t('numericXs', { color: c.text.secondary })}">${name}</span></div>`
@@ -155,13 +157,13 @@ const canvas = {
     { file: 'Main.dc.html', title: 'Tab bar — dark (recommended)', x: 0, y: 0, w: W, h: barsHeight },
     { file: 'TabBarLight.dc.html', title: 'Tab bar — light', x: W + GAP, y: 0, w: W, h: barsHeight },
     { file: 'Glyphs.dc.html', title: 'Glyph names and sizes', x: (W + GAP) * 2, y: 0, w: 640, h: glyphHeight },
-    { file: 'DeletePane.dc.html', title: 'Swipe-to-delete pane — dark', x: 0, y: ROW2, w: W, h: deleteHeight },
-    { file: 'DeletePaneLight.dc.html', title: 'Swipe-to-delete pane — light', x: W + GAP, y: ROW2, w: W, h: deleteHeight },
+    { file: 'DeletePane.dc.html', title: 'Swipe-to-delete button — dark', x: 0, y: ROW2, w: W, h: deleteHeight },
+    { file: 'DeletePaneLight.dc.html', title: 'Swipe-to-delete button — light', x: W + GAP, y: ROW2, w: W, h: deleteHeight },
     { file: 'OutlineOnly.dc.html', title: 'Alternative: outline only, colour marks the tab', x: (W + GAP) * 2, y: glyphHeight + 150, w: W, h: barsHeight },
   ],
   annotations: [
     { id: 'brief', x: 0, y: -210, w: 880, text: 'Issue #80 — bottom tab icons + trash can. Nothing else in the tab bar changes: same height, labels, colours and hairline as the approved canvas.\n\nRecommended: Ionicons. At rest a tab shows the outline glyph in grey; the selected tab switches to the filled glyph in its own colour (Today amber, Workout violet, Charts blue, Settings white/ink). Shape + colour, so it reads in bad light and for colour-blind users.\n\nAlternative (right, row 2): keep the outline and change colour only — lighter, but the selected tab is harder to spot at a glance.' },
-    { id: 'trash-colour', x: 0, y: ROW2 + deleteHeight + 40, w: 880, text: 'Trash can: filled "trash" glyph centred on the red pane. Light theme is white on red (6.1:1). Dark theme uses the red that already carries Delete buttons there, which is a light coral — white on it measures 2.9:1 and fails, so the can is near-black (6.7:1). If you want white in dark mode too, the pane needs a deeper red of its own; say so and I will add it.' },
+    { id: 'trash-colour', x: 0, y: ROW2 + deleteHeight + 40, w: 880, text: 'Trash can: filled "trash" glyph centred in a square red button (' + DB.side + ' pt, touch area ' + DB.sideHit + ' pt), on the row\'s trailing edge. A ' + DB.gap + ' pt gap of background separates it from the protein figure; the row slides open by ' + REVEAL + ' pt. Light theme: white on red (6.1:1). Dark theme: near-black on coral (6.7:1) — approved.' },
   ],
   launch: { view: 'canvas' },
 };

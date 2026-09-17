@@ -1028,8 +1028,8 @@ export const size = {
   icon: {
     /** Tab bar glyphs — the `glyph.tab` Ionicons, passed as the icon's `size`. */
     tab: 23,
-    /** The trash can on the swipe-revealed delete pane (`glyph.delete`). Larger than a row glyph:
-     * it is the only thing on a solid red pane and has to read at arm's length, mid-swipe. */
+    /** The trash can on the swipe-revealed delete button (`glyph.delete`). Larger than a row glyph:
+     * it is the only thing on a solid red button and has to read at arm's length, mid-swipe. */
     deleteAction: 22,
     /** Header and field glyphs. */
     lg: 21,
@@ -1193,6 +1193,18 @@ export const size = {
     logHit: 44,
   },
 
+  deleteButton: {
+    /** The swipe-revealed delete button on a Today's-log row: a square, painted this size, centred
+     * vertically in the row and sitting on the row's trailing edge. Corners `radius.sm`, fill
+     * `state.danger`, glyph `glyph.delete` at `size.icon.deleteAction`. Not a full-height strip. */
+    side: 36,
+    /** Its touch area — square, extended past the painted button (hitSlop 4 pt each side). */
+    sideHit: 44,
+    /** The gap between the row's content (the protein figure) and the button, showing the theme
+     * background. A layout gap, never a whitespace character. The row slides open by `gap + side`. */
+    gap: space[4],
+  },
+
   restBar: {
     /** Rest-timer bar height. */
     height: 66,
@@ -1238,8 +1250,9 @@ export const glyph = {
     settings: { active: 'settings', inactive: 'settings-outline' },
   },
   /**
-   * The swipe-to-delete pane on a Today's-log row: the filled trash can, alone, centred on the
-   * `state.danger` pane, drawn in `text.onDanger`. Size: `size.icon.deleteAction`. Icon-only, so the
+   * The swipe-to-delete button on a Today's-log row: the filled trash can, alone, centred in the
+   * square `state.danger` button (`size.deleteButton`), drawn in `text.onDanger`. Size:
+   * `size.icon.deleteAction`. Icon-only, so the
    * row keeps its "Delete <food>" accessibility label and action.
    */
   delete: 'trash',

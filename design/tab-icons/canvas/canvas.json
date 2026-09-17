@@ -26,7 +26,7 @@
     },
     {
       "file": "DeletePane.dc.html",
-      "title": "Swipe-to-delete pane — dark",
+      "title": "Swipe-to-delete button — dark",
       "x": 0,
       "y": 682,
       "w": 390,
@@ -34,7 +34,7 @@
     },
     {
       "file": "DeletePaneLight.dc.html",
-      "title": "Swipe-to-delete pane — light",
+      "title": "Swipe-to-delete button — light",
       "x": 500,
       "y": 682,
       "w": 390,
@@ -62,7 +62,7 @@
       "x": 0,
       "y": 906,
       "w": 880,
-      "text": "Trash can: filled \"trash\" glyph centred on the red pane. Light theme is white on red (6.1:1). Dark theme uses the red that already carries Delete buttons there, which is a light coral — white on it measures 2.9:1 and fails, so the can is near-black (6.7:1). If you want white in dark mode too, the pane needs a deeper red of its own; say so and I will add it."
+      "text": "Trash can: filled \"trash\" glyph centred in a square red button (36 pt, touch area 44 pt), on the row's trailing edge. A 10 pt gap of background separates it from the protein figure; the row slides open by 46 pt. Light theme: white on red (6.1:1). Dark theme: near-black on coral (6.7:1) — approved."
     }
   ],
   "launch": {
