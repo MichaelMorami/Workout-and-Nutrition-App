@@ -4,16 +4,20 @@
   "modules": {
     "app/(tabs)/_layout.tsx": {
       "exports": [
+        "const tabNames: readonly (\"today\" | \"settings\" | \"workout\" | \"charts\")[]",
         "function default(): React.JSX.Element",
-        "function sharedTabBarOptions(color: ColorTokens): { readonly headerShown: false; readonly tabBarStyle: { readonly backgroundColor: string; readonly borderTopColor: string; readonly height: 58; }; readonly tabBarInactiveTintColor: string; readonly tabBarLabelStyle: { readonly fontFamily: \"Archivo-Medium\"; readonly fontSize: 10; readonly letterSpacing: 0.1; }; }"
+        "function sharedTabBarOptions(color: ColorTokens): { readonly headerShown: false; readonly tabBarStyle: { readonly backgroundColor: string; readonly borderTopColor: string; readonly height: 58; }; readonly tabBarInactiveTintColor: string; readonly tabBarLabelStyle: { readonly fontFamily: \"Archivo-Medium\"; readonly fontSize: 10; readonly letterSpacing: 0.1; }; }",
+        "function tabBarIcon(tab: TabName): ({ focused, color }: { focused: boolean; color: ColorValue; size: number; }) => React.JSX.Element"
       ],
       "imports": [
+        "@expo/vector-icons/Ionicons",
         "expo-router",
         "react",
+        "react-native",
         "src/hooks/useTheme.ts",
         "src/theme/tokens.ts"
       ],
-      "loc": 47
+      "loc": 94
     },
     "app/(tabs)/charts.tsx": {
       "exports": [
