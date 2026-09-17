@@ -12,15 +12,15 @@ import { parseSql, splitStatements, SqlSyntaxError } from './sql';
 /** The lexical layer. It will split a `select`; vouching for a statement is `parseSql`'s job. */
 describe('splitting statements', () => {
   it('splits on top-level semicolons and drops blank statements', () => {
-    expect(parseSql('select 1; select 2;;').statements).toEqual(['select 1', 'select 2']);
+    expect(splitStatements('select 1; select 2;;')).toEqual(['select 1', 'select 2']);
   });
 
   it('keeps a semicolon inside a string literal', () => {
-    expect(parseSql(`select 'a;b'; select 2`).statements).toEqual([`select 'a;b'`, 'select 2']);
+    expect(splitStatements(`select 'a;b'; select 2`)).toEqual([`select 'a;b'`, 'select 2']);
   });
 
   it('keeps a semicolon inside a quoted identifier', () => {
-    expect(parseSql(`select "a;b"; select 2`).statements).toEqual([`select "a;b"`, 'select 2']);
+    expect(splitStatements(`select "a;b"; select 2`)).toEqual([`select "a;b"`, 'select 2']);
   });
 
   it('keeps a semicolon inside a dollar-quoted body', () => {
@@ -29,15 +29,15 @@ describe('splitting statements', () => {
   });
 
   it('strips line comments', () => {
-    expect(parseSql('select 1; -- select 2;\nselect 3').statements).toEqual(['select 1', 'select 3']);
+    expect(splitStatements('select 1; -- select 2;\nselect 3')).toEqual(['select 1', 'select 3']);
   });
 
   it('strips block comments, including nested ones', () => {
-    expect(parseSql('select 1 /* a /* b */ c */; select 2').statements).toEqual(['select 1', 'select 2']);
+    expect(splitStatements('select 1 /* a /* b */ c */; select 2')).toEqual(['select 1', 'select 2']);
   });
 
   it('does not treat a doubled quote as the end of a literal', () => {
-    expect(parseSql(`select 'it''s; fine'`).statements).toEqual([`select 'it''s; fine'`]);
+    expect(splitStatements(`select 'it''s; fine'`)).toEqual([`select 'it''s; fine'`]);
   });
 });
 

@@ -4,8 +4,14 @@
  * Why this exists: #114 defines the remote contract with **no hosted project**, so "the migration is
  * valid and says what we think it says" has to be provable from the file. `supabase db lint` needs a
  * running Postgres; a real Postgres parser is a native dependency this repo will not take on for a
- * test. So this reads the subset of DDL the contract actually uses — `create table`, `alter table …
- * row level security`, `create policy` — and *throws* on anything it cannot account for.
+ * test. So this reads the subset of DDL the contract actually uses — `create table`, `create index`,
+ * `alter table … row level security`, `create policy`, `drop policy`, `grant`, `revoke` — and throws
+ * `SqlSyntaxError` on **anything else**.
+ *
+ * Fail-closed is the point, and it was learned the hard way (PR #128 review): an earlier version
+ * silently skipped statements it did not recognise, so a migration could lose its `revoke delete`
+ * or gain a permissive DELETE policy and every test still passed. A reader that ignores the unknown
+ * manufactures confidence; one that throws is a ratchet.
  *
  * It is deliberately not a general SQL parser and must never become one. Its job is to make a silent
  * drift between `supabase/migrations/**` and the local schema impossible; a construct it does not
@@ -111,10 +117,13 @@ const schemaOf = (name: string): string | null => {
 
 /**
  * Split into statements, stripping comments. Respects `'…'` (with `''` escapes), `"…"` quoted
- * identifiers, `$tag$…$tag$` bodies and nested `/* … *​/` comments, so a `;` inside any of them is
+ * identifiers, `$tag$…$tag$` bodies and nested block comments, so a `;` inside any of them is
  * not a statement boundary. Throws on anything left open.
+ *
+ * The lexical layer only: it will split a `select`. Whether a statement is one this reader vouches
+ * for is `parseSql`'s decision.
  */
-function splitStatements(sql: string): string[] {
+export function splitStatements(sql: string): string[] {
   const statements: string[] = [];
   let buffer = '';
   let depth = 0;
@@ -372,6 +381,13 @@ function parsePolicy(statement: string): ParsedPolicy | null {
   };
 }
 
+const CREATE_INDEX =
+  /^create\s+(?:unique\s+)?index\s+(?:concurrently\s+)?(?:if\s+not\s+exists\s+)?[\w".]+\s+on\s+[\w".]+\s*\(/is;
+const DROP_POLICY = /^drop\s+policy\s+(?:if\s+exists\s+)?([\w"]+)\s+on\s+([\w".]+)$/i;
+const GRANT = /^grant\s+(.+?)\s+on\s+(?:table\s+)?([\w".]+)\s+to\s+(.+?)(?:\s+with\s+grant\s+option)?$/i;
+const REVOKE =
+  /^revoke\s+(?:grant\s+option\s+for\s+)?(.+?)\s+on\s+(?:table\s+)?([\w".]+)\s+from\s+(.+?)(?:\s+(?:cascade|restrict))?$/i;
+
 /** Read a migration file's text. Throws `SqlSyntaxError` rather than reporting a broken file as fine. */
 export function parseSql(sql: string): ParsedSql {
   const statements = splitStatements(sql);
@@ -393,6 +409,11 @@ export function parseSql(sql: string): ParsedSql {
       continue;
     }
 
+    if (CREATE_INDEX.test(statement)) continue;
+    if (DROP_POLICY.test(squash(statement))) continue;
+    if (GRANT.test(squash(statement))) continue;
+    if (REVOKE.test(squash(statement))) continue;
+
     const rls = /^alter\s+table\s+([\w".]+)\s+(enable|force|disable|no\s+force)\s+row\s+level\s+security$/is.exec(
       squash(statement),
     );
@@ -403,7 +424,15 @@ export function parseSql(sql: string): ParsedSql {
       if (mode === 'force') rlsForced.add(name);
       if (mode === 'disable') rlsEnabled.delete(name);
       if (mode === 'no force') rlsForced.delete(name);
+      continue;
     }
+
+    throw new SqlSyntaxError(
+      'unrecognised statement: this reader vouches only for create table, create index, alter table ' +
+        '... row level security, create policy, drop policy, grant and revoke. Teach it the construct ' +
+        `with a test instead of letting it pass unread: "${squash(statement).slice(0, 80)}"`,
+      0,
+    );
   }
 
   return {
