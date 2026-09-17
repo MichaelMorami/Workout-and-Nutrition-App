@@ -235,6 +235,9 @@ const rolesIn = (list: string): string[] =>
  */
 const DOLLAR_TAG = /^\$(?:[A-Za-z_][A-Za-z0-9_]*)?\$/;
 
+/** The text just before a `'` that makes it an `E'…'` or `U&'…'` literal: the prefix, not a word's tail. */
+const ESCAPE_STRING_PREFIX = /(?:^|[^A-Za-z0-9_$])(?:[Ee]|[Uu]&)$/;
+
 /**
  * Split into statements, stripping comments. Respects `'…'` (with `''` escapes), `"…"` quoted
  * identifiers, `$tag$…$tag$` bodies and nested block comments, so a `;` inside any of them is
@@ -262,6 +265,8 @@ export function splitStatements(sql: string): string[] {
     if (ch === '-' && next === '-') {
       const end = sql.indexOf('\n', i);
       i = end === -1 ? sql.length : end;
+      // Postgres lexes a comment as whitespace; dropping it would glue `security--\ndefiner` together.
+      buffer += ' ';
       continue;
     }
 
@@ -281,7 +286,16 @@ export function splitStatements(sql: string): string[] {
         }
       }
       if (nesting !== 0) throw new SqlSyntaxError('unterminated block comment', start);
+      // A comment is whitespace to Postgres. Removing it outright turned `security/**/definer` into
+      // `securitydefiner`, a word no check matches, on a statement Postgres reads as SECURITY DEFINER.
+      buffer += ' ';
       continue;
+    }
+
+    if (ch === "'" && ESCAPE_STRING_PREFIX.test(sql.slice(Math.max(0, i - 3), i))) {
+      // `E'…'` honours backslash escapes and `U&'…'` has its own; lexing either as a plain literal
+      // would end it in the wrong place and put body text where the reader treats it as code.
+      throw new SqlSyntaxError('escape string literals (E\'…\', U&\'…\') are not read', i);
     }
 
     if (ch === "'" || ch === '"') {
@@ -314,7 +328,9 @@ export function splitStatements(sql: string): string[] {
       continue;
     }
 
-    if (ch === '$') {
+    // In Postgres a `$` straight after an identifier character is part of that identifier (`a$$`), not
+    // a body opener; reading it as one would pair every later dollar quote wrongly.
+    if (ch === '$' && !/[A-Za-z0-9_$]/.test(sql[i - 1] ?? '')) {
       const tag = DOLLAR_TAG.exec(sql.slice(i));
       if (tag) {
         const marker = tag[0];
@@ -494,6 +510,11 @@ function addColumns(
   if (!head) return false;
   const name = unqualified(head[1] as string);
   const table = tables.get(name);
+  // An unqualified name resolves through search_path, which is `public` for a migration.
+  const schema = schemaOf(head[1] as string) ?? 'public';
+  if (table && (table.schema ?? 'public') !== schema) {
+    throw new SqlSyntaxError(`${origin}: add column on ${schema}.${name}, but ${name} was created elsewhere`, 0);
+  }
   if (!table) {
     // A column on a table these migrations never created is a schema this reader cannot vouch for.
     throw new SqlSyntaxError(`${origin}: add column on table ${name}, which no migration creates`, 0);
@@ -510,6 +531,8 @@ function addColumns(
     if (/\bprimary\s+key\b/i.test(definition)) {
       throw new SqlSyntaxError(`${origin}: add column with a primary key is not read: "${action}"`, 0);
     }
+    // A default or generated expression runs on every existing row while the table is rewritten.
+    rejectUnsafeExpression(definition, `${origin}: add column`);
     const columnName = LEADING_IDENTIFIER.exec(definition);
     if (!columnName) {
       throw new SqlSyntaxError(`${origin}: add column without a column name: "${action.slice(0, 80)}"`, 0);
@@ -535,7 +558,33 @@ function addColumns(
  */
 const CREATE_FUNCTION = /^create\s+(?:or\s+replace\s+)?function\s+/i;
 const FUNCTION_LANGUAGES = new Set(['sql', 'plpgsql']);
+/**
+ * Names that reach security state without any forbidden keyword: catalog DML
+ * (`update pg_catalog.pg_class set relrowsecurity = false`), a role switch spelt
+ * `set_config('ro'||'le', …)`, and the catalog views. Checked in function bodies and in every
+ * expression a migration itself evaluates — added-column defaults and index expressions — because
+ * those run a function on existing rows during the migration (PR #138 review).
+ */
+const UNSAFE_EXPRESSION: readonly (readonly [RegExp, string])[] = [
+  [/\bpg_[a-z0-9_]+/i, 'a pg_ catalog name'],
+  [/\bset_config\b/i, 'set_config'],
+  [/\binformation_schema\b/i, 'information_schema'],
+];
+
+function rejectUnsafeExpression(text: string, where: string): void {
+  for (const [pattern, why] of UNSAFE_EXPRESSION) {
+    if (pattern.test(text)) {
+      throw new SqlSyntaxError(`${where} rejected, it uses ${why}: "${squash(text).slice(0, 80)}"`, 0);
+    }
+  }
+}
+
+/**
+ * The cost of a keyword list, accepted in review: `role` also rejects `auth.role()`, a common call in
+ * Supabase function bodies. Use `auth.jwt() ->> 'role'` or rename rather than loosening this.
+ */
 const FUNCTION_FORBIDDEN: readonly (readonly [RegExp, string])[] = [
+  ...UNSAFE_EXPRESSION,
   // `security invoker` is the default and harmless; it is removed before this list is applied.
   [/\bsecurity\b/i, 'security definer runs with its owner\'s rights'],
   [/\b(?:grant|revoke)\b/i, 'a grant or revoke'],
@@ -544,6 +593,12 @@ const FUNCTION_FORBIDDEN: readonly (readonly [RegExp, string])[] = [
   [/\bexecute\b/i, 'dynamic SQL (execute) that no reader can see into'],
   [/\b(?:role|session_authorization|authorization|owner)\b/i, 'a role or ownership change'],
 ];
+
+/** The statement with every dollar-quoted body and `'…'` literal replaced by a space. Quoted names stay. */
+const blankBodies = (text: string): string =>
+  text.replace(/(?<![A-Za-z0-9_$])\$([A-Za-z_][A-Za-z0-9_]*)?\$[\s\S]*?\$\1\$|'(?:[^']|'')*'|"(?:[^"]|"")*"/g, (m) =>
+    m.startsWith('"') ? m : ' ',
+  );
 
 function checkFunction(statement: string, origin: string): boolean {
   const head = CREATE_FUNCTION.exec(statement);
@@ -558,13 +613,18 @@ function checkFunction(statement: string, origin: string): boolean {
 
   for (const [pattern, why] of FUNCTION_FORBIDDEN) if (pattern.test(rest)) fail(why);
 
-  const languages = [...rest.matchAll(/\blanguage\s+('?)([A-Za-z_]+)\1/gi)].map((m) =>
-    (m[2] as string).toLowerCase(),
-  );
-  if (languages.length === 0) fail('no language is stated');
-  for (const language of languages) {
-    if (!FUNCTION_LANGUAGES.has(language)) fail(`language ${language} is not sql or plpgsql`);
+  // The language clause is read from the header only: body text (`$$ -- language sql $$`) is a decoy,
+  // and a quoted name (`language "c"`) counts. Exactly one clause, fully consumed by the strict form.
+  const header = blankBodies(rest);
+  const mentions = header.match(/\blanguage\b/gi) ?? [];
+  // `language 'plpgsql'` (a string) is blanked with the literals and so rejected: fail closed.
+  const clauses = [...header.matchAll(new RegExp(`\\blanguage\\s+(${IDENTIFIER})`, 'gi'))];
+  if (mentions.length !== 1 || clauses.length !== 1) {
+    fail('it needs exactly one language clause outside the body');
   }
+  const raw = clauses[0]?.[1] ?? '';
+  const language = identifier(raw);
+  if (!FUNCTION_LANGUAGES.has(language)) fail(`language ${language} is not sql or plpgsql`);
   return true;
 }
 
@@ -750,7 +810,11 @@ export function parseMigrations(sources: readonly MigrationSource[]): ParsedSql 
         continue;
       }
 
-      if (CREATE_INDEX.test(statement)) continue;
+      if (CREATE_INDEX.test(statement)) {
+        // An index expression or predicate is evaluated on every existing row as the index builds.
+        rejectUnsafeExpression(statement, `${source.name}: create index`);
+        continue;
+      }
       if (addColumns(flat, tables, source.name)) continue;
       if (checkFunction(statement, source.name)) continue;
       if (COMMENT_ON.test(flat)) continue;

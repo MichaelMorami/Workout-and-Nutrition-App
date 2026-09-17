@@ -1184,7 +1184,7 @@ _no exports_
 
 ## `src/sync/contract/`
 
-### `src/sync/contract/sql.ts`  <sub>819 lines</sub>
+### `src/sync/contract/sql.ts`  <sub>883 lines</sub>
 
 - `class SqlSyntaxError`
 - `function parseMigrations(sources: readonly MigrationSource[]): ParsedSql`
