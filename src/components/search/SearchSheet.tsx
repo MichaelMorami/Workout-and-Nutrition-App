@@ -223,8 +223,12 @@ function ResultRow({
         </View>
       ) : (
         <View style={styles.rowFigures}>
-          <Text style={textStyle(type.numericSm, resultRow.kcalText)}>{`${kcalText} kcal`}</Text>
-          <Text style={textStyle(type.numericSm, resultRow.proteinText)}>{formatGrams(candidate.protein, locale)}</Text>
+          <Text testID={`${testID}-kcal`} style={textStyle(type.numericSm, resultRow.kcalText)}>
+            {`${kcalText} kcal`}
+          </Text>
+          <Text testID={`${testID}-protein`} style={textStyle(type.numericSm, resultRow.proteinText)}>
+            {formatGrams(candidate.protein, locale)}
+          </Text>
         </View>
       )}
     </Pressable>
@@ -297,8 +301,7 @@ function toastTitle(name: string, portions: number): string {
 /** "240 kcal · 40 g protein" — mirrors `QuickAddGrid`'s own `toastMeta`. */
 function toastMeta(totals: { kcal: number; protein: number }, locale?: string): string {
   const kcal = Math.round(totals.kcal).toLocaleString(locale);
-  const protein = Math.round(totals.protein).toLocaleString(locale);
-  return `${kcal} kcal · ${protein} g protein`;
+  return `${kcal} kcal · ${formatGrams(totals.protein, locale)} protein`;
 }
 
 function NoLibraryEmptyState({ theme, testID }: { theme: Theme; testID: string }) {

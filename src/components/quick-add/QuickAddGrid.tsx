@@ -67,6 +67,7 @@ import { useDb } from '../../hooks/useDb';
 import { useTheme } from '../../hooks/useTheme';
 import { forgetLog, logTrackerKey, recentLog, trackLog } from '../../store/logTracker';
 import { useUndoToastStore, type LogDelta } from '../../store/undoToast';
+import { formatGrams } from '../format/food';
 import { layout, radius, space, type, type Theme, type TypeStyle } from '../../theme/tokens';
 import { PortionSheet } from './PortionSheet';
 import { QuickAddTile } from './QuickAddTile';
@@ -127,8 +128,7 @@ function toastTitle(name: string, portions: number): string {
 /** "240 kcal · 40 g protein" — the toast's meta line: the entries' current total, not just the delta. */
 function toastMeta(totals: { kcal: number; protein: number }, locale?: string): string {
   const kcal = Math.round(totals.kcal).toLocaleString(locale);
-  const protein = Math.round(totals.protein).toLocaleString(locale);
-  return `${kcal} kcal · ${protein} g protein`;
+  return `${kcal} kcal · ${formatGrams(totals.protein, locale)} protein`;
 }
 
 function EmptyState({ theme, testID }: { theme: Theme; testID: string }) {

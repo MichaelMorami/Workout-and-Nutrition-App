@@ -44,6 +44,7 @@ import {
   type TextStyle,
 } from 'react-native';
 import type { DayLogEntry } from '../../db';
+import { formatGrams } from '../format/food';
 import { size, space, type, type Theme, type TypeStyle } from '../../theme/tokens';
 
 export type DayLogRowProps = {
@@ -96,7 +97,7 @@ export function DayLogRow({ entry, theme, locale, onPress, onDelete, testID = 'd
   const { logRow } = theme.color;
   const name = entryName(entry);
   const kcalText = Math.round(entry.kcal).toLocaleString(locale);
-  const proteinText = Math.round(entry.protein).toLocaleString(locale);
+  const proteinText = formatGrams(entry.protein, locale);
   const time = timeLabel(entry.localMinute);
 
   const [revealed, setRevealed] = useState(false);
@@ -145,7 +146,7 @@ export function DayLogRow({ entry, theme, locale, onPress, onDelete, testID = 'd
     if (event.nativeEvent.actionName === 'delete') handleDelete();
   };
 
-  const accessibilityLabel = `${name}, ${kcalText} kcal, ${proteinText} g protein, logged at ${time}. Double tap to edit.`;
+  const accessibilityLabel = `${name}, ${kcalText} kcal, ${proteinText} protein, logged at ${time}. Double tap to edit.`;
 
   return (
     <View testID={`${testID}-wrap`} style={[styles.wrap, { height: size.row.logHit }]}>
@@ -187,7 +188,7 @@ export function DayLogRow({ entry, theme, locale, onPress, onDelete, testID = 'd
           </Text>
           <Text testID={`${testID}-kcal`} style={textStyle(type.numericRow, logRow.kcalText)}>{`${kcalText} kcal`}</Text>
           <Text testID={`${testID}-protein`} style={[textStyle(type.numericRow, logRow.proteinText), styles.protein]}>
-            {`${proteinText} g protein`}
+            {`${proteinText} protein`}
           </Text>
         </Pressable>
       </View>

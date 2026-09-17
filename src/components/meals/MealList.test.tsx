@@ -36,6 +36,9 @@ describe('MealList', () => {
 
     expect(screen.getByTestId('meal-list-row-meal-1-name')).toHaveTextContent('Breakfast bowl');
     expect(screen.getByTestId('meal-list-row-meal-1-meta')).toHaveTextContent('3 items');
+    // Issue #124: the protein figure renders through the shared `formatGrams`, not a hand-built
+    // `` `${n} g` ``.
+    expect(screen.getByTestId('meal-list-row-meal-1-protein')).toHaveTextContent('30 g');
   });
 
   it('tapping a meal logs one portion, fires the log haptic, and shows the undo toast', async () => {

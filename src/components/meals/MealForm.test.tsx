@@ -80,6 +80,9 @@ describe('MealForm', () => {
 
     await fireEvent.changeText(screen.getByTestId('meal-form-search'), 'yog');
     expect(screen.getByTestId('meal-form-match-food-1')).toBeTruthy();
+    // Issue #124: the match row's protein figure renders through the shared `formatGrams`, not a
+    // hand-built `` `${n} g` ``.
+    expect(screen.getByTestId('meal-form-match-food-1-protein')).toHaveTextContent('20 g');
 
     await fireEvent.press(screen.getByTestId('meal-form-match-food-1'));
     expect(screen.getByTestId('meal-form-item-food-1-value')).toHaveTextContent('1');

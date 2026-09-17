@@ -150,6 +150,9 @@ describe('DayLogList', () => {
       kind: 'revert',
       previous: [{ id: 'log-1', qty: 1, grams: 170, ml: null, kcal: 120, protein: 20, slot: 'breakfast' }],
     });
+    // Issue #124: the toast's meta line renders its protein figure through the shared
+    // `formatGrams`, not a hand-built `` `${n} g` ``.
+    expect(useUndoToastStore.getState().toast?.meta).toBe('240 kcal · 40 g protein');
     expect(screen.queryByTestId('log-portion-sheet-title')).toBeNull();
   });
 

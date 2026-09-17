@@ -73,8 +73,12 @@ export function FoodList({ foods, onSelect, onAdd, locale, theme, testID = 'food
         </Text>
       </View>
       <View style={styles.rowFigures}>
-        <Text style={textStyle(type.numeric, resultRow.kcalText)}>{`${Math.round(item.kcalPerServing).toLocaleString(locale)} kcal`}</Text>
-        <Text style={textStyle(type.numeric, resultRow.proteinText)}>{formatGrams(item.proteinPerServing, locale)}</Text>
+        <Text testID={`${testID}-row-${item.id}-kcal`} style={textStyle(type.numeric, resultRow.kcalText)}>
+          {`${Math.round(item.kcalPerServing).toLocaleString(locale)} kcal`}
+        </Text>
+        <Text testID={`${testID}-row-${item.id}-protein`} style={textStyle(type.numeric, resultRow.proteinText)}>
+          {formatGrams(item.proteinPerServing, locale)}
+        </Text>
       </View>
     </Pressable>
   );

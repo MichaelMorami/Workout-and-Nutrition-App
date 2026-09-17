@@ -161,6 +161,18 @@ describe('PortionSheet', () => {
     expect(screen.getByTestId('sheet-exact-readout')).toHaveTextContent('170 g');
   });
 
+  // Issue #124: `formatGrams` groups thousands (`toLocaleString`), which this readout did not do
+  // before this issue's formatter routed through it — an amount of 1000+ g now shows "1,000 g",
+  // not "1000 g". Intentional, not a regression: the same grouping every other kcal/protein figure
+  // on this sheet already applies via `.toLocaleString(locale)`.
+  it('groups thousands in the Exact readout for an amount of 1000 g or more', async () => {
+    const largeFood: FoodCandidate = { ...food, servingGrams: 1000, servingAmount: 1000 };
+    await renderSheet({ candidate: largeFood, locale: 'en-US' });
+    await fireEvent.press(screen.getByTestId('sheet-mode-exact'));
+
+    expect(screen.getByTestId('sheet-exact-readout')).toHaveTextContent('1,000 g');
+  });
+
   it('issue #92: Exact mode renders a thumb dot with a >=44pt hit area, positioned by the current value', async () => {
     await renderSheet();
     await fireEvent.press(screen.getByTestId('sheet-mode-exact'));

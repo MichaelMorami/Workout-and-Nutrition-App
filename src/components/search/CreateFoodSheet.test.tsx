@@ -171,6 +171,9 @@ describe('<CreateFoodSheet>', () => {
     await fireEvent.press(screen.getByTestId('create-sheet-form-save'));
 
     expect(screen.getByTestId('toast-title')).toHaveTextContent('Boiled eggs');
+    // Issue #124: the toast's meta line renders its protein figure through the shared
+    // `formatGrams`, not a hand-built `` `${n} g` ``.
+    expect(screen.getByTestId('toast-meta')).toHaveTextContent('180 kcal · 22 g protein');
 
     await fireEvent.press(screen.getByTestId('toast-undo'));
 

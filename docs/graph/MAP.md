@@ -265,7 +265,7 @@ jq -r '.modules["src/db/queries/nutrition.ts"].exports[]' docs/graph/symbols.jso
 
 ## `src/components/day-log/`
 
-### `src/components/day-log/DayLogList.tsx`  <sub>236 lines</sub>
+### `src/components/day-log/DayLogList.tsx`  <sub>237 lines</sub>
 
 - `function DayLogList({ locale, refreshToken, onChanged, testID = 'day-log-list' }: DayLogListProps): import("react").JSX.Element`
 - `type DayLogListProps = {
@@ -276,7 +276,7 @@ jq -r '.modules["src/db/queries/nutrition.ts"].exports[]' docs/graph/symbols.jso
   readonly refreshToken?: number;
   /** Called a...`
 
-### `src/components/day-log/DayLogRow.tsx`  <sub>231 lines</sub>
+### `src/components/day-log/DayLogRow.tsx`  <sub>232 lines</sub>
 
 - `function DayLogRow({ entry, theme, locale, onPress, onDelete, testID = 'day-log-row' }: DayLogRowProps): import("react").JSX.Element`
 - `function entryName(entry: DayLogEntry): string`
@@ -420,7 +420,7 @@ jq -r '.modules["src/db/queries/nutrition.ts"].exports[]' docs/graph/symbols.jso
 
 ## `src/components/food-list/`
 
-### `src/components/food-list/FoodList.tsx`  <sub>147 lines</sub>
+### `src/components/food-list/FoodList.tsx`  <sub>151 lines</sub>
 
 - `function FoodList({ foods, onSelect, onAdd, locale, theme, testID = 'food-list' }: FoodListProps): import("react").JSX.Element`
 - `type FoodListProps = {
@@ -455,7 +455,7 @@ jq -r '.modules["src/db/queries/nutrition.ts"].exports[]' docs/graph/symbols.jso
 - `function formatGrams(grams: number, locale?: string): string`
 - `function formatMl(ml: number, locale?: string): string`
 
-<sub>used by: `src/components/food-form/FoodForm.tsx`, `src/components/food-list/FoodList.tsx`, `src/components/meals/MealForm.tsx`, `src/components/meals/MealList.tsx`, `src/components/quick-add/PortionSheet.tsx`, `src/components/search/SearchSheet.tsx`</sub>
+<sub>used by: `src/components/day-log/DayLogList.tsx`, `src/components/day-log/DayLogRow.tsx`, `src/components/food-form/FoodForm.tsx`, `src/components/food-list/FoodList.tsx`, `src/components/meals/MealForm.tsx`, `src/components/meals/MealList.tsx`, `src/components/quick-add/PortionSheet.tsx`, `src/components/quick-add/QuickAddGrid.tsx`, `src/components/search/CreateFoodSheet.tsx`, `src/components/search/SearchSheet.tsx`</sub>
 
 ### `src/components/format/length.ts`  <sub>10 lines</sub>
 
@@ -469,7 +469,7 @@ jq -r '.modules["src/db/queries/nutrition.ts"].exports[]' docs/graph/symbols.jso
 
 ## `src/components/meals/`
 
-### `src/components/meals/MealForm.tsx`  <sub>424 lines</sub>
+### `src/components/meals/MealForm.tsx`  <sub>428 lines</sub>
 
 - `function MealForm({ db, onSave, onCancel, locale, theme, testID = 'meal-form' }: MealFormProps): import("react").JSX.Element`
 - `type MealFormProps = {
@@ -483,7 +483,7 @@ jq -r '.modules["src/db/queries/nutrition.ts"].exports[]' docs/graph/symbols.jso
 }`
 - `type MealFormValues = { readonly name: string; readonly items: readonly MealItemInput[] }`
 
-### `src/components/meals/MealList.tsx`  <sub>182 lines</sub>
+### `src/components/meals/MealList.tsx`  <sub>186 lines</sub>
 
 - `function MealList({ db, meals, onLogged, onCreate, locale, theme, testID = 'meal-list' }: MealListProps): import("react").JSX.Element`
 - `type MealListProps = {
@@ -667,7 +667,7 @@ jq -r '.modules["src/db/queries/nutrition.ts"].exports[]' docs/graph/symbols.jso
   /** Fires with the fresh log's receipt after a successful save — the same shape `QuickAddGrid`/
    * `SearchSheet...`
 
-### `src/components/search/SearchSheet.tsx`  <sub>747 lines</sub>
+### `src/components/search/SearchSheet.tsx`  <sub>750 lines</sub>
 
 - `function SearchSheet({ db, onLogged, onPortionAdded, onCreate, renderCreate, locale, theme, testID = 'search-sheet' }: SearchSheetProps): import("react").JSX.Element`
 - `type CreateSlotArgs = { query: string; onLogged: (receipt: LogReceipt) => void; onClose: () => void }`
