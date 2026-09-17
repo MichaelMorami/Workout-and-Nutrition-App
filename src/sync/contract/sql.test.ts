@@ -71,6 +71,23 @@ describe('dollar-quote tags, by the Postgres rule', () => {
     expect(splitStatements('select $1; select $2')).toEqual(['select $1', 'select $2']);
   });
 
+  it('does not open a body on a $ glued to an identifier, as Postgres does not', () => {
+    // `a$$` is one identifier in Postgres; reading `$$` there as a body opener desyncs every later body.
+    expect(splitStatements('select a$$; select 2')).toEqual(['select a$$', 'select 2']);
+  });
+
+  it.each([
+    ['E', "select E'it\\'s; fine'"],
+    ['lower-case e', "select e'x'"],
+    ['U&', "select U&'x'"],
+  ])('throws on a %s-prefixed string, whose escapes this reader does not lex', (_label, sql) => {
+    expect(() => splitStatements(sql)).toThrow(SqlSyntaxError);
+  });
+
+  it('still reads a plain string after a word ending in e', () => {
+    expect(splitStatements("select type = 'x'")).toEqual(["select type = 'x'"]);
+  });
+
   it('does not close a body on a longer tag that shares a prefix', () => {
     expect(splitStatements('do $a$ x $a1$; y $a$; select 2')).toHaveLength(2);
   });
@@ -438,6 +455,8 @@ describe('statements that do not touch RLS or privileges', () => {
     ['comment on table', "comment on table public.t is 'Food log rows; synced.'"],
     ['comment on column', "comment on column public.t.user_id is 'owner'"],
     ['comment on ... is null', 'comment on table public.t is null'],
+    ['a language clause given as a quoted name', 'create function public.f() returns int language "plpgsql" as $$ begin return 1; end $$'],
+    ['a plain default on an added column', 'alter table public.t add column n int not null default 0'],
     ['create extension', 'create extension if not exists pgcrypto with schema extensions'],
     ['create extension with a quoted name', 'create extension "uuid-ossp"'],
   ])('parses %s without changing RLS or privilege state', (_label, statement) => {
@@ -485,6 +504,36 @@ describe('statements that do not touch RLS or privileges', () => {
     ['an add column that declares a primary key', 'alter table public.t add column k uuid primary key'],
     ['trailing words after a comment', "comment on table public.t is 'x' junk"],
     ['a comment whose text is not a literal', 'comment on table public.t is current_user'],
+    // PR #138 review, blocker 1: Postgres lexes a block comment as whitespace.
+    ['security/**/definer', 'create function public.f() returns int language sql security/**/definer as $$ select 1 $$'],
+    // Blocker 2: the language clause is read outside the body, quoted names included, exactly once.
+    [
+      'a quoted language behind a decoy language sql in the body',
+      'create function public.f() returns int as $$ -- language sql\n import os $$ language "plpython3u"',
+    ],
+    ['a quoted C language', 'create function public.f() returns int language "c" as $$ select 1 $$'],
+    ['two language clauses', 'create function public.f() returns int language sql language plpgsql as $$ select 1 $$'],
+    // Blocker 3: catalog DML and obfuscated set_config need no forbidden keyword.
+    [
+      'catalog DML in a function body',
+      "create function public.f(uuid) returns int language sql immutable as $$ update pg_catalog.pg_class set relrowsecurity = false where relname = 't' returning 1 $$",
+    ],
+    [
+      'an obfuscated set_config in a function body',
+      "create function public.g() returns text language sql as $$ select set_config('ro'||'le', 'service_role', false) $$",
+    ],
+    ['information_schema in a function body', 'create function public.g() returns int language sql as $$ select 1 from information_schema.tables $$'],
+    ['set_config in an added column default', "alter table public.t add column x text default set_config('ro'||'le', 'service_role', false)"],
+    ['a catalog read in an added column default', 'alter table public.t add column x oid default pg_catalog.pg_my_temp_schema()'],
+    ['set_config in an index expression', "create index t_x on public.t ((set_config('ro'||'le', 'service_role', false)))"],
+    ['a catalog function in an index predicate', 'create index t_x on public.t (id) where pg_catalog.pg_has_role(user_id::text, \'x\')'],
+    // Found alongside blocker 1: places where the reader and Postgres would disagree on where a body ends.
+    [
+      'a $$ glued to an identifier, which Postgres reads as part of the name',
+      'create function public.a$$() returns int as $$ language sql $$ language "c" -- $$',
+    ],
+    // Suggestion: add column checks the schema, so auth.t is not public.t.
+    ['an add column on a same-named table in another schema', 'alter table auth.t add column y int'],
   ])('still throws on %s', (_label, statement) => {
     expect(() => parseSql(`${base} ${statement};`)).toThrow(SqlSyntaxError);
   });
