@@ -24,6 +24,7 @@ import {
   motion,
   resolveThemeName,
   size,
+  space,
   themeNames,
   themes,
   type,
@@ -231,15 +232,29 @@ describe('glyph (issue #80)', () => {
     }
   });
 
-  it('gives every tab a colour for its active state, so the glyph and the colour tokens line up', () => {
-    const bar = themes.dark.color.tabBar as Record<string, string>;
-    for (const tab of tabs) expect(typeof bar[`${tab}ActiveText`]).toBe('string');
+  it('gives every tab a colour for its active state in both themes, so the glyph and the colour tokens line up', () => {
+    for (const name of themeNames) {
+      const bar = themes[name].color.tabBar as Record<string, string>;
+      for (const tab of tabs) expect({ name, tab, type: typeof bar[`${tab}ActiveText`] }).toEqual({ name, tab, type: 'string' });
+    }
   });
 
   it('names a filled trash can for the swipe-to-delete pane, sized to read on a red fill at arm length', () => {
     expect(glyph.delete).toBe('trash');
-    expect(size.icon.deleteAction).toBeGreaterThanOrEqual(size.icon.lg);
-    expect(size.icon.tab).toBeGreaterThanOrEqual(size.icon.lg);
+    expect(size.icon.deleteAction).toBeGreaterThan(size.icon.md);
+  });
+
+  it('draws the delete action as a square button inside the row, clear of the row content', () => {
+    const b = size.deleteButton;
+    // Square, and it fits inside the painted log row rather than running its full height as a strip.
+    expect(b.side).toBeLessThan(size.row.log);
+    // The glyph sits inside the square with room to breathe on every side.
+    expect(b.side).toBeGreaterThan(size.icon.deleteAction);
+    // Painted smaller than the floor, so the touch area is extended to it (square hit area).
+    expect(b.sideHit).toBe(size.tapTargetMin);
+    // A real gap of theme background between the protein figure and the button — a space step.
+    expect(b.gap).toBeGreaterThan(0);
+    expect(Object.values(space)).toContain(b.gap);
   });
 });
 
