@@ -275,6 +275,19 @@ describe('identifier case, the way Postgres folds it', () => {
     expect(set.policies).toEqual([]);
   });
 
+  it('reads a policy table name with whitespace around the dot as one name', () => {
+    const set = parseSql('create policy p on public .\n thing for select to authenticated using (true);');
+    expect(set.policyFor('thing', 'select')).toMatchObject({ name: 'p', table: 'thing' });
+  });
+
+  it.each([
+    ['a word between the table name and its clauses', 'create policy p on public.thing junk for select using (true)'],
+    ['a Unicode-escape table name', 'create policy p on U&"thing" for select using (true)'],
+    ['a name that stops at a dot', 'create policy p on public. for select using (true)'],
+  ])('throws on a policy with %s rather than keying it to part of a name', (_label, statement) => {
+    expect(() => parseSql(`${statement};`)).toThrow(SqlSyntaxError);
+  });
+
   it('keeps a quoted role as written, so "AUTHENTICATED" is not authenticated', () => {
     const set = parseSql('grant delete on public.t to "AUTHENTICATED";');
     expect(set.privilegeState('t', 'authenticated', 'delete')).toBe('unstated');

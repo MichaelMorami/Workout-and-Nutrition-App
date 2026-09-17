@@ -440,8 +440,36 @@ describe('a later migration that weakens RLS turns the suite red', () => {
       'DROP POLICY FOOD_LOG_SELECT_OWN ON PUBLIC.FOOD_LOG;',
       'food_log: 0 select policies',
     ],
+    // PR #134 review: the policy's table name used to end at any word boundary, so these keyed the
+    // policy to table `public` and passed. Postgres reads the whole qualified name.
+    [
+      'adds a SELECT policy with spaces around the dot',
+      'create policy x on public . foods for select to authenticated using (true);',
+      'foods: 2 select policies',
+    ],
+    [
+      'adds a SELECT policy with the table name wrapped after the dot',
+      'create policy x on public.\n  foods for select to authenticated using (true);',
+      'foods: 2 select policies',
+    ],
+    [
+      'adds a DELETE policy with the table name wrapped after the dot',
+      'create policy x on public.\n  food_log for delete to authenticated using (true);',
+      'food_log: permissive delete policy x',
+    ],
   ])('%s', (_label, sql, violation) => {
     expect(rlsViolations(withLater(sql)).join('\n')).toContain(violation);
+  });
+
+  it.each([
+    ['a Unicode-escape table name', 'create policy x on U&"foods" for select to authenticated using (true);'],
+    [
+      'a qualified Unicode-escape table name',
+      'create policy x on public.U&"food_log" for all to authenticated using (true);',
+    ],
+  ])('fails closed on a policy over %s', (_label, sql) => {
+    // The reader does not decode U& escapes, so it must refuse the statement rather than guess a table.
+    expect(() => withLater(sql)).toThrow(/unrecognised statement/);
   });
 
   it('does not fold a quoted identifier: "Food_Log" is a different table', () => {
