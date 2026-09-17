@@ -69,6 +69,7 @@ import {
   type LogReceipt,
   type VitalsDb,
 } from '../../db';
+import { formatGrams } from '../format/food';
 import { deviceWhen } from '../../hooks/deviceWhen';
 import { useHapticFeedback } from '../../hooks/useHapticFeedback';
 import { forgetLog, logTrackerKey, recentLog, trackLog } from '../../store/logTracker';
@@ -223,7 +224,7 @@ function ResultRow({
       ) : (
         <View style={styles.rowFigures}>
           <Text style={textStyle(type.numericSm, resultRow.kcalText)}>{`${kcalText} kcal`}</Text>
-          <Text style={textStyle(type.numericSm, resultRow.proteinText)}>{`${proteinText} g`}</Text>
+          <Text style={textStyle(type.numericSm, resultRow.proteinText)}>{formatGrams(candidate.protein, locale)}</Text>
         </View>
       )}
     </Pressable>

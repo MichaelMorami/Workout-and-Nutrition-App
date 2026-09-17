@@ -40,6 +40,7 @@ import {
   type TextStyle,
 } from 'react-native';
 import type { Candidate } from '../../db';
+import { formatGrams } from '../format/food';
 import { useHapticFeedback } from '../../hooks/useHapticFeedback';
 import { haptics, interaction, radius, size, space, type, type Theme, type TypeStyle } from '../../theme/tokens';
 
@@ -472,8 +473,8 @@ function ExactControl({
   const portions = amount / unitSize;
   const kcalText = Math.round(candidate.kcal * portions).toLocaleString(locale);
   const proteinText = Math.round(candidate.protein * portions).toLocaleString(locale);
-  const readout = isGrams ? `${Math.round(amount)} g` : `×${nearestHalfServing(portions)}`;
-  const logLabel = isGrams ? `Log ${Math.round(amount)} g` : `Log ×${nearestHalfServing(portions)}`;
+  const readout = isGrams ? formatGrams(amount, locale) : `×${nearestHalfServing(portions)}`;
+  const logLabel = isGrams ? `Log ${formatGrams(amount, locale)}` : `Log ×${nearestHalfServing(portions)}`;
 
   return (
     <View testID={testID}>

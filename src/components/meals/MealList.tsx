@@ -13,6 +13,7 @@
  */
 import { FlatList, Pressable, StyleSheet, Text, View, type TextStyle } from 'react-native';
 import { logMeal, VitalsDbError, type MealSummary, type VitalsDb } from '../../db';
+import { formatGrams } from '../format/food';
 import { deviceWhen } from '../../hooks/deviceWhen';
 import { useHapticFeedback } from '../../hooks/useHapticFeedback';
 import { logTrackerKey } from '../../store/logTracker';
@@ -107,7 +108,7 @@ export function MealList({ db, meals, onLogged, onCreate, locale, theme, testID 
         </View>
         <View style={styles.rowFigures}>
           <Text style={textStyle(type.numeric, resultRow.kcalText)}>{`${kcalText} kcal`}</Text>
-          <Text style={textStyle(type.numeric, resultRow.proteinText)}>{`${proteinText} g`}</Text>
+          <Text style={textStyle(type.numeric, resultRow.proteinText)}>{formatGrams(item.protein, locale)}</Text>
         </View>
       </Pressable>
     );

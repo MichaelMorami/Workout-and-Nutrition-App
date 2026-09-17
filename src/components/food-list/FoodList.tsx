@@ -9,6 +9,7 @@
  */
 import { FlatList, Pressable, StyleSheet, Text, View, type TextStyle } from 'react-native';
 import type { FoodRow } from '../../db';
+import { formatGrams } from '../format/food';
 import { size, space, type, type Theme, type TypeStyle } from '../../theme/tokens';
 
 export type FoodListProps = {
@@ -73,7 +74,7 @@ export function FoodList({ foods, onSelect, onAdd, locale, theme, testID = 'food
       </View>
       <View style={styles.rowFigures}>
         <Text style={textStyle(type.numeric, resultRow.kcalText)}>{`${Math.round(item.kcalPerServing).toLocaleString(locale)} kcal`}</Text>
-        <Text style={textStyle(type.numeric, resultRow.proteinText)}>{`${Math.round(item.proteinPerServing).toLocaleString(locale)} g`}</Text>
+        <Text style={textStyle(type.numeric, resultRow.proteinText)}>{formatGrams(item.proteinPerServing, locale)}</Text>
       </View>
     </Pressable>
   );
