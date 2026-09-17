@@ -45,6 +45,7 @@ jest.mock('../../src/db', () => ({
   ...jest.requireActual<typeof import('../../src/db')>('../../src/db'),
   quickAddCandidates: jest.fn().mockReturnValue([]),
   recentFoods: jest.fn().mockReturnValue([]),
+  libraryByUsage: jest.fn().mockReturnValue([]),
   searchFoods: jest.fn().mockReturnValue([]),
   getSettings: jest.fn(),
   todayTotals: jest.fn(),

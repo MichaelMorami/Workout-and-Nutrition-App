@@ -673,7 +673,7 @@ jq -r '.modules["src/db/queries/nutrition.ts"].exports[]' docs/graph/symbols.jso
   /** Fires with the fresh log's receipt after a successful save — the same shape `QuickAddGrid`/
    * `SearchSheet...`
 
-### `src/components/search/SearchSheet.tsx`  <sub>750 lines</sub>
+### `src/components/search/SearchSheet.tsx`  <sub>791 lines</sub>
 
 - `function SearchSheet({ db, onLogged, onPortionAdded, onCreate, renderCreate, locale, theme, testID = 'search-sheet' }: SearchSheetProps): import("react").JSX.Element`
 - `type CreateSlotArgs = { query: string; onLogged: (receipt: LogReceipt) => void; onClose: () => void }`
@@ -884,6 +884,7 @@ jq -r '.modules["src/db/queries/nutrition.ts"].exports[]' docs/graph/symbols.jso
 - `function getMeal(db: VitalsDb, id: string): MealDetail | null`
 - `function getSettings(db: VitalsDb): SettingsView`
 - `function inferSlot(localMinute: number): MealSlot`
+- `function libraryByUsage(db: VitalsDb, opts: { limit?: number }): Candidate[]`
 - `function listFoods(db: VitalsDb, opts: { includeArchived?: boolean } = {}): FoodRow[]`
 - `function listMeals(db: VitalsDb): MealSummary[]`
 - `function localDateOf(at: number, timeZone: string): LocalDate`
@@ -1015,9 +1016,10 @@ _no exports_
 
 <sub>used by: `src/db/queries/search.ts`</sub>
 
-### `src/db/queries/search.ts`  <sub>352 lines</sub>
+### `src/db/queries/search.ts`  <sub>405 lines</sub>
 
 - `function createFoodAndLog(db: VitalsDb, opts: When & { food: FoodInput; amount?: Amount; slot?: MealSlot }): { food: FoodRow; receipt: LogReceipt }`
+- `function libraryByUsage(db: VitalsDb, opts: { limit?: number }): Candidate[]`
 - `function recentFoods(db: VitalsDb, opts: When & { days: number; limit?: number }): Candidate[]`
 - `function searchFoods(db: VitalsDb, opts: When & { query: string; limit?: number }): Candidate[]`
 - `function searchFoodsOnly(db: VitalsDb, opts: When & { query: string; limit?: number }): FoodCandidate[]`

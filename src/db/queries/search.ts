@@ -277,6 +277,59 @@ export function recentFoods(
 }
 
 // ---------------------------------------------------------------------------------------------
+// libraryByUsage
+// ---------------------------------------------------------------------------------------------
+
+/**
+ * Issue #96 ruling: with no query, if nothing was logged in `interaction.recentDays` days but the
+ * library has foods or meals, the blank-query list falls back to **the whole library**, most used
+ * first — it is never blank while any food exists. Every live, non-archived food and every live
+ * meal (a meal with no live item is excluded, same rule `searchFoods`/`recentFoods` apply), ordered
+ * by `use_count` descending, ties broken by `last_used_at` descending (nulls last, so a never-used
+ * row still appears, just at the bottom — "the whole library" requires it), then name, then id.
+ * `limit` defaults to 20, matching `searchFoods`/`recentFoods`.
+ */
+export function libraryByUsage(db: VitalsDb, opts: { limit?: number }): Candidate[] {
+  const limit = opts.limit ?? 20;
+
+  const results: Candidate[] = [];
+
+  const foodRows = db
+    .select()
+    .from(foods)
+    .where(and(eq(foods.deleted, 0), eq(foods.archived, 0)))
+    .all();
+  for (const f of foodRows) results.push(toFoodCandidate(f));
+
+  const mealAgg = liveMealAggregates(db);
+  const mealRows = db.select().from(meals).where(eq(meals.deleted, 0)).all();
+  for (const m of mealRows) {
+    const agg = mealAgg.get(m.id);
+    if (!agg) continue; // no live item — never a search result (contract)
+    results.push({
+      kind: 'meal',
+      id: m.id,
+      name: m.name,
+      kcal: agg.kcal,
+      protein: agg.protein,
+      itemCount: agg.itemCount,
+      useCount: m.useCount,
+      lastUsedAt: m.lastUsedAt,
+    } satisfies MealCandidate);
+  }
+
+  return results
+    .sort(
+      (a, b) =>
+        b.useCount - a.useCount ||
+        (b.lastUsedAt ?? -Infinity) - (a.lastUsedAt ?? -Infinity) ||
+        a.name.localeCompare(b.name) ||
+        a.id.localeCompare(b.id),
+    )
+    .slice(0, limit);
+}
+
+// ---------------------------------------------------------------------------------------------
 // createFoodAndLog
 // ---------------------------------------------------------------------------------------------
 

@@ -31,6 +31,14 @@
  * SEARCH-AND-LOG BUDGETS (issue #23's 2026-09-11 update, added once #69-#71 shipped):
  *
  *   - recent (not one of the six)  : bar tap + row tap = 2 taps, zero `fireEvent.changeText` calls
+ *   - library fallback (issue #96) : bar tap + row tap = 2 taps, zero `fireEvent.changeText` calls —
+ *                                    same budget as "recent" above, for a food that is neither one
+ *                                    of the six nor logged inside `interaction.recentDays`, so the
+ *                                    blank-query list only has it because `libraryByUsage` filled a
+ *                                    Recent that came back empty. Before #96 this food had no 2-tap
+ *                                    path at all — a blank Recent meant a blank list, forcing typing
+ *                                    or a trip through the grid — so this is a *new* budget, not a
+ *                                    restatement of the one above.
  *   - known food via search        : bar tap + row tap = 2 taps, plus the query text
  *   - brand-new via Create "‹q›"   : bar tap + Create tap + Save tap = 3 fixed taps, plus whatever
  *                                    text/steppers fill in the name and the numbers (the query
@@ -52,6 +60,7 @@ import {
   createFoodAndLog,
   dayLog,
   getSettings,
+  libraryByUsage,
   logFood,
   quickAddCandidates,
   recentFoods,
@@ -88,6 +97,7 @@ jest.mock('../src/db', () => ({
   dayLog: jest.fn(),
   getMeal: jest.fn(),
   recentFoods: jest.fn(),
+  libraryByUsage: jest.fn(),
   searchFoods: jest.fn(),
   createFoodAndLog: jest.fn(),
 }));
@@ -100,6 +110,7 @@ const mockLogFood = jest.mocked(logFood);
 const mockAddPortion = jest.mocked(addPortion);
 const mockDayLog = jest.mocked(dayLog);
 const mockRecentFoods = jest.mocked(recentFoods);
+const mockLibraryByUsage = jest.mocked(libraryByUsage);
 const mockSearchFoods = jest.mocked(searchFoods);
 const mockCreateFoodAndLog = jest.mocked(createFoodAndLog);
 
@@ -240,6 +251,16 @@ beforeEach(() => {
   mockAddPortion.mockReturnValue(doubledReceipt);
   // Neutral defaults for the search-and-log budgets below — each test overrides what it needs.
   mockRecentFoods.mockReturnValue([]);
+  // `SearchSheet.openSheet` only reads `libraryByUsage` when `recentFoods` comes back empty (issue
+  // #96), which is this file's own neutral default above — so every search-and-log test below opens
+  // the sheet against *some* library-fallback mock, whether or not the test cares what it returns.
+  // `[]` is the right neutral default, not a stand-in for "we didn't bother": a genuinely empty
+  // fallback is exactly what most of these tests want (a typed query replaces the blank-query list
+  // entirely; a bare-library pinned-create test wants zero rows to fall back to at all). The one
+  // scenario where a *populated* fallback list changes the tap count — a food that is neither one of
+  // the six nor logged recently, but still sits in the library — gets its own test below with its
+  // own override, because that is new behaviour this file did not enforce before #96.
+  mockLibraryByUsage.mockReturnValue([]);
   mockSearchFoods.mockReturnValue([]);
   // TodayScreen renders the real `<DayLogList>` (issue #61); the tap-budget assertions don't care
   // about day-log content, so an empty day is a neutral default. `getMeal` is mocked in the module
@@ -382,6 +403,50 @@ describe('tap-count budget — search and create (issue #23, 2026-09-11 update)'
     expect(ring.getByTestId('arc-value').props.children).toBe('1,000');
   });
 
+  it('library fallback, not one of the six and not recently logged: two taps, zero typing, reaches "food logged" (issue #96)', async () => {
+    // Before #96, an empty `recentFoods` window meant a blank list — this food had no 2-tap path at
+    // all, only search-by-typing or the grid. `libraryByUsage` filling that blank list is exactly
+    // what turns it back into the same 2-tap budget the "recent" test above already enforces, so this
+    // is the new reality this file must encode, not the old one carried over with an empty mock.
+    mockRecentFoods.mockReturnValue([]);
+    mockLibraryByUsage.mockReturnValue([eggs]);
+    mockLogFood.mockReturnValue(eggsReceipt);
+    await renderToday();
+
+    // Tap 1 — open the sheet. Recent is empty, so this row exists only because the library fallback
+    // filled the blank-query list under "Your foods", not "Recent".
+    await fireEvent.press(screen.getByTestId('today-search-sheet-bar'));
+    expect(screen.getByTestId('today-search-sheet-section-library')).toHaveTextContent('Your foods', { exact: false });
+    // No `fireEvent.changeText` anywhere in this test — same "no typing" discipline as the recent
+    // case: the row must be reachable from the blank-query fallback list alone.
+    expect(screen.getByTestId('today-search-sheet-row-food-food-2-name')).toHaveTextContent('Boiled eggs');
+
+    // Tap 2 — the row itself.
+    await fireEvent.press(screen.getByTestId('today-search-sheet-row-food-food-2'));
+
+    expect(mockLogFood).toHaveBeenCalledTimes(1);
+    expect(screen.getByTestId('today-undo-toast-title')).toHaveTextContent('Boiled eggs');
+    const ring = within(screen.getByTestId('today-header-kcal-arc'));
+    expect(ring.getByTestId('arc-value').props.children).toBe('1,140');
+  });
+
+  it('a library-fallback tap that fails to write never raises the toast — no free pass through the 2-tap budget (issue #96)', async () => {
+    mockRecentFoods.mockReturnValue([]);
+    mockLibraryByUsage.mockReturnValue([eggs]);
+    const { VitalsDbError } = jest.requireActual<typeof import('../src/db')>('../src/db');
+    mockLogFood.mockImplementation(() => {
+      throw new VitalsDbError('not_found', 'food gone');
+    });
+    await renderToday();
+
+    await fireEvent.press(screen.getByTestId('today-search-sheet-bar'));
+    await fireEvent.press(screen.getByTestId('today-search-sheet-row-food-food-2'));
+
+    expect(screen.queryByTestId('today-undo-toast-title')).toBeNull();
+    const ring = within(screen.getByTestId('today-header-kcal-arc'));
+    expect(ring.getByTestId('arc-value').props.children).toBe('1,000');
+  });
+
   it('a known food via search: two taps plus the query text reaches "food logged"', async () => {
     mockSearchFoods.mockReturnValue([eggs]);
     mockLogFood.mockReturnValue(eggsReceipt);
@@ -497,6 +562,10 @@ describe('tap-count budget — search and create (issue #23, 2026-09-11 update)'
     // the query-seeded Create case above already spends on top of its 3 fixed taps — here it is
     // just one field more, because there is no query left to pre-fill it.
     mockRecentFoods.mockReturnValue([]);
+    // Explicit, not just the neutral default: this test's whole point is that the pinned row is
+    // there even with genuinely nothing to fall back on — the library-fallback test above is the
+    // case where that fallback list has something in it.
+    mockLibraryByUsage.mockReturnValue([]);
     const blankFoodReceipt: LogReceipt = {
       target: { kind: 'food', id: 'food-4' },
       entries: [

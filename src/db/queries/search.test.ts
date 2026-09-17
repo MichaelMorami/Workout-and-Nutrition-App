@@ -13,7 +13,7 @@ import { VitalsDbError, type VitalsDbErrorCode } from '../errors';
 import * as schema from '../schema';
 import type { FoodInput, MealCandidate } from '../types';
 import { undo } from './nutrition';
-import { createFoodAndLog, recentFoods, searchFoods, searchFoodsOnly } from './search';
+import { createFoodAndLog, libraryByUsage, recentFoods, searchFoods, searchFoodsOnly } from './search';
 
 const LA = 'America/Los_Angeles';
 const AT = Date.parse('2025-03-09T16:00:00.000Z'); // 08:00 America/Los_Angeles
@@ -21,6 +21,24 @@ const AT = Date.parse('2025-03-09T16:00:00.000Z'); // 08:00 America/Los_Angeles
 function setup() {
   const { db, sqlite } = makeTestDb({ schema });
   return { db, sqlite };
+}
+
+/**
+ * `Meal` (`test/model.ts`) doesn't carry the usage-cache columns yet — same gap `nutrition.test.ts`
+ * documents its own copy of this helper against (issue #17 deviation 6: `use_count`/`last_used_at`
+ * landed on the schema without a matching update to the qa-owned factory type). `schema.meals`'s
+ * own insert type has them, so splicing them onto a factory-built row after the fact is exactly as
+ * valid an insert as the factory's own fields.
+ */
+function makeMealWithUsage(
+  overrides: Partial<Parameters<typeof makeMeal>[0]> & { useCount?: number; lastUsedAt?: number | null } = {},
+): typeof schema.meals.$inferInsert {
+  const { useCount, lastUsedAt, ...rest } = overrides;
+  return {
+    ...makeMeal(rest),
+    ...(useCount !== undefined ? { useCount } : {}),
+    ...(lastUsedAt !== undefined ? { lastUsedAt } : {}),
+  };
 }
 
 /** Every write throws `VitalsDbError`, never a raw `Error` — assert the code, not just "it threw". */
@@ -563,6 +581,155 @@ describe('recentFoods', () => {
 });
 
 // -------------------------------------------------------------------------------------------
+// libraryByUsage — issue #96 ruling: with no query, if nothing was logged in the recent-days
+// window but the library has foods or meals, the blank-query list falls back to the whole
+// library, most used first. It is never blank while any food exists.
+// -------------------------------------------------------------------------------------------
+
+describe('libraryByUsage', () => {
+  it('on an empty database, returns []', () => {
+    const { db } = setup();
+    expect(libraryByUsage(db, {})).toEqual([]);
+  });
+
+  it('an archived-only library (no live food or meal) returns []', () => {
+    const { db } = setup();
+    db.insert(schema.foods).values(makeFood({ name: 'Archived', archived: 1 })).run();
+    expect(libraryByUsage(db, {})).toEqual([]);
+  });
+
+  it('a food with all-zero use counts still appears — "the whole library" includes never-used items', () => {
+    const { db } = setup();
+    const food = makeFood({ name: 'Never logged', useCount: 0, lastUsedAt: null });
+    db.insert(schema.foods).values(food).run();
+
+    const result = libraryByUsage(db, {});
+    expect(result.map((c) => c.id)).toEqual([food.id]);
+  });
+
+  it('orders by use_count descending', () => {
+    const { db } = setup();
+    const lessUsed = makeFood({ name: 'Less used', useCount: 1 });
+    const moreUsed = makeFood({ name: 'More used', useCount: 5 });
+    db.insert(schema.foods).values([lessUsed, moreUsed]).run();
+
+    const result = libraryByUsage(db, {});
+    expect(result.map((c) => c.id)).toEqual([moreUsed.id, lessUsed.id]);
+  });
+
+  it('ties on use_count are broken by last_used_at descending, most recent first', () => {
+    const { db } = setup();
+    const older = makeFood({ name: 'Older use', useCount: 3, lastUsedAt: AT - 10_000 });
+    const newer = makeFood({ name: 'Newer use', useCount: 3, lastUsedAt: AT });
+    db.insert(schema.foods).values([older, newer]).run();
+
+    const result = libraryByUsage(db, {});
+    expect(result.map((c) => c.id)).toEqual([newer.id, older.id]);
+  });
+
+  it('a null last_used_at sorts after any real timestamp at the same use_count', () => {
+    const { db } = setup();
+    // Both start at use_count 0 by default, so a never-used food's null last_used_at must not
+    // out-rank a used food's real timestamp were use_count ever to tie some other way.
+    const neverUsed = makeFood({ name: 'Never used', useCount: 2, lastUsedAt: null });
+    const used = makeFood({ name: 'Used once', useCount: 2, lastUsedAt: AT - 1_000 });
+    db.insert(schema.foods).values([neverUsed, used]).run();
+
+    const result = libraryByUsage(db, {});
+    expect(result.map((c) => c.id)).toEqual([used.id, neverUsed.id]);
+  });
+
+  it('ties on use_count and last_used_at are broken by name, then id', () => {
+    const { db } = setup();
+    const a = makeFood({ id: 'food-a', name: 'Same name', useCount: 0, lastUsedAt: null });
+    const b = makeFood({ id: 'food-b', name: 'Same name', useCount: 0, lastUsedAt: null });
+    db.insert(schema.foods).values([b, a]).run();
+
+    const result = libraryByUsage(db, {});
+    expect(result.map((c) => c.id)).toEqual(['food-a', 'food-b']);
+  });
+
+  it('excludes an archived food', () => {
+    const { db } = setup();
+    const food = makeFood({ name: 'Archived', archived: 1, useCount: 9 });
+    db.insert(schema.foods).values(food).run();
+    expect(libraryByUsage(db, {})).toEqual([]);
+  });
+
+  it('excludes a tombstoned food', () => {
+    const { db } = setup();
+    const food = makeFood({ name: 'Deleted', deleted: 1, useCount: 9 });
+    db.insert(schema.foods).values(food).run();
+    expect(libraryByUsage(db, {})).toEqual([]);
+  });
+
+  it('includes a saved meal with at least one live item', () => {
+    const { db } = setup();
+    const food = makeFood({ name: 'Oats' });
+    const meal = makeMealWithUsage({ name: 'Usual breakfast', useCount: 2 });
+    db.insert(schema.foods).values(food).run();
+    db.insert(schema.meals).values(meal).run();
+    db.insert(schema.mealItems).values(makeMealItem({ mealId: meal.id, foodId: food.id })).run();
+
+    const result = libraryByUsage(db, {});
+    expect(result).toContainEqual(expect.objectContaining({ kind: 'meal', id: meal.id }));
+  });
+
+  it('excludes a meal whose every item is deleted (no live item)', () => {
+    const { db } = setup();
+    const food = makeFood({ name: 'Oats' });
+    const meal = makeMealWithUsage({ name: 'Emptied meal', useCount: 9 });
+    db.insert(schema.foods).values(food).run();
+    db.insert(schema.meals).values(meal).run();
+    db.insert(schema.mealItems).values(makeMealItem({ mealId: meal.id, foodId: food.id, deleted: 1 })).run();
+
+    const result = libraryByUsage(db, {});
+    expect(result.find((c) => c.id === meal.id)).toBeUndefined();
+  });
+
+  it('excludes a tombstoned meal even with a live item', () => {
+    const { db } = setup();
+    // Archived so only the meal itself is under test here — same pattern `recentFoods`'s own
+    // equivalent case uses.
+    const food = makeFood({ name: 'Oats', archived: 1 });
+    const meal = makeMealWithUsage({ name: 'Deleted meal', deleted: 1, useCount: 9 });
+    db.insert(schema.foods).values(food).run();
+    db.insert(schema.meals).values(meal).run();
+    db.insert(schema.mealItems).values(makeMealItem({ mealId: meal.id, foodId: food.id })).run();
+
+    expect(libraryByUsage(db, {})).toEqual([]);
+  });
+
+  it('foods and meals are ranked together by the same use_count/last_used_at order', () => {
+    const { db } = setup();
+    const food = makeFood({ name: 'Low use food', useCount: 1 });
+    const meal = makeMealWithUsage({ name: 'High use meal', useCount: 5 });
+    db.insert(schema.foods).values(food).run();
+    db.insert(schema.meals).values(meal).run();
+    db.insert(schema.mealItems).values(makeMealItem({ mealId: meal.id, foodId: food.id })).run();
+
+    const result = libraryByUsage(db, {});
+    expect(result.map((c) => c.id)).toEqual([meal.id, food.id]);
+  });
+
+  it('limit defaults to 20', () => {
+    const { db } = setup();
+    const rows = Array.from({ length: 25 }, (_, i) => makeFood({ name: `Food ${i}`, useCount: i }));
+    db.insert(schema.foods).values(rows).run();
+
+    expect(libraryByUsage(db, {})).toHaveLength(20);
+  });
+
+  it('respects an explicit limit', () => {
+    const { db } = setup();
+    const rows = Array.from({ length: 5 }, (_, i) => makeFood({ name: `Food ${i}`, useCount: i }));
+    db.insert(schema.foods).values(rows).run();
+
+    expect(libraryByUsage(db, { limit: 2 })).toHaveLength(2);
+  });
+});
+
+// -------------------------------------------------------------------------------------------
 // createFoodAndLog
 // -------------------------------------------------------------------------------------------
 
@@ -667,6 +834,20 @@ describe('performance', () => {
     searchFoods(db, { at: AT, timeZone: LA, query: 'food' }); // warm
     const started = performance.now();
     const result = searchFoods(db, { at: AT, timeZone: LA, query: 'food' });
+    const elapsed = performance.now() - started;
+
+    expect(result.length).toBeGreaterThan(0);
+    expect(elapsed).toBeLessThan(50);
+  });
+
+  it('libraryByUsage over 500 foods returns in well under 50ms', () => {
+    const { db } = setup();
+    const rows = Array.from({ length: 500 }, (_, i) => makeFood({ name: `Catalogue food number ${i}`, useCount: i % 7, lastUsedAt: i % 7 > 0 ? AT - i * 1_000 : null }));
+    db.insert(schema.foods).values(rows).run();
+
+    libraryByUsage(db, {}); // warm
+    const started = performance.now();
+    const result = libraryByUsage(db, {});
     const elapsed = performance.now() - started;
 
     expect(result.length).toBeGreaterThan(0);
