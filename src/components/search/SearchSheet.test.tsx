@@ -9,7 +9,7 @@
 import { act, fireEvent, render, screen, within } from '@testing-library/react-native';
 import { Pressable, Text, TextInput } from 'react-native';
 import type { FoodCandidate, LogReceipt, MealCandidate } from '../../db';
-import { addPortion, logFood, logMeal, quickAddCandidates, recentFoods, searchFoods, VitalsDbError } from '../../db';
+import { addPortion, libraryByUsage, logFood, logMeal, quickAddCandidates, recentFoods, searchFoods, VitalsDbError } from '../../db';
 import { __resetLogTracker } from '../../store/logTracker';
 import { useUndoToastStore } from '../../store/undoToast';
 import { interaction, themes } from '../../theme/tokens';
@@ -19,6 +19,7 @@ jest.mock('../../db', () => ({
   ...jest.requireActual<typeof import('../../db')>('../../db'),
   quickAddCandidates: jest.fn(),
   recentFoods: jest.fn(),
+  libraryByUsage: jest.fn(),
   searchFoods: jest.fn(),
   logFood: jest.fn(),
   logMeal: jest.fn(),
@@ -27,6 +28,7 @@ jest.mock('../../db', () => ({
 
 const mockQuickAdd = jest.mocked(quickAddCandidates);
 const mockRecent = jest.mocked(recentFoods);
+const mockLibrary = jest.mocked(libraryByUsage);
 const mockSearch = jest.mocked(searchFoods);
 const mockLogFood = jest.mocked(logFood);
 const mockLogMeal = jest.mocked(logMeal);
@@ -118,6 +120,7 @@ const receiptFor = (candidate: FoodCandidate | MealCandidate): LogReceipt => ({
 beforeEach(() => {
   mockQuickAdd.mockReturnValue(sixOnGrid);
   mockRecent.mockReturnValue([]);
+  mockLibrary.mockReturnValue([]);
   mockSearch.mockReturnValue([]);
   __resetLogTracker();
   useUndoToastStore.getState().dismiss();
@@ -238,11 +241,78 @@ describe('SearchSheet — recent', () => {
     // nothing), never for an empty `recentFoods` window alone.
     mockQuickAdd.mockReturnValue(sixOnGrid);
     mockRecent.mockReturnValue([]);
+    mockLibrary.mockReturnValue([yoghurt]);
     await renderSheet();
 
     await fireEvent.press(screen.getByTestId('search-sheet-bar'));
 
     expect(screen.queryByTestId('search-sheet-empty')).toBeNull();
+  });
+});
+
+describe('SearchSheet — library fallback (issue #96)', () => {
+  it('falls back to libraryByUsage, labelled "Your foods", when Recent is genuinely empty but the library has foods', async () => {
+    // Issue #96 acceptance: a library with foods logged only more than `interaction.recentDays`
+    // days ago must render those rows, not go blank and not show "No foods yet".
+    mockRecent.mockReturnValue([]);
+    mockLibrary.mockReturnValue([yoghurt, shake]);
+    await renderSheet();
+
+    await fireEvent.press(screen.getByTestId('search-sheet-bar'));
+
+    expect(mockLibrary).toHaveBeenCalledTimes(1);
+    expect(screen.getByTestId('search-sheet-row-food-food-1-name')).toHaveTextContent('Greek yoghurt');
+    expect(screen.getByTestId('search-sheet-row-meal-meal-1')).toBeTruthy();
+    expect(screen.getByTestId('search-sheet-section-library')).toHaveTextContent('Your foods', { exact: false });
+    expect(screen.queryByTestId('search-sheet-empty')).toBeNull();
+  });
+
+  it('never shows both sections at once: Recent wins over the library fallback when Recent has anything', async () => {
+    mockRecent.mockReturnValue([eggs]);
+    mockLibrary.mockReturnValue([yoghurt]);
+    await renderSheet();
+
+    await fireEvent.press(screen.getByTestId('search-sheet-bar'));
+
+    expect(screen.getByTestId('search-sheet-section-recent')).toBeTruthy();
+    expect(screen.queryByTestId('search-sheet-section-library')).toBeNull();
+    expect(screen.getByTestId('search-sheet-row-food-food-2-name')).toHaveTextContent('Boiled eggs');
+    expect(screen.queryByTestId('search-sheet-row-food-food-1-name')).toBeNull();
+  });
+
+  it('still shows "No foods yet" when Recent and the library fallback are both empty', async () => {
+    mockQuickAdd.mockReturnValue([]);
+    mockRecent.mockReturnValue([]);
+    mockLibrary.mockReturnValue([]);
+    await renderSheet();
+
+    await fireEvent.press(screen.getByTestId('search-sheet-bar'));
+
+    expect(screen.getByTestId('search-sheet-empty')).toBeTruthy();
+    expect(screen.queryByTestId('search-sheet-section-library')).toBeNull();
+  });
+
+  it('re-evaluates libraryEmpty when the sheet opens, not once per mount: logging the first food and reopening lists it with no remount', async () => {
+    // The sub-case tech-lead added to this issue while reviewing #117: `libraryEmpty` used to come
+    // from a lazy `useState` initialiser (once per mount), and Today never unmounts, so a day-one
+    // user who creates and logs their very first food still saw "No foods yet" until a reload.
+    mockQuickAdd.mockReturnValue([]);
+    mockRecent.mockReturnValue([]);
+    mockLibrary.mockReturnValue([]);
+    await renderSheet();
+    await fireEvent.press(screen.getByTestId('search-sheet-bar'));
+    expect(screen.getByTestId('search-sheet-empty')).toBeTruthy();
+    await fireEvent.press(screen.getByTestId('search-sheet-cancel'));
+
+    // The first food was created and logged while the sheet was closed — simulated by the next
+    // reads reflecting it, exactly like the "Recent reads fresh on reopen" test above.
+    mockQuickAdd.mockReturnValue([yoghurt]);
+    mockRecent.mockReturnValue([yoghurt]);
+
+    await fireEvent.press(screen.getByTestId('search-sheet-bar'));
+
+    expect(screen.queryByTestId('search-sheet-empty')).toBeNull();
+    expect(screen.getByTestId('search-sheet-row-food-food-1-name')).toHaveTextContent('Greek yoghurt');
   });
 });
 
