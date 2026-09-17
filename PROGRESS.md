@@ -73,3 +73,4 @@ For the sprint-by-sprint plan see [`README.md`](README.md); for open work see th
 - 2026-09-16  fix: quick-add tiles re-rank when Today is returned to (issue #103)  (PR #118 closes #103)
 - 2026-09-16  feat: pin a blank-query "+ Create new food" row first (issue #97)  (PR #121)
 - 2026-09-16  docs: record the pinned blank-query create row in the search rules (issue #97)  (PR #122 closes #97)
+- 2026-09-16  feat: foods get a weight/volume basis and nutrition per 100 g/ml  (PR #123 closes #86)
