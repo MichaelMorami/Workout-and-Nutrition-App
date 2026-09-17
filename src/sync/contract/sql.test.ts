@@ -84,6 +84,14 @@ describe('dollar-quote tags, by the Postgres rule', () => {
     expect(() => splitStatements(sql)).toThrow(SqlSyntaxError);
   });
 
+  it('throws on a U&"…" name, whose escapes this reader does not decode', () => {
+    expect(() => splitStatements('select U&"\\0070g_class"')).toThrow(SqlSyntaxError);
+  });
+
+  it('still reads a quoted name after a word ending in u&-like text', () => {
+    expect(splitStatements('select a & "b"')).toEqual(['select a & "b"']);
+  });
+
   it('still reads a plain string after a word ending in e', () => {
     expect(splitStatements("select type = 'x'")).toEqual(["select type = 'x'"]);
   });
@@ -532,9 +540,65 @@ describe('statements that do not touch RLS or privileges', () => {
       'a $$ glued to an identifier, which Postgres reads as part of the name',
       'create function public.a$$() returns int as $$ language sql $$ language "c" -- $$',
     ],
+    // Re-review blocker A: a U&"…" name decodes to a forbidden one that no text pattern sees.
+    [
+      'a Unicode-escaped catalog name in a function body',
+      'create function public.f(uuid) returns int language sql immutable as $$ update U&"\\0070g_class" set relrowsecurity = false returning 1 $$',
+    ],
+    [
+      'a Unicode-escaped set_config in an added column check',
+      `alter table public.t add column y text check (U&"set\\005fconfig"('ro'||'le', 'service_role', false) is not null)`,
+    ],
+    [
+      'a Unicode-escaped set_config in an index predicate',
+      `create index t_p on public.t (id) where U&"set\\005fconfig"('ro'||'le', 'x', false) is not null`,
+    ],
+    // Re-review blocker B: replacing a function a policy calls rewrites the policy without touching it.
+    [
+      'a function created outside public',
+      'create function auth.uid() returns uuid language sql stable as $$ select null::uuid $$',
+    ],
+    [
+      'a public function whose name the policy calls',
+      'create or replace function public.uid() returns uuid language sql stable as $$ select user_id from public.t limit 1 $$',
+    ],
+    // Re-review suggestion: create table defaults follow the same expression rule.
+    [
+      'set_config in a create table default',
+      "create table public.u (id uuid primary key, r text default set_config('role', 'service_role', true))",
+    ],
     // Suggestion: add column checks the schema, so auth.t is not public.t.
     ['an add column on a same-named table in another schema', 'alter table auth.t add column y int'],
   ])('still throws on %s', (_label, statement) => {
     expect(() => parseSql(`${base} ${statement};`)).toThrow(SqlSyntaxError);
+  });
+});
+
+describe('policies and the functions a migration creates (PR #138 re-review)', () => {
+  it('throws when a policy calls a function the migrations redefine, in either order', () => {
+    const policy = 'create policy own on public.t for select to authenticated using (user_id = (select auth.uid()));';
+    const fn = 'create or replace function auth.uid() returns uuid language sql stable as $$ select null::uuid $$;';
+    expect(() => parseSql(`create table public.t (id uuid primary key, user_id uuid); ${policy} ${fn}`)).toThrow(SqlSyntaxError);
+    const helper = 'create function public.is_owner(u uuid) returns boolean language sql as $$ select true $$;';
+    const usesHelper = 'create policy own on public.t for select to authenticated using (public.is_owner(user_id));';
+    expect(() => parseSql(`create table public.t (id uuid primary key, user_id uuid); ${helper} ${usesHelper}`)).toThrow(
+      /policy.*is_owner/,
+    );
+  });
+
+  it('accepts a public function no policy calls', () => {
+    expect(() =>
+      parseSql(
+        'create table public.t (id uuid primary key, user_id uuid); ' +
+          'create policy own on public.t for select to authenticated using (user_id = (select auth.uid())); ' +
+          'create function touch() returns int language sql as $$ select 1 $$;',
+      ),
+    ).not.toThrow();
+  });
+
+  it("names a string-form language clause instead of misreading the next word as the language", () => {
+    expect(() => parseSql("create function public.f() returns int language 'plpgsql' as $$ begin return 1; end $$;")).toThrow(
+      /string-form language clause is not read/,
+    );
   });
 });
