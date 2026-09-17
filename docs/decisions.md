@@ -98,13 +98,15 @@ the sixth tile (costs a quick-add food every day to save a tap on the rare one).
 | Situation | Behaviour |
 | --- | --- |
 | Before typing | First row is always **+ Create new food**, opening a blank form. Below it, **Recent**: every food and meal logged in the last 14 days, newest first — including the ones already on the six quick-add tiles (amended 2026-09-16, see #95 and #97) |
+| Before typing, nothing recent | Falls back to **Your foods** — every live, non-archived food and every meal with a live item, most-used first (ties: most recently logged, then name, then id). A food never logged still appears, at the bottom. The list is never blank while the library holds anything; only a genuinely empty library shows **No foods yet** (added 2026-09-18, see #96) |
 | Typing | Filters the whole library, meals included; ignores case and accents; word-prefix matches first |
 | Tap a row | Log one serving — haptic, undo toast, sheet closes |
 | Long-press a row | The portion sheet, exact control included |
 | Not in the library | While typing, last row is always **Create "‹query›"**, name pre-filled. With no query, the pinned first row opens the same form blank (amended 2026-09-16, see #97). Save stores the food *and* logs one serving. Undo removes the log but keeps the food |
 
-**Tap budget**, enforced by the tap-count test (#23): a recent food in **2** taps · a known food in
-**2** taps plus a few letters · a brand-new food in **3** taps plus its name and numbers — and, from
+**Tap budget**, enforced by the tap-count test (#23): a recent food in **2** taps · a food reached
+through the **Your foods** fallback, neither recent nor on a tile, also in **2** taps with no typing
+(added 2026-09-18, see #96) · a known food in **2** taps plus a few letters · a brand-new food in **3** taps plus its name and numbers — and, from
 the pinned blank-sheet row, the same **3** taps with *no query text at all* (amended 2026-09-16, see
 #97).
 
