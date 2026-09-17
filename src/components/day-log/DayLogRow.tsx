@@ -30,7 +30,15 @@
  * equivalent by default, so the row also exposes a `delete` `accessibilityAction` — a screen-reader
  * user reaches the exact same `onDelete` a sighted user reaches by dragging, never a second-class
  * path.
+ *
+ * THE DELETE BUTTON (issue #85, design #80). An icon-only square — `glyph.delete` on `state.danger`,
+ * painted `size.deleteButton.side`, touch area `sideHit` via `hitSlop` — sitting on the row's trailing
+ * edge. The row slides open by `gap + side`, so a strip of theme background separates the protein
+ * figure from the button. At rest the front row paints `bg.canvas` (opaque) AND the back layer is
+ * transparent-by-opacity, so no part of the button can bleed under the row's figures — the bug #85
+ * reported, when the front row was `transparent` and the old "Delete" label showed through.
  */
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { useMemo, useState } from 'react';
 import {
   PanResponder,
@@ -45,7 +53,7 @@ import {
 } from 'react-native';
 import type { DayLogEntry } from '../../db';
 import { formatGrams } from '../format/food';
-import { size, space, type, type Theme, type TypeStyle } from '../../theme/tokens';
+import { glyph, radius, size, space, type, type Theme, type TypeStyle } from '../../theme/tokens';
 
 export type DayLogRowProps = {
   readonly entry: DayLogEntry;
@@ -57,11 +65,13 @@ export type DayLogRowProps = {
   readonly testID?: string;
 };
 
-/** The Delete pane's width — the tap-target floor plus one gutter of breathing room around its
- * label, not an arbitrary pixel guess. */
-const DELETE_PANE_WIDTH = size.tapTargetMin + space[5];
+/** How far the row slides open: the theme-background gap, then the square button. */
+export const DELETE_SLIDE_WIDTH = size.deleteButton.gap + size.deleteButton.side;
 /** Past this drag, releasing snaps the row fully open (Delete revealed) instead of springing shut. */
-const REVEAL_THRESHOLD = DELETE_PANE_WIDTH / 2;
+const REVEAL_THRESHOLD = DELETE_SLIDE_WIDTH / 2;
+/** Extends the painted square out to its touch square, evenly on every side. */
+const DELETE_SLOP = (size.deleteButton.sideHit - size.deleteButton.side) / 2;
+const DELETE_HIT_SLOP = { top: DELETE_SLOP, bottom: DELETE_SLOP, left: DELETE_SLOP, right: DELETE_SLOP };
 
 function textStyle(token: TypeStyle, color: string): TextStyle {
   return {
@@ -94,7 +104,7 @@ export function entryName(entry: DayLogEntry): string {
 }
 
 export function DayLogRow({ entry, theme, locale, onPress, onDelete, testID = 'day-log-row' }: DayLogRowProps) {
-  const { logRow } = theme.color;
+  const { logRow, bg, state, text } = theme.color;
   const name = entryName(entry);
   const kcalText = Math.round(entry.kcal).toLocaleString(locale);
   const proteinText = formatGrams(entry.protein, locale);
@@ -112,14 +122,14 @@ export function DayLogRow({ entry, theme, locale, onPress, onDelete, testID = 'd
           Math.abs(gesture.dx) > 6 && Math.abs(gesture.dx) > Math.abs(gesture.dy),
         onPanResponderGrant: () => setDragging(true),
         onPanResponderMove: (_: GestureResponderEvent, gesture: PanResponderGestureState) => {
-          const base = revealed ? -DELETE_PANE_WIDTH : 0;
-          setOffset(Math.min(0, Math.max(-DELETE_PANE_WIDTH, base + gesture.dx)));
+          const base = revealed ? -DELETE_SLIDE_WIDTH : 0;
+          setOffset(Math.min(0, Math.max(-DELETE_SLIDE_WIDTH, base + gesture.dx)));
         },
         onPanResponderRelease: (_: GestureResponderEvent, gesture: PanResponderGestureState) => {
           setDragging(false);
-          const base = revealed ? -DELETE_PANE_WIDTH : 0;
+          const base = revealed ? -DELETE_SLIDE_WIDTH : 0;
           const open = base + gesture.dx <= -REVEAL_THRESHOLD;
-          setOffset(open ? -DELETE_PANE_WIDTH : 0);
+          setOffset(open ? -DELETE_SLIDE_WIDTH : 0);
           setRevealed(open);
         },
         onPanResponderTerminate: () => {
@@ -150,15 +160,32 @@ export function DayLogRow({ entry, theme, locale, onPress, onDelete, testID = 'd
 
   return (
     <View testID={`${testID}-wrap`} style={[styles.wrap, { height: size.row.logHit }]}>
-      <View style={[StyleSheet.absoluteFill, styles.backLayer]}>
+      <View
+        testID={`${testID}-delete-layer`}
+        style={[StyleSheet.absoluteFill, styles.backLayer, { opacity: offset === 0 ? 0 : 1 }]}
+      >
         <Pressable
           testID={`${testID}-delete`}
           onPress={handleDelete}
           accessibilityRole="button"
           accessibilityLabel={`Delete ${name}`}
-          style={[styles.deleteAction, { width: DELETE_PANE_WIDTH, minHeight: size.tapTargetMin }]}
+          hitSlop={DELETE_HIT_SLOP}
+          style={[
+            styles.deleteAction,
+            {
+              width: size.deleteButton.side,
+              height: size.deleteButton.side,
+              borderRadius: radius.sm,
+              backgroundColor: state.danger,
+            },
+          ]}
         >
-          <Text style={textStyle(type.label, logRow.deleteText)}>Delete</Text>
+          <Ionicons
+            testID={`${testID}-delete-icon`}
+            name={glyph.delete}
+            size={size.icon.deleteAction}
+            color={text.onDanger}
+          />
         </Pressable>
       </View>
 
@@ -174,7 +201,7 @@ export function DayLogRow({ entry, theme, locale, onPress, onDelete, testID = 'd
             styles.content,
             {
               minHeight: size.row.logHit,
-              backgroundColor: dragging ? logRow.bgPress : 'transparent',
+              backgroundColor: dragging ? logRow.bgPress : bg.canvas,
               borderBottomWidth: StyleSheet.hairlineWidth,
               borderBottomColor: logRow.divider,
             },

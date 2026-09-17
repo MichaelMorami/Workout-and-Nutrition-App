@@ -278,8 +278,9 @@ jq -r '.modules["src/db/queries/nutrition.ts"].exports[]' docs/graph/symbols.jso
   readonly refreshToken?: number;
   /** Called a...`
 
-### `src/components/day-log/DayLogRow.tsx`  <sub>232 lines</sub>
+### `src/components/day-log/DayLogRow.tsx`  <sub>259 lines</sub>
 
+- `const DELETE_SLIDE_WIDTH: number`
 - `function DayLogRow({ entry, theme, locale, onPress, onDelete, testID = 'day-log-row' }: DayLogRowProps): import("react").JSX.Element`
 - `function entryName(entry: DayLogEntry): string`
 - `function timeLabel(localMinute: number): string`
