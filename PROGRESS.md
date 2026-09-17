@@ -77,3 +77,5 @@ For the sprint-by-sprint plan see [`README.md`](README.md); for open work see th
 - 2026-09-17  feat: add searchFoodsOnly, a foods-only search for the meal-ingredient picker (issue #98)  (PR #126 closes #98)
 - 2026-09-17  feat: the Supabase foods/food_log contract and the pure sync row mapping (issue #114)  (PR #128 closes #114)
 - 2026-09-17  fix: RLS contract check folds identifier case and sees grants to public or with granted by (issues #130, #131)  (PR #134 closes #130 #131)
+- 2026-09-17  fix: render food amounts through a shared g/ml formatter, not a hand-built string (issue #124)  (PR #137 closes #124)
+- 2026-09-17  feat: Ionicons tab and trash glyph names, delete-pane icon size, and the tab-icons canvas (issue #80)  (PR #136 closes #80)
