@@ -165,7 +165,17 @@ const LEADING_IDENTIFIER = new RegExp(`^${IDENTIFIER}`);
 const identifier = (raw: string): string =>
   raw.startsWith('"') ? raw.slice(1, -1).replace(/""/g, '"') : raw.toLowerCase();
 
-/** Resolve a dotted name (`public."Thing"`) into its parts. Throws on anything that is not one. */
+/**
+ * A dotted name as written: identifiers joined by `.`, with the whitespace (line breaks included)
+ * that Postgres allows around the dot. Used as a regex fragment, it must be followed by `(?=\s|$)` or
+ * a keyword, so it can never match only part of a name.
+ */
+const QUALIFIED_NAME = `${IDENTIFIER}(?:\\s*\\.\\s*${IDENTIFIER})*`;
+
+/**
+ * Resolve a dotted name (`public."Thing"`, `public . thing`) into its parts. Throws on anything that
+ * is not one.
+ */
 const nameParts = (name: string): string[] => {
   const parts: string[] = [];
   let rest = name;
@@ -173,10 +183,10 @@ const nameParts = (name: string): string[] => {
     const match = LEADING_IDENTIFIER.exec(rest);
     if (!match) throw new SqlSyntaxError(`not an identifier: "${name}"`, 0);
     parts.push(identifier(match[0]));
-    rest = rest.slice(match[0].length);
+    rest = rest.slice(match[0].length).trimStart();
     if (rest.length === 0) return parts;
     if (!rest.startsWith('.')) throw new SqlSyntaxError(`not an identifier: "${name}"`, 0);
-    rest = rest.slice(1);
+    rest = rest.slice(1).trimStart();
   }
 };
 
@@ -450,8 +460,19 @@ function parseCreateTable(statement: string, origin: string): ParsedTable | null
   return table;
 }
 
+/**
+ * The policy name and its whole table name, which must end at whitespace or the end of the statement.
+ * It used to end at any word boundary, so `on public . foods` or `on public.<newline>foods` keyed the
+ * policy to table `public` and a permissive policy passed unseen (PR #134 review). A name this
+ * does not read whole, such as `U&"foods"`, leaves the statement unmatched, and it is rejected.
+ */
+const POLICY_HEAD = new RegExp(
+  `^create\\s+policy\\s+(${IDENTIFIER})\\s+on\\s+(${QUALIFIED_NAME})(?=\\s|$)`,
+  'i',
+);
+
 function parsePolicy(statement: string, origin: string): ParsedPolicy | null {
-  const head = /^create\s+policy\s+([\w"]+)\s+on\s+([\w".]+)\b/is.exec(statement);
+  const head = POLICY_HEAD.exec(statement);
   if (!head) return null;
   let rest = squash(statement.slice(head[0].length));
 
@@ -463,6 +484,13 @@ function parsePolicy(statement: string, origin: string): ParsedPolicy | null {
   const command = (commandMatch?.[1]?.toLowerCase() ?? 'all') as PolicyCommand;
   if (!POLICY_COMMANDS.includes(command)) {
     throw new SqlSyntaxError(`unknown policy command "${command}" in ${origin}`, 0);
+  }
+  if (commandMatch) rest = rest.slice(commandMatch[0].length).trim();
+
+  // Only `to`, `using` and `with check` may follow. Anything else means the head was misread, and a
+  // misread policy must never be keyed to a table.
+  if (rest.length > 0 && !/^(?:to|using|with\s+check)\b/i.test(rest)) {
+    throw new SqlSyntaxError(`${origin}: unrecognised create policy clause: "${rest.slice(0, 80)}"`, 0);
   }
 
   const rolesMatch = /\bto\s+([\w",\s]+?)(?=\s+(?:using|with\s+check)\b|$)/i.exec(rest);
