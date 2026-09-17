@@ -13,10 +13,12 @@ jq -r '.modules["src/db/queries/nutrition.ts"].exports[]' docs/graph/symbols.jso
 
 ## `app/(tabs)/`
 
-### `app/(tabs)/_layout.tsx`  <sub>47 lines</sub>
+### `app/(tabs)/_layout.tsx`  <sub>94 lines</sub>
 
+- `const tabNames: readonly ("today" | "settings" | "workout" | "charts")[]`
 - `function default(): React.JSX.Element`
 - `function sharedTabBarOptions(color: ColorTokens): { readonly headerShown: false; readonly tabBarStyle: { readonly backgroundColor: string; readonly borderTopColor: string; readonly height: 58; }; readonly tabBarInactiveTintColor: string; readonly tabBarLabelStyle: { readonly fontFamily: "Archivo-Medium"; readonly fontSize: 10; readonly letterSpacing: 0.1; }; }`
+- `function tabBarIcon(tab: TabName): ({ focused, color }: { focused: boolean; color: ColorValue; size: number; }) => React.JSX.Element`
 
 ### `app/(tabs)/charts.tsx`  <sub>12 lines</sub>
 
