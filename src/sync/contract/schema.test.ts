@@ -469,7 +469,8 @@ describe('a later migration that weakens RLS turns the suite red', () => {
     ],
   ])('fails closed on a policy over %s', (_label, sql) => {
     // The reader does not decode U& escapes, so it must refuse the statement rather than guess a table.
-    expect(() => withLater(sql)).toThrow(/unrecognised statement/);
+    // Since PR #138 the splitter refuses `U&"` before the statement is even matched.
+    expect(() => withLater(sql)).toThrow(/unrecognised statement|Unicode-escaped names/);
   });
 
   it('does not fold a quoted identifier: "Food_Log" is a different table', () => {

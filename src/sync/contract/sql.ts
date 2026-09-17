@@ -237,6 +237,7 @@ const DOLLAR_TAG = /^\$(?:[A-Za-z_][A-Za-z0-9_]*)?\$/;
 
 /** The text just before a `'` that makes it an `E'…'` or `U&'…'` literal: the prefix, not a word's tail. */
 const ESCAPE_STRING_PREFIX = /(?:^|[^A-Za-z0-9_$])(?:[Ee]|[Uu]&)$/;
+const UNICODE_NAME_PREFIX = /(?:^|[^A-Za-z0-9_$])[Uu]&$/;
 
 /**
  * Split into statements, stripping comments. Respects `'…'` (with `''` escapes), `"…"` quoted
@@ -290,6 +291,11 @@ export function splitStatements(sql: string): string[] {
       // `securitydefiner`, a word no check matches, on a statement Postgres reads as SECURITY DEFINER.
       buffer += ' ';
       continue;
+    }
+
+    if (ch === '"' && UNICODE_NAME_PREFIX.test(sql.slice(Math.max(0, i - 3), i))) {
+      // `U&"\0070g_class"` is `pg_class` to Postgres and to no text pattern here (PR #138 re-review).
+      throw new SqlSyntaxError('Unicode-escaped names (U&"…") are not read', i);
     }
 
     if (ch === "'" && ESCAPE_STRING_PREFIX.test(sql.slice(Math.max(0, i - 3), i))) {
@@ -569,6 +575,8 @@ const UNSAFE_EXPRESSION: readonly (readonly [RegExp, string])[] = [
   [/\bpg_[a-z0-9_]+/i, 'a pg_ catalog name'],
   [/\bset_config\b/i, 'set_config'],
   [/\binformation_schema\b/i, 'information_schema'],
+  // Inside a dollar-quoted body the splitter never sees a `U&"…"`, so the pattern checks for it too.
+  [/\bu&["']/i, 'a Unicode-escaped name or string'],
 ];
 
 function rejectUnsafeExpression(text: string, where: string): void {
@@ -597,12 +605,18 @@ const FUNCTION_FORBIDDEN: readonly (readonly [RegExp, string])[] = [
 /** The statement with every dollar-quoted body and `'…'` literal replaced by a space. Quoted names stay. */
 const blankBodies = (text: string): string =>
   text.replace(/(?<![A-Za-z0-9_$])\$([A-Za-z_][A-Za-z0-9_]*)?\$[\s\S]*?\$\1\$|'(?:[^']|'')*'|"(?:[^"]|"")*"/g, (m) =>
-    m.startsWith('"') ? m : ' ',
+    // A literal becomes `''`, not a space, so `language 'plpgsql' as` cannot read `as` as the language.
+    m.startsWith('"') ? m : m.startsWith("'") ? "''" : ' ',
   );
 
-function checkFunction(statement: string, origin: string): boolean {
+/**
+ * Returns the created function's unqualified name, or `null` when the statement is not a
+ * `create function`. Only `public` (or unqualified) functions are read: replacing `auth.uid()` changes
+ * what every policy means while every parsed policy still reads the same (PR #138 re-review).
+ */
+function checkFunction(statement: string, origin: string): string | null {
   const head = CREATE_FUNCTION.exec(statement);
-  if (!head) return false;
+  if (!head) return null;
   const rest = statement.slice(head[0].length).replace(/\bsecurity\s+invoker\b/gi, ' ');
   const fail = (why: string): never => {
     throw new SqlSyntaxError(
@@ -610,6 +624,11 @@ function checkFunction(statement: string, origin: string): boolean {
       0,
     );
   };
+
+  const named = new RegExp(`^(${QUALIFIED_NAME})\\s*\\(`).exec(rest);
+  if (!named) return fail('its name is not read');
+  const nameText = named[1] as string;
+  if ((schemaOf(nameText) ?? 'public') !== 'public') fail('only functions in public are read');
 
   for (const [pattern, why] of FUNCTION_FORBIDDEN) if (pattern.test(rest)) fail(why);
 
@@ -619,13 +638,14 @@ function checkFunction(statement: string, origin: string): boolean {
   const mentions = header.match(/\blanguage\b/gi) ?? [];
   // `language 'plpgsql'` (a string) is blanked with the literals and so rejected: fail closed.
   const clauses = [...header.matchAll(new RegExp(`\\blanguage\\s+(${IDENTIFIER})`, 'gi'))];
+  if (/\blanguage\s+''/i.test(header)) fail('a string-form language clause is not read');
   if (mentions.length !== 1 || clauses.length !== 1) {
     fail('it needs exactly one language clause outside the body');
   }
   const raw = clauses[0]?.[1] ?? '';
   const language = identifier(raw);
   if (!FUNCTION_LANGUAGES.has(language)) fail(`language ${language} is not sql or plpgsql`);
-  return true;
+  return unqualified(nameText);
 }
 
 /** `comment on <object> is '<text>' | null`. A comment is catalogue metadata and grants nothing. */
@@ -757,6 +777,9 @@ export function parseMigrations(sources: readonly MigrationSource[]): ParsedSql 
     }
   };
 
+  /** Functions the migrations create, unqualified name -> migration. */
+  const functions = new Map<string, string>();
+
   const rlsOf = (table: string): MutableRls => {
     let state = rls.get(table);
     if (!state) {
@@ -773,6 +796,8 @@ export function parseMigrations(sources: readonly MigrationSource[]): ParsedSql 
 
       const table = parseCreateTable(statement, source.name);
       if (table) {
+        // Defaults, checks and generated columns run on every insert, so they follow the same rule.
+        rejectUnsafeExpression(statement, `${source.name}: create table`);
         if (tables.has(table.name)) {
           throw new SqlSyntaxError(`${source.name}: table ${table.name} is created twice`, 0);
         }
@@ -816,7 +841,11 @@ export function parseMigrations(sources: readonly MigrationSource[]): ParsedSql 
         continue;
       }
       if (addColumns(flat, tables, source.name)) continue;
-      if (checkFunction(statement, source.name)) continue;
+      const createdFunction = checkFunction(statement, source.name);
+      if (createdFunction) {
+        functions.set(createdFunction, source.name);
+        continue;
+      }
       if (COMMENT_ON.test(flat)) continue;
       if (checkExtension(flat, source.name)) continue;
 
@@ -843,6 +872,25 @@ export function parseMigrations(sources: readonly MigrationSource[]): ParsedSql 
   }
 
   const standing = [...policies.values()];
+
+  // A policy that calls a function these migrations create or replace is only as strong as that
+  // function's body, which the policy text does not show. Matched by unqualified name in either
+  // order, so `public.uid()` shadowing `auth.uid()` on the search path is caught too.
+  const CALL = new RegExp(`(${QUALIFIED_NAME})\\s*\\(`, 'g');
+  for (const policy of standing) {
+    for (const expression of [policy.using, policy.withCheck]) {
+      for (const call of (expression ?? '').matchAll(CALL)) {
+        const called = unqualified(call[1] as string);
+        const createdIn = functions.get(called);
+        if (createdIn) {
+          throw new SqlSyntaxError(
+            `policy ${policy.table}.${policy.name} calls ${called}(), which ${createdIn} creates or replaces`,
+            0,
+          );
+        }
+      }
+    }
+  }
   const policiesFor = (table: string, command: PolicyCommand): ParsedPolicy[] =>
     standing.filter((p) => p.table === table && p.command === command);
 
