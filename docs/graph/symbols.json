@@ -305,19 +305,24 @@
     },
     "src/components/day-log/DayLogRow.tsx": {
       "exports": [
+        "const DELETE_SLIDE_WIDTH: number",
         "function DayLogRow({ entry, theme, locale, onPress, onDelete, testID = 'day-log-row' }: DayLogRowProps): import(\"react\").JSX.Element",
+        "function deleteLayerOpacity(offset: number): number",
+        "function dragOffset(revealed: boolean, dx: number): number",
         "function entryName(entry: DayLogEntry): string",
+        "function releasesOpen(revealed: boolean, dx: number): boolean",
         "function timeLabel(localMinute: number): string",
         "type DayLogRowProps = {\n  readonly entry: DayLogEntry;\n  readonly theme: Theme;\n  /** Formatting locale, forwarded to the kcal/protein figures. Defaults to the device's. */\n  readonly locale?: string;\n  readonly onPress: (entry: DayLogEntry) => void;\n  readonly onDelete: (entry: DayLogEntry) => void;\n  readonly testID?: string;\n}"
       ],
       "imports": [
+        "@expo/vector-icons/Ionicons",
         "react",
         "react-native",
         "src/components/format/food.ts",
         "src/db/index.ts",
         "src/theme/tokens.ts"
       ],
-      "loc": 232,
+      "loc": 313,
       "importedBy": [
         "src/components/day-log/DayLogList.tsx"
       ]

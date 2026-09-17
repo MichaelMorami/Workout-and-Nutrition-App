@@ -278,10 +278,14 @@ jq -r '.modules["src/db/queries/nutrition.ts"].exports[]' docs/graph/symbols.jso
   readonly refreshToken?: number;
   /** Called a...`
 
-### `src/components/day-log/DayLogRow.tsx`  <sub>232 lines</sub>
+### `src/components/day-log/DayLogRow.tsx`  <sub>313 lines</sub>
 
+- `const DELETE_SLIDE_WIDTH: number`
 - `function DayLogRow({ entry, theme, locale, onPress, onDelete, testID = 'day-log-row' }: DayLogRowProps): import("react").JSX.Element`
+- `function deleteLayerOpacity(offset: number): number`
+- `function dragOffset(revealed: boolean, dx: number): number`
 - `function entryName(entry: DayLogEntry): string`
+- `function releasesOpen(revealed: boolean, dx: number): boolean`
 - `function timeLabel(localMinute: number): string`
 - `type DayLogRowProps = {
   readonly entry: DayLogEntry;
