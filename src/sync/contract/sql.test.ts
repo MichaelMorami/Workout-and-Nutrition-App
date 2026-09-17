@@ -7,7 +7,7 @@
  * quotes, and a hard error on anything unbalanced — a migration that fails to parse here must never
  * be reported as passing.
  */
-import { parseSql, splitStatements, SqlSyntaxError } from './sql';
+import { parseMigrations, parseSql, splitStatements, SqlSyntaxError } from './sql';
 
 /** The lexical layer. It will split a `select`; vouching for a statement is `parseSql`'s job. */
 describe('splitting statements', () => {
@@ -191,5 +191,44 @@ describe('reading row level security', () => {
 
   it('has no policy for a command the migration never granted', () => {
     expect(parseSql(sql).policyFor('thing', 'delete')).toBeUndefined();
+  });
+});
+
+describe('reading grants and revokes, in order', () => {
+  it('is unstated when no statement mentions the privilege', () => {
+    expect(parseSql('create index i on public.t (id);').privilegeState('t', 'authenticated', 'delete')).toBe(
+      'unstated',
+    );
+  });
+
+  it('records a revoke for each role and privilege listed', () => {
+    const set = parseSql('revoke delete, truncate on public.t from authenticated, anon;');
+    expect(set.privilegeState('t', 'authenticated', 'delete')).toBe('revoked');
+    expect(set.privilegeState('t', 'anon', 'truncate')).toBe('revoked');
+    expect(set.privilegeState('t', 'authenticated', 'select')).toBe('unstated');
+  });
+
+  it('lets a later grant undo an earlier revoke, and vice versa', () => {
+    expect(
+      parseSql('revoke delete on public.t from authenticated; grant delete on public.t to authenticated;')
+        .privilegeState('t', 'authenticated', 'delete'),
+    ).toBe('granted');
+    expect(
+      parseSql('grant delete on public.t to authenticated; revoke delete on public.t from authenticated;')
+        .privilegeState('t', 'authenticated', 'delete'),
+    ).toBe('revoked');
+  });
+
+  it('expands ALL [PRIVILEGES] to every table privilege, including delete', () => {
+    const set = parseSql('revoke delete on t from authenticated; grant all privileges on table t to authenticated;');
+    expect(set.privilegeState('t', 'authenticated', 'delete')).toBe('granted');
+  });
+
+  it('folds across migration files in the order given', () => {
+    const set = parseMigrations([
+      { name: '1.sql', sql: 'revoke delete on public.t from authenticated;' },
+      { name: '2.sql', sql: 'grant delete on public.t to authenticated;' },
+    ]);
+    expect(set.privilegeState('t', 'authenticated', 'delete')).toBe('granted');
   });
 });

@@ -77,6 +77,11 @@ function rlsViolations(set: ParsedSql): string[] {
         }
       }
     }
+    // 'unstated' is not safe: Supabase's bootstrap grants broad privileges to authenticated, so only an
+    // explicit revoke that no later grant undoes is a guarantee.
+    if (set.privilegeState(name, 'authenticated', 'delete') !== 'revoked') {
+      found.push(`${name}: DELETE is ${set.privilegeState(name, 'authenticated', 'delete')} for authenticated`);
+    }
     for (const command of ['delete', 'all'] as const) {
       for (const policy of set.policiesFor(name, command)) {
         if (policy.permissive) found.push(`${name}: permissive ${command} policy ${policy.name}`);
@@ -322,7 +327,8 @@ describe('row level security', () => {
   it.each(['foods', 'food_log'])('%s grants no DELETE — deletes are tombstones', (name) => {
     expect(parsed().policiesFor(name, 'delete')).toEqual([]);
     expect(parsed().policiesFor(name, 'all')).toEqual([]);
-    expect(read(contractFile())).toContain(`revoke delete on public.${name} from authenticated`);
+    // Asserted on parsed statements over the full set, never on file text (PR #128 review, hole 1).
+    expect(parsed().privilegeState(name, 'authenticated', 'delete')).toBe('revoked');
   });
 
   it('grants nothing to anon', () => {
@@ -386,12 +392,45 @@ describe('a later migration that weakens RLS turns the suite red', () => {
     expect(rlsViolations(withLater(sql)).join('\n')).toContain(violation);
   });
 
+  it.each([
+    ['grants DELETE back', 'grant delete on public.food_log to authenticated;', 'food_log: DELETE is granted'],
+    ['grants ALL', 'grant all privileges on public.foods to authenticated;', 'foods: DELETE is granted'],
+  ])('%s', (_label, sql, violation) => {
+    expect(rlsViolations(withLater(sql)).join('\n')).toContain(violation);
+  });
+
   it('the reviewer\'s exact reproduction fails', () => {
     const set = withLater(`
       alter table public.food_log disable row level security;
       create policy food_log_delete_any on public.food_log for delete to authenticated using (true);
+      grant delete on public.food_log to authenticated;
     `);
     expect(rlsViolations(set).length).toBeGreaterThan(0);
+  });
+});
+
+/**
+ * Regression for PR #128 review, hole 1: the DELETE revoke was asserted with `toContain` on the raw
+ * file text, so commenting the statement out left the test green.
+ */
+describe('a missing DELETE revoke is noticed, even when its text is still in the file', () => {
+  const REVOKE = 'revoke delete on public.food_log from authenticated;';
+
+  it.each([
+    ['commented out', `-- ${REVOKE}`],
+    ['inside a block comment', `/* ${REVOKE} */`],
+    ['deleted', ''],
+  ])('the revoke %s', (_label, replacement) => {
+    const sql = read(contractFile());
+    expect(sql).toContain(REVOKE);
+    const weakened = sql.replace(REVOKE, replacement);
+    if (replacement) {
+      // The old raw-text assertion would still have passed on this file.
+      expect(weakened).toContain(REVOKE.slice(0, -1));
+    }
+    const set = parseMigrations([{ name: contractFile(), sql: weakened }]);
+    expect(set.privilegeState('food_log', 'authenticated', 'delete')).toBe('unstated');
+    expect(rlsViolations(set)).toContain('food_log: DELETE is unstated for authenticated');
   });
 });
 
