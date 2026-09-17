@@ -3,6 +3,7 @@
   "main": "expo-router/entry",
   "version": "1.0.0",
   "dependencies": {
+    "@expo/vector-icons": "^15.0.2",
     "@supabase/supabase-js": "^2.116.0",
     "date-fns": "^4.4.0",
     "drizzle-orm": "^0.45.2",
