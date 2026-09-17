@@ -1585,12 +1585,13 @@
         "const MIN_TEXT_CONTRAST: 4.5",
         "const contrastPairs: readonly ContrastPair[]",
         "const fontInstances: { readonly 'Archivo-Book': { readonly wght: 450; readonly wdth: 100; }; readonly 'Archivo-Medium': { readonly wght: 500; readonly wdth: 100; }; readonly 'Archivo-SemiBold': { readonly wght: 650; readonly wdth: 100; }; readonly 'Archivo-Bold': { readonly wght: 700; readonly wdth: 100; }; readonly 'Archivo-Title': { readonly wght: 700; readonly wdth: 104; }; readonly 'Archivo...",
+        "const glyph: { readonly family: \"Ionicons\"; readonly tab: { readonly today: { readonly active: \"today\"; readonly inactive: \"today-outline\"; }; readonly workout: { readonly active: \"barbell\"; readonly inactive: \"barbell-outline\"; }; readonly charts: { readonly active: \"stats-chart\"; readonly inactive: \"stats-chart-outline\"; }; readonly settings: { readonly active: \"settings\"; readonly inactive: ...",
         "const haptics: { readonly foodLogged: { readonly ios: \"impactMedium\"; readonly android: \"EFFECT_HEAVY_CLICK\"; }; readonly setLogged: { readonly ios: \"impactLight\"; readonly android: \"EFFECT_TICK\"; }; readonly undo: { readonly ios: \"impactLight\"; readonly android: \"EFFECT_CLICK\"; }; readonly sliderDetent: { readonly ios: \"selection\"; readonly android: \"EFFECT_TICK\"; }; readonly restFinished: { r...",
         "const interaction: { readonly longPressMs: 220; readonly repeatWindowMs: 5000; readonly tileLoggedHoldMs: 900; readonly rowLoggedHoldMs: 240; readonly undoCeilingMs: 180000; readonly undoDismissedBy: readonly [\"anotherLog\", \"sheetOpened\", \"tabChanged\", \"swipedAway\", \"ceiling\"]; readonly undoSurvives: readonly [\"scroll\", \"screenLock\", \"appBackgrounded\"]; readonly stepperRepeatDelayMs: 400; reado...",
         "const layout: { readonly gutterToday: 20; readonly gutter: 16; readonly cardPadding: 16; readonly cardGap: 12; readonly tileGap: 10; readonly groupGap: 24; readonly floatAboveTabBar: 12; }",
         "const motion: { readonly ceilingMs: 260; readonly easing: { readonly standard: readonly [0.2, 0, 0, 1]; readonly out: readonly [0, 0, 0.58, 1]; readonly inOut: readonly [0.42, 0, 0.58, 1]; readonly linear: readonly [0, 0, 1, 1]; }; readonly spring: { readonly sheet: { readonly dampingRatio: 0.82; readonly duration: 200; }; }; readonly events: { readonly tilePressIn: { readonly duration: 90; rea...",
         "const radius: { readonly xs: 8; readonly sm: 10; readonly md: 14; readonly lg: 18; readonly xl: 22; readonly card: 24; readonly pill: 999; }",
-        "const size: { readonly tapTargetMin: 44; readonly icon: { readonly tab: 23; readonly lg: 21; readonly md: 19; readonly sm: 15; readonly stroke: 1.75; readonly strokeActive: 2; }; readonly tabBar: { readonly height: 58; readonly itemHit: 58; }; readonly tile: { readonly height: 80; readonly heightHit: 80; readonly nameLines: 2; readonly borderLogged: 1.5; readonly pressScale: 0.972; readonly rep...",
+        "const size: { readonly tapTargetMin: 44; readonly icon: { readonly tab: 23; readonly deleteAction: 22; readonly lg: 21; readonly md: 19; readonly sm: 15; readonly stroke: 1.75; readonly strokeActive: 2; }; readonly tabBar: { readonly height: 58; readonly itemHit: 58; }; readonly tile: { readonly height: 80; readonly heightHit: 80; readonly nameLines: 2; readonly borderLogged: 1.5; readonly pres...",
         "const space: { readonly 1: 4; readonly 2: 6; readonly 3: 8; readonly 4: 10; readonly 5: 12; readonly 6: 16; readonly 7: 20; readonly 8: 24; readonly 9: 32; }",
         "const themeNames: readonly [\"dark\", \"light\"]",
         "const themes: { readonly dark: Theme; readonly light: Theme; }",
@@ -1617,7 +1618,7 @@
         "type TypeStyle = {\n  readonly fontFamily: FontFamily;\n  readonly fontSize: number;\n  readonly lineHeight: number;\n  readonly letterSpacing: number;\n  readonly textTransform?: 'uppercase';\n  readonly fontVariant?: readonly ['tabular-nums'];\n}"
       ],
       "imports": [],
-      "loc": 1367,
+      "loc": 1419,
       "importedBy": [
         "app/(tabs)/_layout.tsx",
         "app/(tabs)/index.tsx",

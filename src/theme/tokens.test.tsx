@@ -19,10 +19,12 @@
 import {
   contrastPairs,
   fontInstances,
+  glyph,
   MIN_TEXT_CONTRAST,
   motion,
   resolveThemeName,
   size,
+  space,
   themeNames,
   themes,
   type,
@@ -209,6 +211,50 @@ describe('size', () => {
   it('draws over-target with shape, not colour alone: a knocked-out second lap and a target tick', () => {
     expect(size.arc.overKnockout).toBeGreaterThan(0);
     expect(size.arc.targetTickLength).toBeGreaterThan(size.arc.stroke);
+  });
+});
+
+describe('glyph (issue #80)', () => {
+  const tabs = ['today', 'workout', 'charts', 'settings'] as const;
+
+  it('draws every icon from one family that ships with Expo and runs in Expo Go', () => {
+    expect(glyph.family).toBe('Ionicons');
+  });
+
+  it('names an icon for each of the four tabs, and only those', () => {
+    expect(Object.keys(glyph.tab).sort()).toEqual([...tabs].sort());
+  });
+
+  it('marks the active tab with shape as well as colour: outline at rest, the filled cut when active', () => {
+    for (const tab of tabs) {
+      const { active, inactive } = glyph.tab[tab];
+      expect({ tab, inactive }).toEqual({ tab, inactive: `${active}-outline` });
+    }
+  });
+
+  it('gives every tab a colour for its active state in both themes, so the glyph and the colour tokens line up', () => {
+    for (const name of themeNames) {
+      const bar = themes[name].color.tabBar as Record<string, string>;
+      for (const tab of tabs) expect({ name, tab, type: typeof bar[`${tab}ActiveText`] }).toEqual({ name, tab, type: 'string' });
+    }
+  });
+
+  it('names a filled trash can for the swipe-to-delete pane, sized to read on a red fill at arm length', () => {
+    expect(glyph.delete).toBe('trash');
+    expect(size.icon.deleteAction).toBeGreaterThan(size.icon.md);
+  });
+
+  it('draws the delete action as a square button inside the row, clear of the row content', () => {
+    const b = size.deleteButton;
+    // Square, and it fits inside the painted log row rather than running its full height as a strip.
+    expect(b.side).toBeLessThan(size.row.log);
+    // The glyph sits inside the square with room to breathe on every side.
+    expect(b.side).toBeGreaterThan(size.icon.deleteAction);
+    // Painted smaller than the floor, so the touch area is extended to it (square hit area).
+    expect(b.sideHit).toBe(size.tapTargetMin);
+    // A real gap of theme background between the protein figure and the button — a space step.
+    expect(b.gap).toBeGreaterThan(0);
+    expect(Object.values(space)).toContain(b.gap);
   });
 });
 

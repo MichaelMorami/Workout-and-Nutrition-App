@@ -1026,17 +1026,21 @@ export const size = {
   tapTargetMin: 44,
 
   icon: {
-    /** Tab bar glyphs. */
+    /** Tab bar glyphs — the `glyph.tab` Ionicons, passed as the icon's `size`. */
     tab: 23,
+    /** The trash can on the swipe-revealed delete button (`glyph.delete`). Larger than a row glyph:
+     * it is the only thing on a solid red button and has to read at arm's length, mid-swipe. */
+    deleteAction: 22,
     /** Header and field glyphs. */
     lg: 21,
     /** Row and button glyphs. */
     md: 19,
     /** Inline glyphs beside a label. */
     sm: 15,
-    /** Stroke width for every icon at rest (24 pt grid). */
+    /** Stroke width for every hand-drawn SVG icon at rest (24 pt grid). Font glyphs (`glyph.*`)
+     * have no stroke; they mark state by swapping to their filled cut instead. */
     stroke: 1.75,
-    /** Stroke width for an active tab icon. */
+    /** Stroke width for an active hand-drawn SVG icon. */
     strokeActive: 2,
   },
 
@@ -1189,6 +1193,18 @@ export const size = {
     logHit: 44,
   },
 
+  deleteButton: {
+    /** The swipe-revealed delete button on a Today's-log row: a square, painted this size, centred
+     * vertically in the row and sitting on the row's trailing edge. Corners `radius.sm`, fill
+     * `state.danger`, glyph `glyph.delete` at `size.icon.deleteAction`. Not a full-height strip. */
+    side: 36,
+    /** Its touch area — square, extended past the painted button (hitSlop 4 pt each side). */
+    sideHit: 44,
+    /** The gap between the row's content (the protein figure) and the button, showing the theme
+     * background. A layout gap, never a whitespace character. The row slides open by `gap + side`. */
+    gap: space[4],
+  },
+
   restBar: {
     /** Rest-timer bar height. */
     height: 66,
@@ -1204,6 +1220,42 @@ export const size = {
     /** Large call-to-action height (empty-state starts). */
     ctaHit: 86,
   },
+} as const;
+
+/**
+ * Which icon is drawn, by name. One family for the whole app: Ionicons from `@expo/vector-icons`,
+ * which ships with Expo and runs in Expo Go (no native module). Chosen because every glyph the app
+ * needs comes in a matched outline + filled pair, so state is carried by shape as well as colour.
+ *
+ * Colour comes from the component tokens (`tabBar.*ActiveText` / `tabBar.inactiveText`,
+ * `logRow.*`); size from `size.icon.*`. Never a glyph name typed at a call site.
+ */
+export const glyph = {
+  /** The icon font. `import Ionicons from '@expo/vector-icons/Ionicons'`. */
+  family: 'Ionicons',
+  /**
+   * The bottom tab bar, keyed like the `tabBar.<tab>ActiveText` colours. At rest a tab shows its
+   * `inactive` outline in `tabBar.inactiveText`; the selected tab swaps to the filled `active` cut in
+   * its own accent. The swap is instant — it is a colour-and-shape change, so reduce motion leaves it
+   * as is. Size: `size.icon.tab`.
+   */
+  tab: {
+    /** Today: a calendar page with today marked — the day's log. */
+    today: { active: 'today', inactive: 'today-outline' },
+    /** Workout: a barbell. */
+    workout: { active: 'barbell', inactive: 'barbell-outline' },
+    /** Charts: rising bars — history at a glance. */
+    charts: { active: 'stats-chart', inactive: 'stats-chart-outline' },
+    /** Settings: the gear everyone already recognises. */
+    settings: { active: 'settings', inactive: 'settings-outline' },
+  },
+  /**
+   * The swipe-to-delete button on a Today's-log row: the filled trash can, alone, centred in the
+   * square `state.danger` button (`size.deleteButton`), drawn in `text.onDanger`. Size:
+   * `size.icon.deleteAction`. Icon-only, so the
+   * row keeps its "Delete <food>" accessibility label and action.
+   */
+  delete: 'trash',
 } as const;
 
 /* ================================================================== motion */
