@@ -1,19 +1,21 @@
 /**
- * `/meals/new` — issue #43's "saved meals: create from foods". Behaviour only: `<MealForm>` lists
- * every live food (`listFoods`), and saving it calls `createMeal` with the entered name and items,
- * then returns to `/meals`.
+ * `/meals/new` — issue #43's "saved meals: create from foods". Issue #98: `<MealForm>` searches the
+ * live food library (`searchFoodsOnly`) instead of listing it whole; `listFoods` here only decides
+ * whether the empty state shows. Saving calls `createMeal` with the entered name and items, then
+ * returns to `/meals`.
  */
 import { fireEvent, render, screen } from '@testing-library/react-native';
 import React from 'react';
 import { DbProvider } from '../../src/components/db/DbProvider';
 import { ThemeContext } from '../../src/components/theme/theme-context';
-import { createMeal, listFoods, withServing, type FoodRow, type MealDetail } from '../../src/db';
+import { createMeal, listFoods, searchFoodsOnly, type FoodCandidate, type FoodRow, type MealDetail } from '../../src/db';
 import { themes } from '../../src/theme/tokens';
 import NewMealScreen from './new';
 
 jest.mock('../../src/db', () => ({
   ...jest.requireActual<typeof import('../../src/db')>('../../src/db'),
   listFoods: jest.fn(),
+  searchFoodsOnly: jest.fn(),
   createMeal: jest.fn(),
 }));
 
@@ -24,25 +26,29 @@ jest.mock('expo-router', () => ({
 }));
 
 const mockListFoods = jest.mocked(listFoods);
+const mockSearch = jest.mocked(searchFoodsOnly);
 const mockCreateMeal = jest.mocked(createMeal);
 
-const yoghurt: FoodRow = {
+const yoghurt: FoodCandidate = {
+  kind: 'food',
   id: 'food-1',
-  updatedAt: 0,
-  deleted: 0,
   name: 'Greek yoghurt',
   brand: null,
   servingLabel: '1 pot',
-  archived: 0,
+  basis: 'weight',
+  servingAmount: 170,
+  servingGrams: 170,
+  servingMl: null,
+  kcal: 120,
+  protein: 20,
   useCount: 0,
   lastUsedAt: null,
-  hourHistogram: null,
-  searchText: 'greek yoghurt',
-  ...withServing({ basis: 'weight', servingAmount: 170, kcalPer100: (120 * 100) / 170, proteinPer100: (20 * 100) / 170 }),
 };
 
 afterEach(() => {
   mockBack.mockClear();
+  mockListFoods.mockReset();
+  mockSearch.mockReset();
 });
 
 const renderScreen = () =>
@@ -55,31 +61,26 @@ const renderScreen = () =>
   );
 
 describe('NewMealScreen', () => {
-  it('builds the form from every live food', async () => {
-    mockListFoods.mockReturnValue([yoghurt]);
-    await renderScreen();
-
-    expect(screen.getByTestId('meal-form-item-food-1-value')).toBeTruthy();
-  });
-
-  it('saving creates the meal and returns to the list', async () => {
-    mockListFoods.mockReturnValue([yoghurt]);
+  it('searching, adding a match, and saving creates the meal and returns to the list', async () => {
+    mockListFoods.mockReturnValue([{ id: 'food-1' } as FoodRow]);
+    mockSearch.mockReturnValue([yoghurt]);
     mockCreateMeal.mockReturnValue({ id: 'meal-1' } as MealDetail);
     await renderScreen();
 
+    await fireEvent.changeText(screen.getByTestId('meal-form-search'), 'yog');
+    await fireEvent.press(screen.getByTestId('meal-form-match-food-1'));
     await fireEvent.changeText(screen.getByTestId('meal-form-name'), 'Breakfast bowl');
-    await fireEvent.press(screen.getByTestId('meal-form-item-food-1-increase'));
     await fireEvent.press(screen.getByTestId('meal-form-save'));
 
     expect(mockCreateMeal).toHaveBeenCalledWith(
       expect.anything(),
-      expect.objectContaining({ name: 'Breakfast bowl', items: [{ foodId: 'food-1', qty: 0.5 }] }),
+      expect.objectContaining({ name: 'Breakfast bowl', items: [{ foodId: 'food-1', qty: 1 }] }),
     );
     expect(mockBack).toHaveBeenCalledTimes(1);
   });
 
   it('cancelling writes nothing and returns', async () => {
-    mockListFoods.mockReturnValue([yoghurt]);
+    mockListFoods.mockReturnValue([{ id: 'food-1' } as FoodRow]);
     await renderScreen();
 
     await fireEvent.press(screen.getByTestId('meal-form-cancel'));

@@ -69,7 +69,7 @@ jq -r '.modules["src/db/queries/nutrition.ts"].exports[]' docs/graph/symbols.jso
 
 - `function default(): React.JSX.Element`
 
-### `app/meals/new.tsx`  <sub>43 lines</sub>
+### `app/meals/new.tsx`  <sub>42 lines</sub>
 
 - `function default(): React.JSX.Element`
 
@@ -462,14 +462,15 @@ jq -r '.modules["src/db/queries/nutrition.ts"].exports[]' docs/graph/symbols.jso
 
 ## `src/components/meals/`
 
-### `src/components/meals/MealForm.tsx`  <sub>203 lines</sub>
+### `src/components/meals/MealForm.tsx`  <sub>423 lines</sub>
 
-- `function MealForm({ foods, onSave, onCancel, theme, testID = 'meal-form' }: MealFormProps): import("react").JSX.Element`
+- `function MealForm({ db, onSave, onCancel, locale, theme, testID = 'meal-form' }: MealFormProps): import("react").JSX.Element`
 - `type MealFormProps = {
-  /** Every live food the meal can be built from (`listFoods`). */
-  readonly foods: readonly FoodRow[];
+  readonly db: VitalsDb;
   readonly onSave: (values: MealFormValues) => void;
   readonly onCancel: () => void;
+  /** Formatting locale for the dropdown's kcal/protein figures. Defaults to the device's. */
+  readonly locale?: string;
   readonly theme: Theme;
   readonly testID?: string;
 }`
@@ -491,14 +492,15 @@ jq -r '.modules["src/db/queries/nutrition.ts"].exports[]' docs/graph/symbols.jso
 
 ### `src/components/meals/index.ts`  <sub>4 lines</sub>
 
-- `function MealForm({ foods, onSave, onCancel, theme, testID = 'meal-form' }: MealFormProps): import("react").JSX.Element`
+- `function MealForm({ db, onSave, onCancel, locale, theme, testID = 'meal-form' }: MealFormProps): import("react").JSX.Element`
 - `function MealList({ db, meals, onLogged, onCreate, locale, theme, testID = 'meal-list' }: MealListProps): import("react").JSX.Element`
 - `function candidateForMeal(meal: MealSummary): MealCandidate`
 - `type MealFormProps = {
-  /** Every live food the meal can be built from (`listFoods`). */
-  readonly foods: readonly FoodRow[];
+  readonly db: VitalsDb;
   readonly onSave: (values: MealFormValues) => void;
   readonly onCancel: () => void;
+  /** Formatting locale for the dropdown's kcal/protein figures. Defaults to the device's. */
+  readonly locale?: string;
   readonly theme: Theme;
   readonly testID?: string;
 }`
@@ -847,7 +849,7 @@ jq -r '.modules["src/db/queries/nutrition.ts"].exports[]' docs/graph/symbols.jso
 
 <sub>used by: `src/db/queries/catalog.ts`, `src/db/queries/nutrition.ts`, `src/db/queries/search.ts`</sub>
 
-### `src/db/index.ts`  <sub>89 lines</sub>
+### `src/db/index.ts`  <sub>90 lines</sub>
 
 - `class VitalsDbError`
 - `const DEFAULT_SETTINGS: SettingsInput`
@@ -879,6 +881,7 @@ jq -r '.modules["src/db/queries/nutrition.ts"].exports[]' docs/graph/symbols.jso
 - `function quickAddCandidates(db: VitalsDb, opts: When & { limit?: number }): Candidate[]`
 - `function recentFoods(db: VitalsDb, opts: When & { days: number; limit?: number }): Candidate[]`
 - `function searchFoods(db: VitalsDb, opts: When & { query: string; limit?: number }): Candidate[]`
+- `function searchFoodsOnly(db: VitalsDb, opts: When & { query: string; limit?: number }): FoodCandidate[]`
 - `function servingOf(food: ServingSource): FoodServing`
 - `function setFoodArchived(db: VitalsDb, opts: Stamp & { id: string; archived: boolean }): FoodRow`
 - `function softDeleteLogEntries(db: VitalsDb, opts: Stamp & { ids: readonly string[] }): { undo: UndoToken }`
@@ -999,11 +1002,12 @@ _no exports_
 
 <sub>used by: `src/db/queries/search.ts`</sub>
 
-### `src/db/queries/search.ts`  <sub>301 lines</sub>
+### `src/db/queries/search.ts`  <sub>352 lines</sub>
 
 - `function createFoodAndLog(db: VitalsDb, opts: When & { food: FoodInput; amount?: Amount; slot?: MealSlot }): { food: FoodRow; receipt: LogReceipt }`
 - `function recentFoods(db: VitalsDb, opts: When & { days: number; limit?: number }): Candidate[]`
 - `function searchFoods(db: VitalsDb, opts: When & { query: string; limit?: number }): Candidate[]`
+- `function searchFoodsOnly(db: VitalsDb, opts: When & { query: string; limit?: number }): FoodCandidate[]`
 
 ### `src/db/queries/settings.ts`  <sub>82 lines</sub>
 
@@ -1125,7 +1129,7 @@ _no exports_
 
 - `function deviceWhen(): When`
 
-<sub>used by: `app/(tabs)/index.tsx`, `app/foods/[id].tsx`, `app/foods/new.tsx`, `app/meals/new.tsx`, `src/components/day-log/DayLogList.tsx`, `src/components/meals/MealList.tsx`, `src/components/quick-add/QuickAddGrid.tsx`, `src/components/quick-add/UndoToast.tsx`, `src/components/search/CreateFoodSheet.tsx`, `src/components/search/SearchSheet.tsx`, `src/components/settings/TargetsGroup.tsx`, `src/components/today/WeightChip.tsx`</sub>
+<sub>used by: `app/(tabs)/index.tsx`, `app/foods/[id].tsx`, `app/foods/new.tsx`, `app/meals/new.tsx`, `src/components/day-log/DayLogList.tsx`, `src/components/meals/MealForm.tsx`, `src/components/meals/MealList.tsx`, `src/components/quick-add/QuickAddGrid.tsx`, `src/components/quick-add/UndoToast.tsx`, `src/components/search/CreateFoodSheet.tsx`, `src/components/search/SearchSheet.tsx`, `src/components/settings/TargetsGroup.tsx`, `src/components/today/WeightChip.tsx`</sub>
 
 ### `src/hooks/useDb.ts`  <sub>15 lines</sub>
 

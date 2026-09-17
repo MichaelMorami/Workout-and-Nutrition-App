@@ -1,8 +1,9 @@
 /**
  * Visual evidence for issue #43's saved meals and their Settings entry point — `<MealList>`
- * (one-tap logging, populated + teaching empty state), `<MealForm>` (build a meal from foods, each
- * a `<Stepper>` in servings) and the Settings tab's "Library" group that reaches both of these plus
- * `<FoodList>`. Both themes, one PNG each.
+ * (one-tap logging, populated + teaching empty state), `<MealForm>` (issue #98: a search dropdown
+ * over the whole food library adds ingredients, each still a `<Stepper>` in servings, unchanged)
+ * and the Settings tab's "Library" group that reaches both of these plus `<FoodList>`. Both themes,
+ * one PNG each.
  *
  * WHY THIS EXISTS. There is no simulator in this environment. This draws the same markup the real
  * components draw, using the same `tokens.ts` values `MealList.tsx`/`MealForm.tsx`/`settings.tsx`
@@ -106,13 +107,73 @@ function stepper(theme, label, value, unit) {
   </div>`;
 }
 
-function mealForm(theme) {
+const MATCHES = [
+  { name: 'Chicken breast', serving: '150 g', kcal: 248, protein: 46 },
+  { name: 'Chicken thigh', serving: '120 g', kcal: 280, protein: 30 },
+];
+
+function searchField(theme, value, focused) {
+  const { searchSheet } = theme.color;
+  const shown = value || `<span style="color:${searchSheet.placeholderText}">Search foods</span>`;
+  return `
+  <div class="input" style="min-height:${size.tapTargetMin}px;border-radius:${radius.md}px;background:${searchSheet.fieldBg};border:1px solid ${focused ? searchSheet.fieldBorderFocus : searchSheet.fieldBorder}">
+    <span style="${font(typeTokens.input)}color:${searchSheet.queryText};flex:1">${shown}</span>
+    ${value ? `<span style="${font(typeTokens.body)}color:${searchSheet.clearIcon};margin-left:${space[3]}px">&times;</span>` : ''}
+  </div>`;
+}
+
+function matchRow(theme, match) {
+  const { resultRow } = theme.color;
+  return `
+  <div class="matchRow" style="min-height:${size.resultRow.heightHit}px;background:${resultRow.bg};border-bottom:1px solid ${resultRow.divider}">
+    <div class="rowText">
+      <span style="${font(typeTokens.body)}color:${resultRow.nameText}">${match.name}</span>
+      <span style="${font(typeTokens.caption)}color:${resultRow.servingText}">${match.serving}</span>
+    </div>
+    <div class="rowFigures">
+      <span style="${font(typeTokens.numericSm)}color:${resultRow.kcalText}">${match.kcal} kcal</span>
+      <span style="${font(typeTokens.numericSm)}color:${resultRow.proteinText}">${match.protein} g</span>
+    </div>
+  </div>`;
+}
+
+function itemRow(theme, name, value, unit) {
+  const { text } = theme.color;
+  return `
+  <div class="itemRow">
+    <div style="flex:1">${stepper(theme, name, value, unit)}</div>
+    <span class="removeBtn" style="${font(typeTokens.numericLg)}color:${text.tertiary}">&times;</span>
+  </div>`;
+}
+
+/** Issue #98: typing "chick" turns up two matches from the whole library — tapping one adds it
+ * below as an ingredient at one serving. Nothing is added yet in this frame. */
+function mealFormSearch(theme) {
+  const { card: cardTokens } = theme.color;
+  return `<div class="form">
+    ${field(theme, 'Name', '', 'Breakfast bowl')}
+    <div class="field">
+      <span style="${font(typeTokens.label)}color:${theme.color.text.secondary}">Add ingredient</span>
+      ${searchField(theme, 'chick', true)}
+      <div class="dropdown" style="border:1px solid ${cardTokens.border};border-radius:${radius.md}px;overflow:hidden">
+        ${MATCHES.map((m) => matchRow(theme, m)).join('')}
+      </div>
+    </div>
+  </div>`;
+}
+
+/** Two ingredients already added by search-and-tap, each still the same `<Stepper>` in servings —
+ * issue #99, not this one, is what redesigns that control. A plain &times; removes a row. */
+function mealFormItems(theme) {
   const { button } = theme.color;
   return `<div class="form">
     ${field(theme, 'Name', 'Breakfast bowl')}
-    ${stepper(theme, 'Greek yoghurt', 1, 'servings')}
-    ${stepper(theme, 'Protein shake', 0.5, 'servings')}
-    ${stepper(theme, 'Chicken breast', 0, 'servings')}
+    <div class="field">
+      <span style="${font(typeTokens.label)}color:${theme.color.text.secondary}">Add ingredient</span>
+      ${searchField(theme, '', false)}
+    </div>
+    ${itemRow(theme, 'Greek yoghurt', 1, 'servings')}
+    ${itemRow(theme, 'Chicken breast', 1.5, 'servings')}
     <div class="actions">
       <div class="actionButton" style="min-height:${size.tapTargetMin}px;border-radius:${radius.md}px;border:1px solid ${button.secondaryBorder}">
         <span style="${font(typeTokens.button)}color:${button.secondaryText}">Cancel</span>
@@ -155,7 +216,8 @@ function card(theme, title, body, width = 360) {
 function page(theme) {
   const populated = card(theme, 'Saved meals — tap a row, log one portion instantly', mealListPopulated(theme));
   const empty = card(theme, 'No saved meals yet — the teaching empty state', mealListEmpty(theme));
-  const form = card(theme, 'New meal — a food per row, each a stepper in servings', mealForm(theme), 340);
+  const formSearch = card(theme, 'New meal — searching the food library turns up matches to add', mealFormSearch(theme), 340);
+  const formItems = card(theme, 'New meal — added ingredients, each still a stepper in servings', mealFormItems(theme), 340);
   const settings = card(theme, 'Settings — Library: the entry point into Foods and Meals', settingsGroup(theme), 320);
 
   return `<!doctype html><meta charset="utf-8"><title>Saved meals — ${theme.name}</title>
@@ -178,6 +240,10 @@ function page(theme) {
     .input { display:flex; align-items:center; padding:0 ${space[5]}px; box-sizing:border-box; }
     .stepper { display:flex; flex-direction:column; gap:${space[2]}px; }
     .stepperRow { display:flex; align-items:center; gap:${space[3]}px; }
+    .dropdown { display:flex; flex-direction:column; }
+    .matchRow { display:flex; align-items:center; justify-content:space-between; padding:${space[3]}px ${space[5]}px; box-sizing:border-box; gap:${space[4]}px; }
+    .itemRow { display:flex; align-items:center; gap:${space[3]}px; }
+    .removeBtn { width:${size.tapTargetMin}px; text-align:center; }
     .stepBtn { display:flex; align-items:center; justify-content:center; box-sizing:border-box; }
     .valueWell { flex:1; display:flex; align-items:baseline; justify-content:center; gap:${space[1]}px; box-sizing:border-box; }
     .actions { display:flex; gap:${space[4]}px; }
@@ -188,7 +254,7 @@ function page(theme) {
     .divider { height:1px; }
   </style>
   <h1>Saved meals, meal form &amp; Settings entry point — ${theme.name} — real tokens</h1>
-  <div class="grid">${populated}${empty}${form}${settings}</div>`;
+  <div class="grid">${populated}${empty}${formSearch}${formItems}${settings}</div>`;
 }
 
 mkdirSync(HERE, { recursive: true });

@@ -13,7 +13,7 @@ import { VitalsDbError, type VitalsDbErrorCode } from '../errors';
 import * as schema from '../schema';
 import type { FoodInput, MealCandidate } from '../types';
 import { undo } from './nutrition';
-import { createFoodAndLog, recentFoods, searchFoods } from './search';
+import { createFoodAndLog, recentFoods, searchFoods, searchFoodsOnly } from './search';
 
 const LA = 'America/Los_Angeles';
 const AT = Date.parse('2025-03-09T16:00:00.000Z'); // 08:00 America/Los_Angeles
@@ -241,6 +241,113 @@ describe('searchFoods', () => {
 
     const result = searchFoods(db, { at: AT, timeZone: LA, query: 'a_b' });
     expect(result.map((c) => c.id)).toEqual([literalMatch.id]);
+  });
+});
+
+// -------------------------------------------------------------------------------------------
+// searchFoodsOnly — issue #98: the meal-ingredient picker searches the whole food library, never
+// meals. Same fold/tokenise/tier/ranking rules as searchFoods (shared implementation) — this suite
+// only re-proves the two things a foods-only caller adds on top: meals never come back, and the
+// result is a plain FoodCandidate (a serving amount to show, not a Candidate union to narrow).
+// -------------------------------------------------------------------------------------------
+
+describe('searchFoodsOnly', () => {
+  it('on an empty database, returns []', () => {
+    const { db } = setup();
+    expect(searchFoodsOnly(db, { at: AT, timeZone: LA, query: 'anything' })).toEqual([]);
+  });
+
+  it('a blank query returns [] — the empty state is recentFoods', () => {
+    const { db } = setup();
+    db.insert(schema.foods).values(makeFood({ name: 'Porridge oats' })).run();
+    expect(searchFoodsOnly(db, { at: AT, timeZone: LA, query: '' })).toEqual([]);
+    expect(searchFoodsOnly(db, { at: AT, timeZone: LA, query: '   ' })).toEqual([]);
+  });
+
+  it('matches a food by name', () => {
+    const { db } = setup();
+    const food = makeFood({ name: 'Porridge oats' });
+    db.insert(schema.foods).values(food).run();
+    expect(searchFoodsOnly(db, { at: AT, timeZone: LA, query: 'oats' }).map((c) => c.id)).toEqual([food.id]);
+  });
+
+  it('a live meal matching the query is never returned — foods only, per the #98 ruling', () => {
+    const { db } = setup();
+    const food = makeFood({ archived: 1 }); // isolate the meal exclusion from its own food candidate
+    const meal = makeMeal({ name: 'Usual oats breakfast' });
+    db.insert(schema.foods).values(food).run();
+    db.insert(schema.meals).values(meal).run();
+    db.insert(schema.mealItems).values(makeMealItem({ mealId: meal.id, foodId: food.id })).run();
+
+    expect(searchFoodsOnly(db, { at: AT, timeZone: LA, query: 'oats' })).toEqual([]);
+  });
+
+  it('when a food and a meal both match, only the food comes back', () => {
+    const { db } = setup();
+    const food = makeFood({ name: 'Chicken breast' });
+    const meal = makeMeal({ name: 'Chicken and rice' });
+    const other = makeFood({ name: 'Rice', archived: 1 });
+    db.insert(schema.foods).values([food, other]).run();
+    db.insert(schema.meals).values(meal).run();
+    db.insert(schema.mealItems).values(makeMealItem({ mealId: meal.id, foodId: other.id })).run();
+
+    const result = searchFoodsOnly(db, { at: AT, timeZone: LA, query: 'chicken' });
+    expect(result.map((c) => ({ kind: c.kind, id: c.id }))).toEqual([{ kind: 'food', id: food.id }]);
+  });
+
+  it('excludes archived foods', () => {
+    const { db } = setup();
+    db.insert(schema.foods).values(makeFood({ name: 'Archived oats', archived: 1 })).run();
+    expect(searchFoodsOnly(db, { at: AT, timeZone: LA, query: 'oats' })).toEqual([]);
+  });
+
+  it('excludes tombstoned foods', () => {
+    const { db } = setup();
+    db.insert(schema.foods).values(makeFood({ name: 'Deleted oats', deleted: 1 })).run();
+    expect(searchFoodsOnly(db, { at: AT, timeZone: LA, query: 'oats' })).toEqual([]);
+  });
+
+  it('word-prefix ranks above substring, same as searchFoods', () => {
+    const { db } = setup();
+    const midWord = makeFood({ name: 'Pineapple' });
+    const wordStart = makeFood({ name: 'Apple pie' });
+    db.insert(schema.foods).values([midWord, wordStart]).run();
+
+    const result = searchFoodsOnly(db, { at: AT, timeZone: LA, query: 'app' });
+    expect(result.map((c) => c.name)).toEqual(['Apple pie', 'Pineapple']);
+  });
+
+  it('returns the serving shape an ingredient amount control needs', () => {
+    const { db } = setup();
+    const food = makeFood({ name: 'Oats', basis: 'weight', servingAmount: 40, kcalPerServing: 150, proteinPerServing: 5 });
+    db.insert(schema.foods).values(food).run();
+
+    const [result] = searchFoodsOnly(db, { at: AT, timeZone: LA, query: 'oats' });
+    expect(result).toMatchObject({
+      kind: 'food',
+      basis: 'weight',
+      servingAmount: 40,
+      servingGrams: 40,
+      servingMl: null,
+      kcal: 150,
+      protein: 5,
+    });
+  });
+
+  it('limit defaults to 20', () => {
+    const { db } = setup();
+    for (let i = 0; i < 25; i += 1) {
+      db.insert(schema.foods).values(makeFood({ name: `Oats variant ${i}` })).run();
+    }
+    expect(searchFoodsOnly(db, { at: AT, timeZone: LA, query: 'oats' })).toHaveLength(20);
+  });
+
+  it('respects an explicit limit', () => {
+    const { db } = setup();
+    for (let i = 0; i < 5; i += 1) {
+      db.insert(schema.foods).values(makeFood({ name: `Oats variant ${i}` })).run();
+    }
+    expect(searchFoodsOnly(db, { at: AT, timeZone: LA, query: 'oats', limit: 3 })).toHaveLength(3);
   });
 });
 
