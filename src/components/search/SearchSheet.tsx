@@ -23,12 +23,34 @@
  * every food and meal logged in the last `interaction.recentDays` days, newest last-log first,
  * including the six on `<QuickAddGrid>`. `recentFoods` is read fresh every time the sheet opens
  * (`openSheet`, not a mount-time `useState`), so a food logged a moment ago — on the grid or off
- * it — appears at the top the next time this sheet is opened, no app reload required. This
- * component still reads `quickAddCandidates` once per mount, exactly like `<QuickAddGrid>`'s own
- * "ranked once per visit" discipline (its module note), but only for `libraryEmpty`: whether the
- * whole library (not just the last `recentDays`) has anything at all, which drives the search bar's
- * "day one" emphasis (`searchBar.emphasisIcon`/`emphasisLabelText`, `borderEmphasis`) in lockstep
- * with the grid teaching the same first-time user, and the "no library yet" empty state below.
+ * it — appears at the top the next time this sheet is opened, no app reload required.
+ *
+ * THE BLANK-QUERY LIST IS NEVER BLANK WHILE ANY FOOD EXISTS (issue #96's ruling). If `recentFoods`
+ * comes back empty — nothing logged in `interaction.recentDays` days, which a library with real but
+ * stale items hits often — the list falls back to `libraryByUsage`: the whole library, most used
+ * first, under a "Your foods" section label instead of "Recent" (`renderRow`/`header` share every
+ * other row-rendering, tap and log behaviour; the two lists only ever differ in which query filled
+ * them and how the header reads). Recent wins whenever it has anything; the fallback is a *sibling*
+ * of "no results", never drawn alongside Recent. Both `recentFoods` and (when needed) `libraryByUsage`
+ * are read together in `openSheet`, so this never adds a second render pass.
+ *
+ * `libraryEmpty` — WHETHER THE WHOLE LIBRARY HAS ANYTHING AT ALL, drives the search bar's "day one"
+ * emphasis (`searchBar.emphasisIcon`/`emphasisLabelText`, `borderEmphasis`) in lockstep with the grid
+ * teaching the same first-time user, and the "no library yet" empty state below (reserved for a
+ * library with nothing in it — a stale-but-non-empty library falls back per the ruling above, it
+ * never sees this message). It seeds from a mount-time `quickAddCandidates` read (the bar itself is
+ * drawn before the sheet is ever opened, so something has to answer before `openSheet` has run even
+ * once — exactly `<QuickAddGrid>`'s own "ranked once per visit" read, same call, same cost), but is
+ * re-evaluated on every `openSheet` after that (issue #96's sub-case, found reviewing #117: Today
+ * never unmounts, so a mount-time-only read went stale the moment a day-one user logged their very
+ * first food, hiding it behind "No foods yet" until a reload) — from `recent`/`libraryFallback`
+ * themselves (`recent.length === 0 && libraryFallback.length === 0`, since a library the fallback
+ * ruling above already proves non-empty is definitionally not `libraryEmpty`), never a further
+ * `quickAddCandidates` call, so this adds no read and never disturbs its call count elsewhere
+ * (issue #103's re-rank cadence, which counts on `quickAddCandidates` running only at the points it
+ * names). The bar's own emphasis styling, drawn before the sheet is ever opened, still reflects
+ * whatever the last open (or the initial mount) last read — exactly the same lag `<QuickAddGrid>`'s
+ * own ranking accepts between visits.
  *
  * THE LAST ROW WHILE TYPING IS ALWAYS CREATE. Per the decisions doc, `Create "‹query›"` trails every
  * non-empty query — including when there are results, not only when there are none.
@@ -59,6 +81,7 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { FlatList, Modal, Pressable, StyleSheet, Text, TextInput, View, type TextStyle } from 'react-native';
 import {
   addPortion,
+  libraryByUsage,
   logFood,
   logMeal,
   quickAddCandidates,
@@ -329,15 +352,18 @@ export function SearchSheet({ db, onLogged, onPortionAdded, onCreate, renderCrea
   const { searchBar, searchSheet } = theme.color;
   const fireHaptic = useHapticFeedback();
 
-  // Read once per mount — the grid's own "ranked once per visit" discipline (`QuickAddGrid`'s module
-  // note). Only feeds `libraryEmpty` (issue #95: `recentFoods` no longer needs these ids).
   const [when] = useState(deviceWhen);
-  const [gridCandidates] = useState<Candidate[]>(() => quickAddCandidates(db, { ...when, limit: 6 }));
-  const libraryEmpty = gridCandidates.length === 0;
+  // `libraryEmpty` seeds from a mount-time read (the bar itself renders before the sheet is ever
+  // opened) but is re-evaluated in `openSheet` below, issue #96's sub-case — see the module note.
+  const [libraryEmpty, setLibraryEmpty] = useState<boolean>(() => quickAddCandidates(db, { ...when, limit: 6 }).length === 0);
 
   const [visible, setVisible] = useState(false);
   const [query, setQuery] = useState('');
   const [recent, setRecent] = useState<Candidate[]>([]);
+  // The blank-query fallback (issue #96): the whole library, most used first, used only when
+  // `recent` comes back empty. Read alongside `recent` in `openSheet`, never derived on demand, so
+  // it is never stale as `recent`'s own freshness guarantee (issue #95) already established.
+  const [libraryFallback, setLibraryFallback] = useState<Candidate[]>([]);
   const [sheetCandidate, setSheetCandidate] = useState<Candidate | null>(null);
   // The query the create form was opened with, or `null` while it is closed.
   const [createQuery, setCreateQuery] = useState<string | null>(null);
@@ -355,9 +381,19 @@ export function SearchSheet({ db, onLogged, onPortionAdded, onCreate, renderCrea
 
   // Read fresh on every open (issue #95) — not cached from mount, so a food logged a moment ago,
   // whether or not it is also one of the six on the grid, is already first in Recent the next time
-  // this sheet opens, with no reload needed.
+  // this sheet opens, with no reload needed. `libraryByUsage` only runs when Recent comes back
+  // empty (issue #96) — no point ranking the whole library on every open when Recent already has
+  // something to show. `libraryEmpty` is refreshed here too (issue #96's sub-case), from these same
+  // two reads — never a further `quickAddCandidates` call: a library with nothing in it is exactly
+  // a library where both `recentFoods` and `libraryByUsage` come back empty, and `recent.length > 0`
+  // alone already proves the library is non-empty. So this fixes the staleness with no extra read,
+  // and never disturbs `quickAddCandidates`'s own call count (issue #103's re-rank cadence).
   const openSheet = (): void => {
-    setRecent(recentFoods(db, { ...when, days: interaction.recentDays }));
+    const freshRecent = recentFoods(db, { ...when, days: interaction.recentDays });
+    const freshLibraryFallback = freshRecent.length === 0 ? libraryByUsage(db, {}) : [];
+    setRecent(freshRecent);
+    setLibraryFallback(freshLibraryFallback);
+    setLibraryEmpty(freshRecent.length === 0 && freshLibraryFallback.length === 0);
     setQuery('');
     setVisible(true);
   };
@@ -499,13 +535,16 @@ export function SearchSheet({ db, onLogged, onPortionAdded, onCreate, renderCrea
   );
 
   const typing = trimmedQuery.length > 0;
+  // Recent if it has anything, else the library-by-usage fallback (issue #96) — never both.
+  const blankQueryList = recent.length > 0 ? recent : libraryFallback;
   const rows: Row[] = typing
     ? [...results.map((candidate) => ({ key: `${candidate.kind}-${candidate.id}`, kind: 'candidate' as const, candidate })), { key: 'create', kind: 'create' as const }]
-    : recent.map((candidate) => ({ key: `${candidate.kind}-${candidate.id}`, kind: 'candidate' as const, candidate }));
+    : blankQueryList.map((candidate) => ({ key: `${candidate.kind}-${candidate.id}`, kind: 'candidate' as const, candidate }));
 
-  // Keyed off `libraryEmpty` (`quickAddCandidates`, the whole library), not `recent` — `recentFoods`
-  // only covers the last `interaction.recentDays` days, so a library with real items that simply
-  // have not been logged recently must never see "No foods yet".
+  // Keyed off `libraryEmpty` (`quickAddCandidates`, the whole library), not `blankQueryList` —
+  // `recentFoods` only covers the last `interaction.recentDays` days and `libraryByUsage` only runs
+  // once Recent is confirmed empty, so a library with real items that simply have not been logged
+  // recently must never see "No foods yet"; it sees the fallback instead.
   const showNoLibraryEmptyState = !typing && libraryEmpty;
 
   const renderRow = ({ item }: { item: Row }) =>
@@ -529,7 +568,9 @@ export function SearchSheet({ db, onLogged, onPortionAdded, onCreate, renderCrea
       : null
     : recent.length > 0
       ? { title: 'Recent', meta: `${interaction.recentDays} days`, testID: `${testID}-section-recent` }
-      : null;
+      : libraryFallback.length > 0
+        ? { title: 'Your foods', meta: 'Most used first', testID: `${testID}-section-library` }
+        : null;
 
   // The pinned blank-query row (issue #97) is drawn as part of the list header, never as a data
   // row: `ListHeaderComponent` renders above every data row *and* above the section header below
