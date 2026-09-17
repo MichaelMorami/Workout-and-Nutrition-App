@@ -148,6 +148,23 @@ describe('SwipeToDelete accessibility (issue #141 follow-up on #140)', () => {
     expect(layer.props.accessibilityElementsHidden).toBe(true);
     expect(layer.props.importantForAccessibility).toBe('no-hide-descendants');
   });
+
+  // The two props above are RNTL's own hidden-detection *inputs*, not the outcome a screen-reader
+  // user experiences. This pair asserts the outcome directly, black-box, the same way RNTL's default
+  // `getByTestId`/`queryByTestId` behave for every other component in this codebase (i.e. with
+  // `includeHiddenElements` off, undoing this file's own `configure` opt-in for just these two
+  // queries) — so a future change to which props RNTL honours, or a regression in this component that
+  // still happens to leave those two props correct, cannot both slip through and leave this file green.
+  it('at rest, the delete button is unreachable by a plain (non-hidden-aware) query', async () => {
+    await renderSwipe();
+    expect(screen.queryByTestId('row-delete', { includeHiddenElements: false })).toBeNull();
+  });
+
+  it('once revealed, the delete button is reachable again by that same plain query', async () => {
+    await renderSwipe();
+    await swipeBy(-DELETE_SLIDE_WIDTH);
+    expect(screen.queryByTestId('row-delete', { includeHiddenElements: false })).not.toBeNull();
+  });
 });
 
 /**
