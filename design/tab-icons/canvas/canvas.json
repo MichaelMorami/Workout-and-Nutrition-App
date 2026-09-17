@@ -1,0 +1,71 @@
+{
+  "artboards": [
+    {
+      "file": "Main.dc.html",
+      "title": "Tab bar — dark (recommended)",
+      "x": 0,
+      "y": 0,
+      "w": 390,
+      "h": 532
+    },
+    {
+      "file": "TabBarLight.dc.html",
+      "title": "Tab bar — light",
+      "x": 500,
+      "y": 0,
+      "w": 390,
+      "h": 532
+    },
+    {
+      "file": "Glyphs.dc.html",
+      "title": "Glyph names and sizes",
+      "x": 1000,
+      "y": 0,
+      "w": 640,
+      "h": 700
+    },
+    {
+      "file": "DeletePane.dc.html",
+      "title": "Swipe-to-delete pane — dark",
+      "x": 0,
+      "y": 682,
+      "w": 390,
+      "h": 184
+    },
+    {
+      "file": "DeletePaneLight.dc.html",
+      "title": "Swipe-to-delete pane — light",
+      "x": 500,
+      "y": 682,
+      "w": 390,
+      "h": 184
+    },
+    {
+      "file": "OutlineOnly.dc.html",
+      "title": "Alternative: outline only, colour marks the tab",
+      "x": 1000,
+      "y": 850,
+      "w": 390,
+      "h": 532
+    }
+  ],
+  "annotations": [
+    {
+      "id": "brief",
+      "x": 0,
+      "y": -210,
+      "w": 880,
+      "text": "Issue #80 — bottom tab icons + trash can. Nothing else in the tab bar changes: same height, labels, colours and hairline as the approved canvas.\n\nRecommended: Ionicons. At rest a tab shows the outline glyph in grey; the selected tab switches to the filled glyph in its own colour (Today amber, Workout violet, Charts blue, Settings white/ink). Shape + colour, so it reads in bad light and for colour-blind users.\n\nAlternative (right, row 2): keep the outline and change colour only — lighter, but the selected tab is harder to spot at a glance."
+    },
+    {
+      "id": "trash-colour",
+      "x": 0,
+      "y": 906,
+      "w": 880,
+      "text": "Trash can: filled \"trash\" glyph centred on the red pane. Light theme is white on red (6.1:1). Dark theme uses the red that already carries Delete buttons there, which is a light coral — white on it measures 2.9:1 and fails, so the can is near-black (6.7:1). If you want white in dark mode too, the pane needs a deeper red of its own; say so and I will add it."
+    }
+  ],
+  "launch": {
+    "view": "canvas"
+  }
+}
