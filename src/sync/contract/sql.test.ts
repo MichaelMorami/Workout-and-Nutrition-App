@@ -610,8 +610,9 @@ describe('policies and the functions a migration creates (PR #138 re-review)', (
  * DELETE and then wrote this passed the contract check while every authenticated user could still
  * delete history.
  *
- * The rule: a `grant option for` revoke is read (a malformed one still throws) and then changes no
- * privilege state at all.
+ * The rule: a `grant option for` revoke is read (a malformed one still throws) and then records
+ * nothing — see the cascade block below (#148) for the one case where Postgres does more than the
+ * reader records, and why that lands on the safe side.
  */
 describe('revoke grant option for, which does not revoke the privilege (#135)', () => {
   const deleteFor = (sql: string, role = 'authenticated'): string =>

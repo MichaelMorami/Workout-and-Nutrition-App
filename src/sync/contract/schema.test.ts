@@ -771,3 +771,28 @@ describe('no secret is checked in', () => {
     }
   });
 });
+
+/**
+ * #148: the reader used to read a table-level `unique` or `foreign key` and silently drop it, so the
+ * two constraint kinds that can **reject a valid row on arrival** were invisible to this file. They
+ * are recorded now, and these are the assertions that could not be written before.
+ *
+ * Both are sync safety, not tidiness. A remote UNIQUE on anything but the primary key turns a second
+ * device's legitimate upsert into an error, and the row is never stored. A foreign key from
+ * `food_log` to `foods` rejects a log that reaches the server before the food it names — which
+ * out-of-order sync makes routine — and costs the user the meal. The migration says so in a comment;
+ * a comment is not a test.
+ */
+describe('the synced tables accept every row their owner sends', () => {
+  it.each([...SYNCED_TABLES])('%s declares no unique constraint beside its primary key', (name) => {
+    expect(parsed().tables.get(name)?.uniques).toEqual([]);
+  });
+
+  it.each([...SYNCED_TABLES])('%s ties rows to the account and to nothing else', (name) => {
+    const table = parsed().tables.get(name);
+    expect(table?.foreignKeys).toEqual([]);
+    expect(table?.columns.filter((c) => c.references !== null).map((c) => c.name)).toEqual([
+      'user_id',
+    ]);
+  });
+});
