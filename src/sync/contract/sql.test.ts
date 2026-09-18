@@ -800,3 +800,228 @@ describe('column and check names fold the way Postgres folds them (#135)', () =>
     expect(() => parseSql(`${statement};`)).toThrow(SqlSyntaxError);
   });
 });
+
+/**
+ * #148, the same class of defect as #135, found by the probe harness in the review of PR #144: the
+ * `continue` at the end of the table-constraint branch in `parseCreateTable` read a constraint and
+ * threw it away. `constraint t_pkey primary key (a, b)` left the table with no primary key at all,
+ * and a `unique`, a `foreign key` or an unnamed `check` vanished without a word — so a contract test
+ * could assert over a table the reader had quietly under-read.
+ *
+ * The rule, as everywhere else in this reader: every entry in the body is either **recorded** or
+ * **raises**. Nothing is skipped.
+ */
+describe('table-level constraints are recorded or rejected, never dropped (#148)', () => {
+  const table = (body: string) => parseSql(`create table public.t (${body});`).tables.get('t');
+
+  it('records a named table-level primary key, which used to vanish', () => {
+    expect(table('a uuid, b uuid, constraint t_pkey primary key (a, b)')?.primaryKey).toEqual([
+      'a',
+      'b',
+    ]);
+  });
+
+  it('records an unnamed table-level primary key', () => {
+    expect(table('a uuid, b uuid, primary key (a, b)')?.primaryKey).toEqual(['a', 'b']);
+  });
+
+  it('folds a named primary key the way Postgres folds names', () => {
+    expect(table('A uuid, constraint "T Pkey" primary key (A, "B c")')?.primaryKey).toEqual([
+      'a',
+      'B c',
+    ]);
+  });
+
+  it('records a named unique constraint with its columns', () => {
+    expect(table('a uuid, b uuid, constraint t_uq unique (a, b)')?.uniques).toEqual([
+      { name: 't_uq', columns: ['a', 'b'] },
+    ]);
+  });
+
+  it('records an unnamed unique constraint under a null name', () => {
+    expect(table('a uuid, unique (a)')?.uniques).toEqual([{ name: null, columns: ['a'] }]);
+  });
+
+  it('records a unique constraint that spells out its null handling', () => {
+    expect(table('a uuid, unique nulls not distinct (a)')?.uniques).toEqual([
+      { name: null, columns: ['a'] },
+    ]);
+  });
+
+  it('records a named foreign key with its columns and its target', () => {
+    expect(
+      table('user_id uuid, constraint t_user_fk foreign key (user_id) references auth.users (id) on delete cascade')
+        ?.foreignKeys,
+    ).toEqual([{ name: 't_user_fk', columns: ['user_id'], references: 'auth.users (id)' }]);
+  });
+
+  it('records an unnamed foreign key under a null name', () => {
+    expect(table('a uuid, foreign key (a) references public.other')?.foreignKeys).toEqual([
+      { name: null, columns: ['a'], references: 'public.other' },
+    ]);
+  });
+
+  it('records an unnamed check with its expression, under a null name', () => {
+    expect(table('deleted smallint, check (deleted in (0, 1))')?.checks).toEqual([
+      { name: null, expression: 'deleted in (0, 1)' },
+    ]);
+  });
+
+  it('still records a named check, and still finds it by name', () => {
+    expect(table('deleted smallint, constraint t_deleted_check check (deleted in (0, 1))')?.check(
+      't_deleted_check',
+    )?.expression).toBe('deleted in (0, 1)');
+  });
+
+  it('reads a constraint written in mixed case and spread over comments', () => {
+    expect(
+      table('A uuid, CONSTRAINT /* name */ T_UQ /* kind */ UNIQUE ( A ) -- trailing\n')?.uniques,
+    ).toEqual([{ name: 't_uq', columns: ['a'] }]);
+  });
+
+  it.each([
+    ['a second primary key', 'a uuid primary key, constraint t_pkey primary key (a)'],
+    ['two table-level primary keys', 'a uuid, primary key (a), primary key (a)'],
+    ['an exclusion constraint', 'a uuid, exclude using gist (a with =)'],
+    ['a constraint with no recognised kind', 'a uuid, constraint t_c'],
+    ['a constraint kind this reader does not read', 'a uuid, constraint t_c exclude using gist (a with =)'],
+    ['a no-inherit check', 'a smallint, constraint t_c check (a > 0) no inherit'],
+    ['a deferred foreign key', 'a uuid, foreign key (a) references public.other deferrable initially deferred'],
+    ['a foreign key with a match clause', 'a uuid, foreign key (a) references public.other (id) match full'],
+    ['a foreign key that references nothing', 'a uuid, foreign key (a)'],
+    ['a unique constraint with index storage options', 'a uuid, unique (a) with (fillfactor = 70)'],
+    ['a primary key with a tablespace', 'a uuid, primary key (a) using index tablespace fast'],
+  ])('throws on %s rather than reading it and dropping it', (_label, body) => {
+    expect(() => parseSql(`create table public.t (${body});`)).toThrow(SqlSyntaxError);
+  });
+
+  it('names the constraint it refuses in the error', () => {
+    expect(() => parseSql('create table public.t (a uuid, exclude using gist (a with =));')).toThrow(
+      /exclude using gist/i,
+    );
+  });
+});
+
+/**
+ * #148: `create table` had two more ways to be read as something it is not. `(like other)` has no
+ * column definitions at all, and the reader took `like` for a column name and `other` for its type,
+ * producing a table with a column nobody wrote. Anything after the closing parenthesis —
+ * `partition by`, `inherits`, storage options, a tablespace — was dropped on the floor, so a
+ * partitioned table read as an ordinary one.
+ */
+describe('create table forms this reader will not vouch for (#148)', () => {
+  it.each([
+    ['a like clause', 'create table public.t (like public.other)'],
+    ['a like clause with inclusions', 'create table public.t (like public.other including all)'],
+    ['a like clause after a column', 'create table public.t (id uuid primary key, like public.other)'],
+    ['a LIKE clause in mixed case', 'create table public.t (LIKE Public.Other)'],
+    ['partition by', 'create table public.t (a int) partition by range (a)'],
+    ['inherits', 'create table public.t (a int) inherits (public.other)'],
+    ['storage options', 'create table public.t (a int) with (fillfactor = 70)'],
+    ['a tablespace', 'create table public.t (a int) tablespace fast'],
+    ['an access method', 'create table public.t (a int) using heap'],
+    ['a temp table commit action', 'create table public.t (a int) on commit drop'],
+  ])('throws on %s rather than misreading the table', (_label, statement) => {
+    expect(() => parseSql(`${statement};`)).toThrow(SqlSyntaxError);
+  });
+
+  it('names the trailing clause it refuses in the error', () => {
+    expect(() => parseSql('create table public.t (a int) partition by range (a);')).toThrow(
+      /partition by range/i,
+    );
+  });
+
+  it('still reads an ordinary create table, trailing whitespace and all', () => {
+    const table = parseSql('create table public.t (\n  id uuid primary key\n)  \n;').tables.get('t');
+    expect(table?.columns.map((c) => c.name)).toEqual(['id']);
+  });
+});
+
+/**
+ * #148: `drop policy` was the last statement still matched with the `[\w"]+` pattern that PR #144
+ * moved away from everywhere else. That pattern is not an identifier: it reads `a"b` as a name
+ * Postgres could never produce, and it cannot read `"my policy"` or `public . t` at all. A drop the
+ * reader mis-keys leaves a permissive policy standing in the parse that is gone from the database —
+ * or, worse, removes one that is still there.
+ */
+describe('drop policy reads a whole identifier (#148)', () => {
+  const standing = (sql: string): string[] => parseSql(sql).policies.map((p) => p.name);
+  const created = (name: string, table = 'public.t'): string =>
+    `create policy ${name} on ${table} for select to authenticated using (true);`;
+
+  it('drops a policy whose quoted name contains a space', () => {
+    expect(standing(`${created('"my policy"')} drop policy "my policy" on public.t;`)).toEqual([]);
+  });
+
+  it('drops a policy whose quoted name contains a doubled quote', () => {
+    expect(standing(`${created('"a""b"')} drop policy "a""b" on public.t;`)).toEqual([]);
+  });
+
+  it('drops a policy on a table written with whitespace around the dot', () => {
+    expect(standing(`${created('p')} drop policy p on public . t;`)).toEqual([]);
+  });
+
+  it('drops a policy on a quoted table name', () => {
+    expect(standing(`${created('p', 'public."Thing"')} drop policy p on public."Thing";`)).toEqual([]);
+  });
+
+  it('reads if exists and mixed-case keywords around a quoted name', () => {
+    expect(standing(`${created('"my policy"')} DROP POLICY IF EXISTS "my policy" ON Public.T;`)).toEqual([]);
+  });
+
+  it('keeps a policy whose quoted name differs in case, as Postgres would', () => {
+    expect(standing(`${created('"My Policy"')} drop policy if exists "my policy" on public.t;`)).toEqual([
+      'My Policy',
+    ]);
+  });
+
+  it('drops an unquoted name written in another case', () => {
+    expect(standing(`${created('My_Policy')} drop policy MY_POLICY on public.t;`)).toEqual([]);
+  });
+
+  it.each([
+    ['a name that is not an identifier', 'drop policy a"b on public.t'],
+    ['a name that starts with a digit', 'drop policy 1p on public.t'],
+    ['a qualified policy name', 'drop policy public.p on public.t'],
+    ['a Unicode-escaped policy name', 'drop policy U&"\\0070" on public.t'],
+    ['no table at all', 'drop policy p on'],
+    ['a trailing cascade this reader does not read', 'drop policy p on public.t cascade'],
+  ])('throws on %s rather than dropping the wrong policy', (_label, statement) => {
+    expect(() => parseSql(`${created('p')} ${statement};`)).toThrow(SqlSyntaxError);
+  });
+});
+
+/**
+ * #148: the docblock on the `grant option for` revoke said it "changes no privilege state at all",
+ * which is stronger than what Postgres does and stronger than what this reader does. `CASCADE`
+ * revokes the *dependent* grants — the ones the named role made onward to somebody else — and leaves
+ * the named role's own privilege alone. This reader does not model grantors, so it records nothing
+ * for the statement either way; these tests pin that, so the wording and the behaviour stay together.
+ */
+describe('a grant-option revoke with cascade (#148)', () => {
+  const stateOf = (sql: string, role: string): string => parseSql(sql).privilegeState('t', role, 'delete');
+
+  it('leaves the named role holding the privilege', () => {
+    expect(
+      stateOf(
+        'grant delete on public.t to authenticated with grant option; ' +
+          'revoke grant option for delete on public.t from authenticated cascade;',
+        'authenticated',
+      ),
+    ).toBe('granted');
+  });
+
+  it('does not move a second role the cascade might reach in Postgres', () => {
+    const sql =
+      'grant delete on public.t to authenticated with grant option; ' +
+      'grant delete on public.t to anon; ' +
+      'revoke grant option for delete on public.t from authenticated cascade;';
+    expect(stateOf(sql, 'anon')).toBe('granted');
+  });
+
+  it('still reads the statement strictly, cascade and all', () => {
+    expect(() =>
+      parseSql('revoke grant option for deletion on public.t from authenticated cascade;'),
+    ).toThrow(SqlSyntaxError);
+  });
+});
