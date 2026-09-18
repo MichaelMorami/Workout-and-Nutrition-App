@@ -11,7 +11,7 @@ import { newId } from '../ids';
 import type { Stamp } from '../local-time';
 import { foods, mealItems, meals, type MealItemRow, type MealRow, type NewFoodRow, type NewMealRow } from '../schema';
 import { servingOf, withServing } from '../servings';
-import type { FoodInput, FoodRow, MealDetail, MealItemInput, MealSummary } from '../types';
+import type { FoodInput, FoodRow, MealDetail, MealItemInput, MealRef, MealSummary } from '../types';
 
 // ---------------------------------------------------------------------------------------------
 // Foods — createFood, updateFood, setFoodArchived, getFood, listFoods.
@@ -247,4 +247,23 @@ export function getMeal(db: VitalsDb, id: string): MealDetail | null {
 
   const items = liveMealItemsWithFood(db, id);
   return { ...summaryOf(meal, items), items };
+}
+
+// ---------------------------------------------------------------------------------------------
+// mealsContainingFood — issue #153, the data-layer slice of #100: which saved meals still log a
+// food, so the caller can name them in the "these meals still have it" notice when archiving.
+// ---------------------------------------------------------------------------------------------
+
+/**
+ * Live meals with a live item referencing `foodId` — no tombstoned meal, no tombstoned item — name
+ * order (then id). A food that appears more than once in the same meal still lists that meal once.
+ */
+export function mealsContainingFood(db: VitalsDb, foodId: string): MealRef[] {
+  return db
+    .selectDistinct({ id: meals.id, name: meals.name })
+    .from(mealItems)
+    .innerJoin(meals, eq(mealItems.mealId, meals.id))
+    .where(and(eq(mealItems.foodId, foodId), eq(mealItems.deleted, 0), eq(meals.deleted, 0)))
+    .orderBy(asc(meals.name), asc(meals.id))
+    .all();
 }

@@ -1120,6 +1120,7 @@
         "function getMeal(db: VitalsDb, id: string): MealDetail | null",
         "function listFoods(db: VitalsDb, opts: { includeArchived?: boolean } = {}): FoodRow[]",
         "function listMeals(db: VitalsDb): MealSummary[]",
+        "function mealsContainingFood(db: VitalsDb, foodId: string): MealRef[]",
         "function setFoodArchived(db: VitalsDb, opts: Stamp & { id: string; archived: boolean }): FoodRow",
         "function updateFood(db: VitalsDb, opts: Stamp & { id: string; patch: Partial<FoodInput> }): FoodRow",
         "function validateFoodInput(input: FoodInput): void"
@@ -1134,7 +1135,7 @@
         "src/db/servings.ts",
         "src/db/types.ts"
       ],
-      "loc": 251,
+      "loc": 270,
       "importedBy": [
         "src/db/queries/search.ts"
       ]
@@ -1335,6 +1336,7 @@
         "interface MealCandidate",
         "interface MealDetail",
         "interface MealItemInput",
+        "interface MealRef",
         "interface MealSummary",
         "interface SettingsInput",
         "interface SettingsView",
@@ -1354,7 +1356,7 @@
         "src/db/schema.ts",
         "src/db/servings.ts"
       ],
-      "loc": 170,
+      "loc": 176,
       "importedBy": [
         "src/db/queries/catalog.ts",
         "src/db/queries/nutrition.ts",

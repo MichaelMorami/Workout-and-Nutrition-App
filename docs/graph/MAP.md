@@ -1011,7 +1011,7 @@ _no exports_
 
 ## `src/db/queries/`
 
-### `src/db/queries/catalog.ts`  <sub>251 lines</sub>
+### `src/db/queries/catalog.ts`  <sub>270 lines</sub>
 
 - `function createFood(db: VitalsDb, opts: Stamp & { food: FoodInput }): FoodRow`
 - `function createMeal(db: VitalsDb, opts: Stamp & { name: string; items: readonly MealItemInput[] }): MealDetail`
@@ -1019,6 +1019,7 @@ _no exports_
 - `function getMeal(db: VitalsDb, id: string): MealDetail | null`
 - `function listFoods(db: VitalsDb, opts: { includeArchived?: boolean } = {}): FoodRow[]`
 - `function listMeals(db: VitalsDb): MealSummary[]`
+- `function mealsContainingFood(db: VitalsDb, foodId: string): MealRef[]`
 - `function setFoodArchived(db: VitalsDb, opts: Stamp & { id: string; archived: boolean }): FoodRow`
 - `function updateFood(db: VitalsDb, opts: Stamp & { id: string; patch: Partial<FoodInput> }): FoodRow`
 - `function validateFoodInput(input: FoodInput): void`
@@ -1128,7 +1129,7 @@ _no exports_
 
 ## `src/db/`
 
-### `src/db/types.ts`  <sub>170 lines</sub>
+### `src/db/types.ts`  <sub>176 lines</sub>
 
 - `interface DayLogEntry`
 - `interface DayTotals`
@@ -1138,6 +1139,7 @@ _no exports_
 - `interface MealCandidate`
 - `interface MealDetail`
 - `interface MealItemInput`
+- `interface MealRef`
 - `interface MealSummary`
 - `interface SettingsInput`
 - `interface SettingsView`
