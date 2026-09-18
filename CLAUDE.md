@@ -49,6 +49,27 @@ boundaries in CI, so a violation is a build failure, not a style note.
 Need a change outside your paths? Say so in the PR or issue. Do not reach across.
 **Do not message other agents.** All coordination goes through `tech-lead` and the GitHub issue.
 
+### The one carve-out: a mock for your own new export
+
+Adding a new export routinely breaks a test file someone else owns, because that file mocks the
+module and the suite throws on the missing key. Handing a one-line, functionally inert change to
+another agent costs a second issue, a second PR and a block on the first — so it is allowed:
+
+> You may add or update the mock entry for **your own new export** in another agent's test file,
+> and nothing else in that file.
+
+It stops there. Changing an assertion, a fixture, a render, or an existing mock's behaviour is not
+covered — that is the owner's change, as `qa-engineer` made for `test/tap-budget.test.tsx` in
+PR #142. If you cannot make the suite pass by adding your own key alone, you have outgrown the
+carve-out: say so in the PR or issue and let the owner do it.
+
+**Every crossing is disclosed in the PR body** — the file, the export, and the line added. Silence
+is the violation, not the edit.
+
+`dependency-cruiser` cannot catch any of this: it enforces *import* boundaries, not file ownership,
+so an ownership crossing is green in CI. It is a **review-time check** — reviewers read the diff for
+files outside the author's paths and confirm the PR body declares each one.
+
 ## Use the scripts — never retype a long command
 
 | Script | Does |
