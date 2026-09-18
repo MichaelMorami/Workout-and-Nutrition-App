@@ -843,17 +843,29 @@ describe('table-level constraints are recorded or rejected, never dropped (#148)
     expect(table('a uuid, unique (a)')?.uniques).toEqual([{ name: null, columns: ['a'] }]);
   });
 
-  it('records a unique constraint that spells out its null handling', () => {
-    expect(table('a uuid, unique nulls not distinct (a)')?.uniques).toEqual([
-      { name: null, columns: ['a'] },
-    ]);
-  });
-
   it('records a named foreign key with its columns and its target', () => {
     expect(
       table('user_id uuid, constraint t_user_fk foreign key (user_id) references auth.users (id) on delete cascade')
         ?.foreignKeys,
     ).toEqual([{ name: 't_user_fk', columns: ['user_id'], references: 'auth.users (id)' }]);
+  });
+
+  it('folds a foreign key target the way Postgres folds names', () => {
+    expect(table('a uuid, foreign key (a) references AUTH . USERS ( ID )')?.foreignKeys).toEqual([
+      { name: null, columns: ['a'], references: 'auth.users (id)' },
+    ]);
+  });
+
+  it('keeps a quoted foreign key target as written', () => {
+    expect(table('a uuid, foreign key (a) references public."Users" ("Id")')?.foreignKeys).toEqual([
+      { name: null, columns: ['a'], references: 'public.Users (Id)' },
+    ]);
+  });
+
+  it('records a multi-column foreign key target', () => {
+    expect(table('a uuid, b uuid, foreign key (a, b) references public.other (x, y)')?.foreignKeys).toEqual([
+      { name: null, columns: ['a', 'b'], references: 'public.other (x, y)' },
+    ]);
   });
 
   it('records an unnamed foreign key under a null name', () => {
@@ -891,6 +903,10 @@ describe('table-level constraints are recorded or rejected, never dropped (#148)
     ['a foreign key with a match clause', 'a uuid, foreign key (a) references public.other (id) match full'],
     ['a foreign key that references nothing', 'a uuid, foreign key (a)'],
     ['a unique constraint with index storage options', 'a uuid, unique (a) with (fillfactor = 70)'],
+    // `nulls not distinct` rejects a second NULL row that plain `unique` accepts. Reading it as the
+    // plain form would record a constraint with semantics the table has not got (#148 review).
+    ['a unique constraint that spells out its null handling', 'a uuid, unique nulls not distinct (a)'],
+    ['a unique constraint that spells out the default null handling', 'a uuid, unique nulls distinct (a)'],
     ['a primary key with a tablespace', 'a uuid, primary key (a) using index tablespace fast'],
   ])('throws on %s rather than reading it and dropping it', (_label, body) => {
     expect(() => parseSql(`create table public.t (${body});`)).toThrow(SqlSyntaxError);
@@ -900,6 +916,49 @@ describe('table-level constraints are recorded or rejected, never dropped (#148)
     expect(() => parseSql('create table public.t (a uuid, exclude using gist (a with =));')).toThrow(
       /exclude using gist/i,
     );
+  });
+});
+
+/**
+ * #148 review, the blocking item. A **column-level** `unique` — `email text unique` — was recorded
+ * nowhere: not in `table.uniques`, and `ParsedColumn` had no field for it. So the new "no unique
+ * constraint" assertion in `schema.test.ts` guarded only the table-level spelling, which is the one
+ * spelling this repo's migrations never write. A UNIQUE the reader cannot see is a UNIQUE that can
+ * reject a second device's legitimate upsert with the contract still green.
+ *
+ * `primary key` is deliberately *not* reported as `unique`: it is a different constraint, it is
+ * already on `primaryKey`, and every table here has one.
+ */
+describe('a column-level unique is recorded (#148 review)', () => {
+  const column = (body: string, name: string) =>
+    parseSql(`create table public.t (${body});`).tables.get('t')?.column(name);
+
+  it('records the inline form these migrations write', () => {
+    expect(column('id uuid primary key, email text unique', 'email')?.unique).toBe(true);
+  });
+
+  it('records a named inline unique', () => {
+    expect(column('email text constraint t_email_uq unique', 'email')?.unique).toBe(true);
+  });
+
+  it('records it after a default, in mixed case', () => {
+    expect(column("email text default '' UNIQUE not null", 'email')?.unique).toBe(true);
+  });
+
+  it('leaves a plain column not unique', () => {
+    expect(column('email text not null', 'email')?.unique).toBe(false);
+  });
+
+  it('does not report a primary key column as unique', () => {
+    expect(column('id uuid primary key', 'id')?.unique).toBe(false);
+  });
+
+  it('does not mark a column whose name merely contains the word', () => {
+    expect(column('unique_code text not null', 'unique_code')?.unique).toBe(false);
+  });
+
+  it('does not mark a column whose type is followed by a unique-ish word', () => {
+    expect(column('a uuid references public.uniques (id)', 'a')?.unique).toBe(false);
   });
 });
 

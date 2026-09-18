@@ -782,10 +782,26 @@ describe('no secret is checked in', () => {
  * `food_log` to `foods` rejects a log that reaches the server before the food it names — which
  * out-of-order sync makes routine — and costs the user the meal. The migration says so in a comment;
  * a comment is not a test.
+ *
+ * Both spellings are checked, table-level and inline (#148 review). These migrations write every
+ * constraint inline — `id uuid primary key`, `user_id uuid not null references auth.users (id)` — so
+ * a guard on the table-level form alone would watch the one door this codebase never uses.
  */
 describe('the synced tables accept every row their owner sends', () => {
   it.each([...SYNCED_TABLES])('%s declares no unique constraint beside its primary key', (name) => {
-    expect(parsed().tables.get(name)?.uniques).toEqual([]);
+    const table = parsed().tables.get(name);
+    expect(table?.uniques).toEqual([]);
+    expect(table?.columns.filter((c) => c.unique).map((c) => c.name)).toEqual([]);
+  });
+
+  it('catches an inline unique, so the assertion above is not vacuous', () => {
+    const table = parseSql('create table public.t (id uuid primary key, email text unique);').tables.get('t');
+    expect(table?.columns.filter((c) => c.unique).map((c) => c.name)).toEqual(['email']);
+  });
+
+  it('catches a table-level unique, so the assertion above is not vacuous', () => {
+    const table = parseSql('create table public.t (id uuid primary key, email text, unique (email));').tables.get('t');
+    expect(table?.uniques).toEqual([{ name: null, columns: ['email'] }]);
   });
 
   it.each([...SYNCED_TABLES])('%s ties rows to the account and to nothing else', (name) => {
