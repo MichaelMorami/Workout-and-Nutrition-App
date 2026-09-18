@@ -900,7 +900,7 @@ jq -r '.modules["src/db/queries/nutrition.ts"].exports[]' docs/graph/symbols.jso
 
 <sub>used by: `src/db/queries/catalog.ts`, `src/db/queries/nutrition.ts`, `src/db/queries/search.ts`</sub>
 
-### `src/db/index.ts`  <sub>96 lines</sub>
+### `src/db/index.ts`  <sub>98 lines</sub>
 
 - `class VitalsDbError`
 - `const DEFAULT_SETTINGS: SettingsInput`
@@ -930,6 +930,7 @@ jq -r '.modules["src/db/queries/nutrition.ts"].exports[]' docs/graph/symbols.jso
 - `function localStamp(at: number, timeZone: string): { localDate: LocalDate; localMinute: number }`
 - `function logFood(db: VitalsDb, opts: When & { foodId: string; amount?: Amount; slot?: MealSlot }): LogReceipt`
 - `function logMeal(db: VitalsDb, opts: When & { mealId: string; portions?: number; slot?: MealSlot }): LogReceipt`
+- `function mealsContainingFood(db: VitalsDb, foodId: string): MealRef[]`
 - `function parseHourHistogram(text: string | null): HourHistogram`
 - `function quickAddCandidates(db: VitalsDb, opts: When & { limit?: number }): Candidate[]`
 - `function recentFoods(db: VitalsDb, opts: When & { days: number; limit?: number }): Candidate[]`
@@ -958,6 +959,7 @@ jq -r '.modules["src/db/queries/nutrition.ts"].exports[]' docs/graph/symbols.jso
 - `interface MealDetail`
 - `interface MealItemInput`
 - `interface MealPatch`
+- `interface MealRef`
 - `interface MealSummary`
 - `interface ServingPreset`
 - `interface SettingsInput`
