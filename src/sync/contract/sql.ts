@@ -199,6 +199,18 @@ const COLUMN_MODIFIERS = new Set([
 ]);
 
 /**
+ * A word immediately followed by `(`, with no space — `check(qty > 0)`, not `check (qty > 0)`. Real
+ * migrations write both; the type scanner used to look for a token *equal to* a modifier, so
+ * `check(qty > 0)` split into a token `check(qty` that matched nothing in {@link COLUMN_MODIFIERS}
+ * and was read as part of the type instead (PR #173 review). Matched generally, not just for
+ * `check`, so every future glued modifier fails the same way a bare one does — but only a *modifier*
+ * word ends the type: `numeric(10,2)` is a type gluing itself to its own parenthesis and must stay
+ * one token, so the captured word is still checked against {@link COLUMN_MODIFIERS} before it ends
+ * the scan.
+ */
+const MODIFIER_GLUED_TO_PAREN = /^([A-Za-z]+)\(/;
+
+/**
  * What makes a `create table` entry — or an `alter table … add` action — a table constraint rather
  * than a column. Matched on word boundaries: the old prefix list took the bare string `unique`, so a
  * column named `unique_code` was read as a constraint and vanished from the parsed table.
@@ -556,6 +568,8 @@ function parseColumn(item: string): ParsedColumn {
   const typeTokens: string[] = [];
   for (const token of afterName.split(' ')) {
     if (COLUMN_MODIFIERS.has(token.toLowerCase())) break;
+    const glued = MODIFIER_GLUED_TO_PAREN.exec(token);
+    if (glued && COLUMN_MODIFIERS.has((glued[1] as string).toLowerCase())) break;
     typeTokens.push(token);
   }
   const rest = afterName.slice(typeTokens.join(' ').length);
