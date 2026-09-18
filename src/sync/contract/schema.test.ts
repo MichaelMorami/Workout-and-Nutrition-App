@@ -16,7 +16,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { getTableConfig } from 'drizzle-orm/sqlite-core';
 import { foodLog, foods } from '@/src/db';
-import { parseMigrations, parseSql } from './sql';
+import { parseMigrations, parseSql, SqlSyntaxError } from './sql';
 import type { MigrationSource, ParsedSql, PolicyCommand } from './sql';
 
 const MIGRATIONS = path.join(__dirname, '..', '..', '..', 'supabase', 'migrations');
@@ -50,6 +50,51 @@ const SYNCED_TABLES = ['foods', 'food_log'] as const;
 const OWNER = 'user_id = (select auth.uid())';
 
 /**
+ * The privileges that can destroy history, each of which must be revoked outright (#147).
+ *
+ * DELETE takes rows one at a time. TRUNCATE takes the whole table in a single statement, and it is a
+ * *separate* Postgres privilege — revoking DELETE does not touch it — so a migration granting it,
+ * directly or through `grant all privileges`, could erase `food_log` with the contract still green.
+ *
+ * **UPDATE is deliberately absent, and that is a judgement, not an oversight.** UPDATE *can* rewrite
+ * a historical `kcal`: `update food_log set kcal = 0 where local_date < '2026-01-01'` passes the
+ * owner-scoped policy, because `using` and `with check` constrain which *rows* may be written, never
+ * which *columns*. Nothing in the remote contract prevents it. What contains it today is client
+ * convention — the app never issues such a write — plus last-write-wins, under which a remote
+ * rewrite only reaches the device if it carries a newer `updated_at`. That is a convention, not a
+ * database guarantee, and it is labelled as one here on purpose. The separate `CLAUDE.md` invariant
+ * that `food_log` stores `kcal`/`protein` directly is airtight but answers a different question: it
+ * protects past logs from a *food edit*, not from a direct write to a past row.
+ *
+ * Revoking UPDATE anyway would break sync: an already-synced row upserts as an UPDATE, and a
+ * tombstone *is* an UPDATE (`deleted = 1`, new `updated_at`). Push errors are swallowed by design,
+ * so the failure would be silent. If immutability ever needs real enforcement, the mechanism that
+ * fits without breaking sync is a column-level `grant update (deleted, updated_at, ...)`, not a
+ * blanket revoke. The full reasoning is recorded on issue #147.
+ *
+ * Known gap, deliberately not closed here (PR #155 review): **TRIGGER** is the one other plausibly
+ * destructive privilege, and `grant all privileges` hands it over. It lets the grantee attach a
+ * `before update` trigger that rewrites `NEW.kcal`. Closing it needs no new machinery — one more
+ * entry in this list — but reaching it also needs `create` on `public` and a function to point at,
+ * neither of which Supabase gives `authenticated`. REFERENCES and MAINTAIN were weighed and left
+ * out: neither can destroy or rewrite a row.
+ */
+const DESTRUCTIVE_PRIVILEGES = ['delete', 'truncate'] as const;
+
+/**
+ * The roles the destructive-privilege check covers. Both are reachable from a shipped app: the anon
+ * key is in the bundle, and `authenticated` is one sign-in away from it.
+ *
+ * `anon` is not covered by "RLS is forced, so anon reaches no row" — TRUNCATE is not policed by RLS
+ * at all — and Supabase's stock `alter default privileges ... grant all on tables to anon,
+ * authenticated, service_role` means an unstated privilege is a held one (PR #155 review).
+ *
+ * `service_role` is left out on purpose: it is the secret key, it bypasses RLS by design, no code in
+ * this repository uses it, and restricting it here would prove nothing about the app.
+ */
+const GUARDED_ROLES = ['authenticated', 'anon'] as const;
+
+/**
  * Every RLS invariant as one pure check over a parsed migration set. The named tests below assert it
  * piece by piece against the real set; the regression tests feed it deliberately weakened sets, so
  * they prove this exact check — not a look-alike — catches each weakening.
@@ -77,10 +122,17 @@ function rlsViolations(set: ParsedSql): string[] {
         }
       }
     }
-    // 'unstated' is not safe: Supabase's bootstrap grants broad privileges to authenticated, so only an
-    // explicit revoke that no later grant undoes is a guarantee.
-    if (set.privilegeState(name, 'authenticated', 'delete') !== 'revoked') {
-      found.push(`${name}: DELETE is ${set.privilegeState(name, 'authenticated', 'delete')} for authenticated`);
+    // 'unstated' is not safe: Supabase's bootstrap grants broad privileges to both guarded roles, so
+    // only an explicit revoke that no later grant undoes is a guarantee. The violation names the
+    // privilege *and* the role, so a reader of the failure knows exactly which lock was opened.
+    // `privilegeState` folds in what was granted to `public`, which every role is a member of.
+    for (const role of GUARDED_ROLES) {
+      for (const privilege of DESTRUCTIVE_PRIVILEGES) {
+        const state = set.privilegeState(name, role, privilege);
+        if (state !== 'revoked') {
+          found.push(`${name}: ${privilege.toUpperCase()} is ${state} for ${role}`);
+        }
+      }
     }
     for (const command of ['delete', 'all'] as const) {
       for (const policy of set.policiesFor(name, command)) {
@@ -331,6 +383,30 @@ describe('row level security', () => {
     expect(parsed().privilegeState(name, 'authenticated', 'delete')).toBe('revoked');
   });
 
+  /**
+   * #147: TRUNCATE is a separate Postgres privilege, so revoking DELETE leaves it untouched. One
+   * `truncate public.food_log` erases every log the user has ever written — the exact loss the
+   * tombstone rule exists to prevent — and until this test existed the contract said nothing at all
+   * about it.
+   */
+  it.each(['foods', 'food_log'])('%s grants no TRUNCATE — one statement would erase the table', (name) => {
+    expect(parsed().privilegeState(name, 'authenticated', 'truncate')).toBe('revoked');
+  });
+
+  /**
+   * PR #155 review: the destructive-privilege check named `authenticated` and nothing else, so
+   * `grant truncate on public.food_log to anon;` produced zero violations. For DELETE the gap is
+   * survivable — RLS is enabled and forced and no policy names `anon` — but TRUNCATE is not policed
+   * by RLS at all, and `anon` is the role whose key ships inside the app bundle. Supabase's stock
+   * default privileges grant ALL on public tables to `anon` as well as `authenticated`, so unstated
+   * means held. `service_role` is left alone on purpose: it is the secret key, used by nothing here.
+   */
+  it.each(['foods', 'food_log'])('%s revokes DELETE and TRUNCATE from anon as well', (name) => {
+    for (const privilege of ['delete', 'truncate']) {
+      expect(parsed().privilegeState(name, 'anon', privilege)).toBe('revoked');
+    }
+  });
+
   it('grants nothing to anon', () => {
     for (const policy of parsed().policies) expect(policy.roles).not.toContain('anon');
   });
@@ -397,6 +473,104 @@ describe('a later migration that weakens RLS turns the suite red', () => {
     ['grants ALL', 'grant all privileges on public.foods to authenticated;', 'foods: DELETE is granted'],
   ])('%s', (_label, sql, violation) => {
     expect(rlsViolations(withLater(sql)).join('\n')).toContain(violation);
+  });
+
+  /**
+   * #147. Every route by which TRUNCATE can reach `authenticated`, each reported by name so the
+   * reader knows which privilege was granted. `grant all`/`grant all privileges` expand to it too,
+   * which is how a migration could hand over the power to erase history without typing the word.
+   */
+  it.each([
+    [
+      'grants TRUNCATE outright',
+      'grant truncate on public.food_log to authenticated;',
+      'food_log: TRUNCATE is granted for authenticated',
+    ],
+    [
+      'grants TRUNCATE in a privilege list',
+      'grant select, truncate on public.foods to authenticated;',
+      'foods: TRUNCATE is granted for authenticated',
+    ],
+    [
+      'grants ALL PRIVILEGES',
+      'grant all privileges on public.food_log to authenticated;',
+      'food_log: TRUNCATE is granted for authenticated',
+    ],
+    [
+      'grants ALL to public, which every role is a member of',
+      'grant all on public.foods to public;',
+      'foods: TRUNCATE is granted for authenticated',
+    ],
+    [
+      'grants TRUNCATE on a mixed-case table to an upper-case role',
+      'grant truncate on public.Food_Log to AUTHENTICATED;',
+      'food_log: TRUNCATE is granted for authenticated',
+    ],
+    [
+      'grants TRUNCATE with grant option and granted by',
+      'grant truncate on public.foods to authenticated with grant option granted by postgres;',
+      'foods: TRUNCATE is granted for authenticated',
+    ],
+    [
+      'grants TRUNCATE to group authenticated',
+      'grant truncate on public.food_log to group authenticated;',
+      'food_log: TRUNCATE is granted for authenticated',
+    ],
+  ])('%s', (_label, sql, violation) => {
+    expect(rlsViolations(withLater(sql)).join('\n')).toContain(violation);
+  });
+
+  /**
+   * PR #155 review, blocking finding: every one of these used to yield zero violations, because the
+   * check asked about `authenticated` only. The violation names the role as well as the privilege.
+   */
+  it.each([
+    [
+      'grants TRUNCATE to anon — the role whose key ships in the app bundle',
+      'grant truncate on public.food_log to anon;',
+      'food_log: TRUNCATE is granted for anon',
+    ],
+    [
+      'grants DELETE to anon',
+      'grant delete on public.foods to anon;',
+      'foods: DELETE is granted for anon',
+    ],
+    [
+      'grants ALL PRIVILEGES to anon',
+      'grant all privileges on public.food_log to anon;',
+      'food_log: TRUNCATE is granted for anon',
+    ],
+    [
+      'grants TRUNCATE to anon under a folded name and role',
+      'GRANT TRUNCATE ON PUBLIC.Foods TO ANON;',
+      'foods: TRUNCATE is granted for anon',
+    ],
+    [
+      'grants TRUNCATE to anon with grant option and granted by',
+      'grant truncate on public.foods to anon with grant option granted by postgres;',
+      'foods: TRUNCATE is granted for anon',
+    ],
+  ])('%s', (_label, sql, violation) => {
+    expect(rlsViolations(withLater(sql)).join('\n')).toContain(violation);
+  });
+
+  it("the reviewer's exact anon reproduction is no longer clean", () => {
+    // Verbatim from the PR #155 review: this yielded zero violations.
+    expect(rlsViolations(withLater('grant truncate on public.food_log to anon;'))).not.toEqual([]);
+  });
+
+  /**
+   * #147: `grant all on all tables in schema public` names no table, so the reader cannot key the
+   * privilege to `food_log` — and it refuses the statement instead of guessing. A throw is stronger
+   * than a violation here: the whole suite goes red and no migration can slip past unread.
+   */
+  it.each([
+    ['grant all on all tables in schema public to authenticated;'],
+    ['grant all privileges on all tables in schema public to authenticated;'],
+    ['grant truncate on all tables in schema public to authenticated;'],
+  ])('fails closed on `%s`, which names no table to key the privilege to', (sql) => {
+    expect(() => withLater(sql)).toThrow(SqlSyntaxError);
+    expect(() => withLater(sql)).toThrow(/unrecognised statement/);
   });
 
   /**
@@ -516,11 +690,13 @@ describe('a later migration that weakens RLS turns the suite red', () => {
 
 /**
  * Regression for PR #128 review, hole 1: the DELETE revoke was asserted with `toContain` on the raw
- * file text, so commenting the statement out left the test green.
+ * file text, so commenting the statement out left the test green. #147 runs the same three
+ * weakenings against the TRUNCATE revoke, which is a separate statement and a separate privilege.
  */
-describe('a missing DELETE revoke is noticed, even when its text is still in the file', () => {
-  const REVOKE = 'revoke delete on public.food_log from authenticated;';
-
+describe.each([
+  ['DELETE', 'revoke delete on public.food_log from authenticated, anon;'],
+  ['TRUNCATE', 'revoke truncate on public.food_log from authenticated, anon;'],
+])('a missing %s revoke is noticed, even when its text is still in the file', (privilege, REVOKE) => {
   it.each([
     ['commented out', `-- ${REVOKE}`],
     ['inside a block comment', `/* ${REVOKE} */`],
@@ -534,8 +710,8 @@ describe('a missing DELETE revoke is noticed, even when its text is still in the
       expect(weakened).toContain(REVOKE.slice(0, -1));
     }
     const set = parseMigrations([{ name: contractFile(), sql: weakened }]);
-    expect(set.privilegeState('food_log', 'authenticated', 'delete')).toBe('unstated');
-    expect(rlsViolations(set)).toContain('food_log: DELETE is unstated for authenticated');
+    expect(set.privilegeState('food_log', 'authenticated', privilege.toLowerCase())).toBe('unstated');
+    expect(rlsViolations(set)).toContain(`food_log: ${privilege} is unstated for authenticated`);
   });
 });
 
@@ -545,29 +721,35 @@ describe('a missing DELETE revoke is noticed, even when its text is still in the
  * wrote this passed the whole contract check while every authenticated user could delete history.
  * The violation has to be reported on the real contract file, weakened exactly that way.
  */
-describe('a grant-option revoke does not stand in for a DELETE revoke', () => {
-  const REVOKE = 'revoke delete on public.food_log from authenticated;';
+describe.each([['DELETE', 'delete'], ['TRUNCATE', 'truncate']])(
+  'a grant-option revoke does not stand in for a %s revoke',
+  (privilege, lower) => {
+    const REVOKE = `revoke ${lower} on public.food_log from authenticated, anon;`;
 
-  it('reports a DELETE grant when the revoke only takes the grant option away', () => {
-    const sql = read(contractFile());
-    expect(sql).toContain(REVOKE);
-    const weakened = sql.replace(
-      REVOKE,
-      'grant delete on public.food_log to authenticated; ' +
-        'revoke grant option for delete on public.food_log from authenticated;',
-    );
-    const set = parseMigrations([{ name: contractFile(), sql: weakened }]);
-    expect(set.privilegeState('food_log', 'authenticated', 'delete')).toBe('granted');
-    expect(rlsViolations(set)).toContain('food_log: DELETE is granted for authenticated');
-  });
+    it(`reports a ${privilege} grant when the revoke only takes the grant option away`, () => {
+      const sql = read(contractFile());
+      expect(sql).toContain(REVOKE);
+      const weakened = sql.replace(
+        REVOKE,
+        `revoke ${lower} on public.food_log from anon; ` +
+          `grant ${lower} on public.food_log to authenticated; ` +
+          `revoke grant option for ${lower} on public.food_log from authenticated;`,
+      );
+      const set = parseMigrations([{ name: contractFile(), sql: weakened }]);
+      expect(set.privilegeState('food_log', 'authenticated', lower)).toBe('granted');
+      expect(rlsViolations(set)).toContain(`food_log: ${privilege} is granted for authenticated`);
+    });
 
-  it('keeps the real file clean: every synced table revokes DELETE outright', () => {
-    for (const name of SYNCED_TABLES) {
-      expect(parsed().privilegeState(name, 'authenticated', 'delete')).toBe('revoked');
-    }
-    expect(rlsViolations(parsed())).toEqual([]);
-  });
-});
+    it(`keeps the real file clean: every synced table revokes ${privilege} outright`, () => {
+      for (const name of SYNCED_TABLES) {
+        for (const role of GUARDED_ROLES) {
+          expect(parsed().privilegeState(name, role, lower)).toBe('revoked');
+        }
+      }
+      expect(rlsViolations(parsed())).toEqual([]);
+    });
+  },
+);
 
 describe('no secret is checked in', () => {
   const sources = (dir: string): string[] =>
