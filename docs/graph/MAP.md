@@ -57,7 +57,7 @@ jq -r '.modules["src/db/queries/nutrition.ts"].exports[]' docs/graph/symbols.jso
 
 - `function default(): React.JSX.Element`
 
-### `app/foods/index.tsx`  <sub>48 lines</sub>
+### `app/foods/index.tsx`  <sub>55 lines</sub>
 
 - `function default(): React.JSX.Element`
 
@@ -426,10 +426,12 @@ jq -r '.modules["src/db/queries/nutrition.ts"].exports[]' docs/graph/symbols.jso
 
 ## `src/components/food-list/`
 
-### `src/components/food-list/FoodList.tsx`  <sub>151 lines</sub>
+### `src/components/food-list/FoodList.tsx`  <sub>255 lines</sub>
 
-- `function FoodList({ foods, onSelect, onAdd, locale, theme, testID = 'food-list' }: FoodListProps): import("react").JSX.Element`
+- `function FoodList({ db, foods, onSelect, onAdd, locale, theme, testID = 'food-list' }: FoodListProps): import("react").JSX.Element`
+- `function archiveToastMeta(food: FoodRow, meals: readonly MealRef[], locale?: string): string`
 - `type FoodListProps = {
+  readonly db: VitalsDb;
   readonly foods: readonly FoodRow[];
   readonly onSelect: (food: FoodRow) => void;
   readonly onAdd: () => void;
@@ -441,8 +443,9 @@ jq -r '.modules["src/db/queries/nutrition.ts"].exports[]' docs/graph/symbols.jso
 
 ### `src/components/food-list/index.ts`  <sub>2 lines</sub>
 
-- `function FoodList({ foods, onSelect, onAdd, locale, theme, testID = 'food-list' }: FoodListProps): import("react").JSX.Element`
+- `function FoodList({ db, foods, onSelect, onAdd, locale, theme, testID = 'food-list' }: FoodListProps): import("react").JSX.Element`
 - `type FoodListProps = {
+  readonly db: VitalsDb;
   readonly foods: readonly FoodRow[];
   readonly onSelect: (food: FoodRow) => void;
   readonly onAdd: () => void;
@@ -587,7 +590,7 @@ jq -r '.modules["src/db/queries/nutrition.ts"].exports[]' docs/graph/symbols.jso
 
 <sub>used by: `src/components/quick-add/QuickAddGrid.tsx`</sub>
 
-### `src/components/quick-add/UndoToast.tsx`  <sub>216 lines</sub>
+### `src/components/quick-add/UndoToast.tsx`  <sub>228 lines</sub>
 
 - `function UndoToast({ onUndo, testID = 'undo-toast' }: UndoToastProps): import("react").JSX.Element | null`
 - `type UndoToastProps = {
@@ -643,7 +646,7 @@ jq -r '.modules["src/db/queries/nutrition.ts"].exports[]' docs/graph/symbols.jso
   readonly testID?: string;
 }`
 
-<sub>used by: `app/(tabs)/index.tsx`, `app/meals/index.tsx`</sub>
+<sub>used by: `app/(tabs)/index.tsx`, `app/foods/index.tsx`, `app/meals/index.tsx`</sub>
 
 ## `src/components/quick-add/test-support/`
 
@@ -743,7 +746,7 @@ jq -r '.modules["src/db/queries/nutrition.ts"].exports[]' docs/graph/symbols.jso
   readonly revealed: boolean;
   /** ...`
 
-<sub>used by: `src/components/day-log/DayLogRow.tsx`</sub>
+<sub>used by: `src/components/day-log/DayLogRow.tsx`, `src/components/food-list/FoodList.tsx`</sub>
 
 ## `src/components/theme/`
 
@@ -1032,7 +1035,7 @@ _no exports_
 - `function updateMeal(db: VitalsDb, opts: Stamp & { id: string; patch: MealPatch }): MealDetail`
 - `function validateFoodInput(input: FoodInput): void`
 
-<sub>used by: `src/db/queries/search.ts`</sub>
+<sub>used by: `src/components/food-list/FoodList.tsx`, `src/db/queries/search.ts`</sub>
 
 ### `src/db/queries/nutrition.ts`  <sub>568 lines</sub>
 
@@ -1166,7 +1169,7 @@ _no exports_
   | { kind: 'restore'; logIds: readonly string[] } // undoes softDeleteLogEntries
   | { kind: 'revert'; previous: readonly LogAmount[] }`
 
-<sub>used by: `src/db/queries/catalog.ts`, `src/db/queries/nutrition.ts`, `src/db/queries/search.ts`, `src/db/queries/settings.ts`, `src/db/queries/weight.ts`</sub>
+<sub>used by: `src/components/food-list/FoodList.tsx`, `src/db/queries/catalog.ts`, `src/db/queries/nutrition.ts`, `src/db/queries/search.ts`, `src/db/queries/settings.ts`, `src/db/queries/weight.ts`</sub>
 
 ### `src/db/usage.ts`  <sub>94 lines</sub>
 
@@ -1183,7 +1186,7 @@ _no exports_
 
 - `function deviceWhen(): When`
 
-<sub>used by: `app/(tabs)/index.tsx`, `app/foods/[id].tsx`, `app/foods/new.tsx`, `app/meals/new.tsx`, `src/components/day-log/DayLogList.tsx`, `src/components/meals/MealForm.tsx`, `src/components/meals/MealList.tsx`, `src/components/quick-add/QuickAddGrid.tsx`, `src/components/quick-add/UndoToast.tsx`, `src/components/search/CreateFoodSheet.tsx`, `src/components/search/SearchSheet.tsx`, `src/components/settings/TargetsGroup.tsx`, `src/components/today/WeightChip.tsx`</sub>
+<sub>used by: `app/(tabs)/index.tsx`, `app/foods/[id].tsx`, `app/foods/new.tsx`, `app/meals/new.tsx`, `src/components/day-log/DayLogList.tsx`, `src/components/food-list/FoodList.tsx`, `src/components/meals/MealForm.tsx`, `src/components/meals/MealList.tsx`, `src/components/quick-add/QuickAddGrid.tsx`, `src/components/quick-add/UndoToast.tsx`, `src/components/search/CreateFoodSheet.tsx`, `src/components/search/SearchSheet.tsx`, `src/components/settings/TargetsGroup.tsx`, `src/components/today/WeightChip.tsx`</sub>
 
 ### `src/hooks/useDb.ts`  <sub>15 lines</sub>
 
@@ -1195,7 +1198,7 @@ _no exports_
 
 - `function useHapticFeedback(): (haptic: Haptic) => void`
 
-<sub>used by: `src/components/meals/MealList.tsx`, `src/components/quick-add/PortionSheet.tsx`, `src/components/quick-add/QuickAddTile.tsx`, `src/components/quick-add/UndoToast.tsx`, `src/components/search/CreateFoodSheet.tsx`, `src/components/search/SearchSheet.tsx`</sub>
+<sub>used by: `src/components/food-list/FoodList.tsx`, `src/components/meals/MealList.tsx`, `src/components/quick-add/PortionSheet.tsx`, `src/components/quick-add/QuickAddTile.tsx`, `src/components/quick-add/UndoToast.tsx`, `src/components/search/CreateFoodSheet.tsx`, `src/components/search/SearchSheet.tsx`</sub>
 
 ### `src/hooks/useTheme.ts`  <sub>14 lines</sub>
 
@@ -1221,13 +1224,13 @@ _no exports_
 
 <sub>used by: `src/components/theme/ThemeProvider.tsx`</sub>
 
-### `src/store/undoToast.ts`  <sub>71 lines</sub>
+### `src/store/undoToast.ts`  <sub>84 lines</sub>
 
 - `const useUndoToastStore: import("zustand").UseBoundStore<import("zustand").StoreApi<UndoToastState>>`
 - `interface LogDelta`
 - `interface UndoToastPayload`
 
-<sub>used by: `app/(tabs)/index.tsx`, `src/components/day-log/DayLogList.tsx`, `src/components/meals/MealList.tsx`, `src/components/quick-add/QuickAddGrid.tsx`, `src/components/quick-add/UndoToast.tsx`, `src/components/search/CreateFoodSheet.tsx`, `src/components/search/SearchSheet.tsx`</sub>
+<sub>used by: `app/(tabs)/index.tsx`, `src/components/day-log/DayLogList.tsx`, `src/components/food-list/FoodList.tsx`, `src/components/meals/MealList.tsx`, `src/components/quick-add/QuickAddGrid.tsx`, `src/components/quick-add/UndoToast.tsx`, `src/components/search/CreateFoodSheet.tsx`, `src/components/search/SearchSheet.tsx`</sub>
 
 ## `src/sync/contract/`
 

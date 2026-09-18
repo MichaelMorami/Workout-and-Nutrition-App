@@ -26,16 +26,29 @@ export interface LogDelta {
 }
 
 export interface UndoToastPayload {
-  readonly token: UndoToken;
+  /** Reversed through `undo(db, { token })` — every log/edit/delete path on the day's log and the
+   * quick-add grid produces one of these. Omit it only when `action` below does the reversing
+   * instead (issue #100: a food archive is not a logged row, so there is no `UndoToken` for it). */
+  readonly token?: UndoToken;
   /** `logTracker`'s key for the candidate this action logged — `<UndoToast>` forgets it here on
    * undo, so the next tap on the same tile logs fresh instead of trying to add a portion to a row
-   * `undo()` just tombstoned. */
-  readonly candidateKey: string;
+   * `undo()` just tombstoned. Only meaningful alongside `token`. */
+  readonly candidateKey?: string;
   /** "Whey + Milk" or, after a double-tap, "Whey + Milk  ×2". */
   readonly title: string;
   /** "240 kcal · 40 g protein" — the entries' current total, not just what this action added. */
   readonly meta: string;
-  readonly delta: LogDelta;
+  /** What undoing this must subtract from a running Today total. Omitted when the action never
+   * touched one — issue #100's food-archive delete changes no log total. */
+  readonly delta?: LogDelta;
+  /** An alternative reversal for an action `UndoToken` cannot express — e.g. issue #100's food
+   * delete, where undo is just calling `setFoodArchived` again, not reverting a logged row. When
+   * given, `<UndoToast>` calls this instead of `undo(db, { token })`/`forgetLog`, and swallows the
+   * same way: a thrown `VitalsDbError` leaves the toast up and dismisses nothing. */
+  readonly action?: () => void;
+  /** The verb the Undo button's accessibility label reads before the title — "Undo `verb` X".
+   * Defaults to `'logging'`, the original (and still by far the most common) case. */
+  readonly verb?: string;
 }
 
 interface UndoToastState {

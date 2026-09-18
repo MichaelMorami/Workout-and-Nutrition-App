@@ -17,6 +17,12 @@
  * `delta` back up so a caller keeping a running total (the Today rings) can subtract exactly what
  * undo just reversed, the same way `onLogged`/`onPortionAdded` hand up what a write just added.
  *
+ * NOT EVERY REVERSAL IS A TOKEN. `UndoToastPayload.action`, when a caller sets it (issue #100's
+ * food-list delete: an archive/un-archive pair, not a logged row), replaces the `undo(db, {token})`
+ * call outright — see `undoToast.ts`'s own doc comment for why `token`/`candidateKey`/`delta` are
+ * therefore optional. `verb` swaps the accessibility label's "Undo **logging** X" for whatever the
+ * action actually reverses ("Undo **deleting** X").
+ *
  * STAYS MOUNTED THROUGH ITS OWN EXIT. The store's `toast` field is either a payload or `null` —
  * there is no third "leaving" state — so this component keeps the last payload in local state
  * until `toastOut` finishes, the same hold-then-clear shape `QuickAddTile` uses for its own
@@ -117,16 +123,22 @@ export function UndoToast({ onUndo, testID = 'undo-toast' }: UndoToastProps) {
     if (!shown) return;
     const payload = rendered;
     try {
-      undo(db, { at: deviceWhen().at, token: payload.token });
+      // `action` (issue #100's food-archive delete, or any future non-token reversal) stands in
+      // for `undo(db, { token })` entirely — the two are mutually exclusive per payload.
+      if (payload.action) {
+        payload.action();
+      } else if (payload.token) {
+        undo(db, { at: deviceWhen().at, token: payload.token });
+      }
     } catch (err) {
       // Same doctrine as every write in `QuickAddGrid`: no dialog, no crash for a failed undo.
       if (!(err instanceof VitalsDbError)) throw err;
       return;
     }
-    forgetLog(payload.candidateKey);
+    if (payload.candidateKey) forgetLog(payload.candidateKey);
     fireHaptic(haptics.undo);
     dismiss();
-    onUndo?.(payload.delta);
+    if (payload.delta) onUndo?.(payload.delta);
   };
 
   const { toast: toastColor } = theme.color;
@@ -172,7 +184,7 @@ export function UndoToast({ onUndo, testID = 'undo-toast' }: UndoToastProps) {
         onPress={handleUndo}
         disabled={!shown}
         accessibilityRole="button"
-        accessibilityLabel={`Undo logging ${rendered.title}`}
+        accessibilityLabel={`Undo ${rendered.verb ?? 'logging'} ${rendered.title}`}
         style={({ pressed }) => [
           styles.undoButton,
           {

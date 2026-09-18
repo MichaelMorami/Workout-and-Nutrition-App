@@ -2,6 +2,7 @@ import { useFocusEffect, useRouter } from 'expo-router';
 import React, { useCallback, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { FoodList } from '../../src/components/food-list';
+import { UndoToast } from '../../src/components/quick-add';
 import { useDb } from '../../src/hooks/useDb';
 import { useTheme } from '../../src/hooks/useTheme';
 import { listFoods, type FoodRow } from '../../src/db';
@@ -14,6 +15,10 @@ import { listFoods, type FoodRow } from '../../src/db';
  * `listFoods` is re-read on every focus, not just on mount: `/foods/new` and `/foods/[id]` are
  * both pushed on top of this screen and pop back to it, so "focus" is exactly the moment a create
  * or an edit needs to show up here, with no separate refresh affordance for the user to find.
+ *
+ * `<UndoToast>` mounts here too (issue #100), the same way `/meals` mounts one for its own log
+ * taps: `<FoodList>`'s swipe-to-delete is a real write (`setFoodArchived`) the instant it fires,
+ * and this toast is the only way that delete ever gets reversed.
  */
 export default function FoodsScreen(): React.JSX.Element {
   const db = useDb();
@@ -30,12 +35,14 @@ export default function FoodsScreen(): React.JSX.Element {
   return (
     <View style={[styles.screen, { backgroundColor: theme.color.bg.canvas }]}>
       <FoodList
+        db={db}
         foods={foods}
         onSelect={(food) => router.push(`/foods/${food.id}`)}
         onAdd={() => router.push('/foods/new')}
         theme={theme}
         testID="foods-screen-list"
       />
+      <UndoToast testID="foods-screen-undo-toast" />
     </View>
   );
 }
