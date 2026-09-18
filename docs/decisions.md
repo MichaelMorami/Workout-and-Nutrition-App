@@ -322,3 +322,52 @@ resolve:
   at-least-once in practice;
 - a backwards clock jump that must not let an older edit win;
 - a local row that has never been pushed is **pushed before** a pulled page can supersede it.
+
+## Sprint 2 review — what the remote contract may and may not promise
+
+Raised by the opus review of PR #144 (issue #135), settled across issues #147 and the review of
+PR #155 · binds the Supabase schema and the RLS contract test · no change to the local SQLite schema
+
+### 9. `DELETE` and `TRUNCATE` are revoked; `UPDATE` stays granted, owner-scoped
+
+**The situation.** The contract asserted that `DELETE` was revoked for `authenticated` and said
+nothing about `TRUNCATE`. `TRUNCATE` is a separate Postgres privilege, RLS does not police it *at
+all*, and one statement erases a history table. A migration granting it — directly, or via
+`grant all privileges` — passed the contract green.
+
+**The decision.** The destructive set is `DELETE` + `TRUNCATE`, revoked and asserted for
+`authenticated` **and** `anon`. `service_role` is deliberately out of scope: its key never ships, it
+exists to bypass RLS server-side, and revoking there would only force the contract to be loosened
+again at the first backfill script. `postgres` owns the tables and may `TRUNCATE` regardless of
+grants, so guarding it would be theatre. `TRIGGER` is a known open gap — `grant all` hands it over —
+recorded in the docblock rather than implemented, because exploiting it also needs `create` on
+`public` and a function to point at.
+
+**`UPDATE` stays granted.** Revoking it breaks sync outright. The push step upserts by `id`: an
+edited row already on the server is an `UPDATE`, and **a tombstone is an `UPDATE` too**
+(`deleted = 1`, new `updated_at`) — never a row removal, by the tombstone rule. Every second push of
+a row would fail, the client swallows push errors by design, and the replica would freeze at each
+row's first version. The revoke would destroy exactly the history it was meant to protect.
+
+**What that costs us, stated plainly.** `UPDATE` **can** rewrite a historical `kcal`, and nothing in
+the remote contract prevents it.
+`update food_log set kcal = 0 where local_date < '2026-01-01'` is accepted by the owner-scoped
+policy: `using` and `with check` constrain *which rows*, never *which columns*.
+
+**Two guarantees, different jobs — do not blur them.** "`food_log` stores `kcal`/`protein` directly"
+protects past logs from a **food edit**. That is the `CLAUDE.md` invariant, and it is airtight. It
+protects nothing against a direct write to a past row. What contains *that* today is that the client
+never issues such a write, and that last-write-wins means a remote rewrite only reaches the device if
+it carries a newer `updated_at`. **Client convention, not a database guarantee** — acceptable, but
+labelled as what it is.
+
+**What would change this.** If immutability ever needs real enforcement, the mechanism is
+column-level `grant update (deleted, updated_at, ...) on public.food_log to authenticated`:
+tombstones and edits keep working while `kcal`/`protein` become unwritable at the database. **It does
+not fit today**, because editing a log's amount legitimately recomputes `kcal`. It is still the shape
+of the answer, and it is the reason not to reach for a blanket revoke.
+
+The rule the whole section reduces to: **revoke what erases, constrain what edits.**
+
+In-repo copies: `supabase/README.md`, and the `DESTRUCTIVE_PRIVILEGES` / `GUARDED_ROLES` docblocks in
+`src/sync/contract/schema.test.ts`.
