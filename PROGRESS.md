@@ -83,3 +83,5 @@ For the sprint-by-sprint plan see [`README.md`](README.md); for open work see th
 - 2026-09-17  chore: add @expo/vector-icons dependency  (PR #139 closes #81)
 - 2026-09-17  feat: swipe-to-delete is a square trash button, and the row hides it at rest (issue #85)  (PR #140 closes #85)
 - 2026-09-17  feat: libraryByUsage query — never-blank library fallback (issue #96)  (PR #142 closes #96)
+- 2026-09-17  fix: revoke grant option for is not a revoke, and column/check names fold (issue #135)  (PR #144 closes #135)
+- 2026-09-18  feat: extract <SwipeToDelete> — DayLogRow becomes its first consumer (issue #141)  (PR #145 closes #141)
