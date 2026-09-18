@@ -149,6 +149,28 @@ export interface MealRef {
   name: string;
 }
 
+/**
+ * What `updateMeal` takes (issue #154). Either field can be omitted to leave it untouched.
+ * `items`, when given, fully replaces the live item set in one write — add, remove and
+ * change-qty are all "give me the new list": every currently-live item is tombstoned and every
+ * item here is inserted fresh. Rejects an empty array the same way `createMeal` rejects an empty
+ * `items` — a meal always needs at least one item while it is live.
+ */
+export interface MealPatch {
+  name?: string;
+  items?: readonly MealItemInput[];
+}
+
+/**
+ * What `deleteMeal` tombstoned (issue #154) — the item ids `restoreMeal` needs to bring back
+ * exactly those items, not any item already dead before the delete (say, one `updateMeal`
+ * removed earlier on purpose).
+ */
+export interface MealDeleteReceipt {
+  mealId: string;
+  itemIds: readonly string[];
+}
+
 /** One weigh-in, as `weightSummary` reports it. Weight in kg. */
 export interface WeighIn {
   localDate: LocalDate;

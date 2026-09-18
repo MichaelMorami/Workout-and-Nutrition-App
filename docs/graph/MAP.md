@@ -889,7 +889,7 @@ jq -r '.modules["src/db/queries/nutrition.ts"].exports[]' docs/graph/symbols.jso
 
 <sub>used by: `src/db/queries/catalog.ts`, `src/db/queries/nutrition.ts`, `src/db/queries/search.ts`</sub>
 
-### `src/db/index.ts`  <sub>90 lines</sub>
+### `src/db/index.ts`  <sub>96 lines</sub>
 
 - `class VitalsDbError`
 - `const DEFAULT_SETTINGS: SettingsInput`
@@ -907,6 +907,7 @@ jq -r '.modules["src/db/queries/nutrition.ts"].exports[]' docs/graph/symbols.jso
 - `function createFoodAndLog(db: VitalsDb, opts: When & { food: FoodInput; amount?: Amount; slot?: MealSlot }): { food: FoodRow; receipt: LogReceipt }`
 - `function createMeal(db: VitalsDb, opts: Stamp & { name: string; items: readonly MealItemInput[] }): MealDetail`
 - `function dayLog(db: VitalsDb, localDate: LocalDate): DayLogEntry[]`
+- `function deleteMeal(db: VitalsDb, opts: Stamp & { id: string }): MealDeleteReceipt`
 - `function getFood(db: VitalsDb, id: string): FoodRow | null`
 - `function getMeal(db: VitalsDb, id: string): MealDetail | null`
 - `function getSettings(db: VitalsDb): SettingsView`
@@ -921,6 +922,7 @@ jq -r '.modules["src/db/queries/nutrition.ts"].exports[]' docs/graph/symbols.jso
 - `function parseHourHistogram(text: string | null): HourHistogram`
 - `function quickAddCandidates(db: VitalsDb, opts: When & { limit?: number }): Candidate[]`
 - `function recentFoods(db: VitalsDb, opts: When & { days: number; limit?: number }): Candidate[]`
+- `function restoreMeal(db: VitalsDb, opts: Stamp & { mealId: string; itemIds: readonly string[] }): MealDetail`
 - `function searchFoods(db: VitalsDb, opts: When & { query: string; limit?: number }): Candidate[]`
 - `function searchFoodsOnly(db: VitalsDb, opts: When & { query: string; limit?: number }): FoodCandidate[]`
 - `function servingOf(food: ServingSource): FoodServing`
@@ -930,6 +932,7 @@ jq -r '.modules["src/db/queries/nutrition.ts"].exports[]' docs/graph/symbols.jso
 - `function undo(db: VitalsDb, opts: Stamp & { token: UndoToken }): void`
 - `function updateFood(db: VitalsDb, opts: Stamp & { id: string; patch: Partial<FoodInput> }): FoodRow`
 - `function updateLogEntry(db: VitalsDb, opts: Stamp & { id: string; amount?: Amount; slot?: MealSlot }): { entry: FoodLogRow; undo: UndoToken }`
+- `function updateMeal(db: VitalsDb, opts: Stamp & { id: string; patch: MealPatch }): MealDetail`
 - `function updateSettings(db: VitalsDb, opts: Stamp & Partial<SettingsInput>): SettingsView`
 - `function weightSummary(db: VitalsDb, localDate: LocalDate): WeightSummary`
 - `function withServing(food: T): T & FoodServing`
@@ -940,8 +943,10 @@ jq -r '.modules["src/db/queries/nutrition.ts"].exports[]' docs/graph/symbols.jso
 - `interface FoodServing`
 - `interface LogReceipt`
 - `interface MealCandidate`
+- `interface MealDeleteReceipt`
 - `interface MealDetail`
 - `interface MealItemInput`
+- `interface MealPatch`
 - `interface MealSummary`
 - `interface ServingPreset`
 - `interface SettingsInput`
@@ -1011,17 +1016,20 @@ _no exports_
 
 ## `src/db/queries/`
 
-### `src/db/queries/catalog.ts`  <sub>270 lines</sub>
+### `src/db/queries/catalog.ts`  <sub>394 lines</sub>
 
 - `function createFood(db: VitalsDb, opts: Stamp & { food: FoodInput }): FoodRow`
 - `function createMeal(db: VitalsDb, opts: Stamp & { name: string; items: readonly MealItemInput[] }): MealDetail`
+- `function deleteMeal(db: VitalsDb, opts: Stamp & { id: string }): MealDeleteReceipt`
 - `function getFood(db: VitalsDb, id: string): FoodRow | null`
 - `function getMeal(db: VitalsDb, id: string): MealDetail | null`
 - `function listFoods(db: VitalsDb, opts: { includeArchived?: boolean } = {}): FoodRow[]`
 - `function listMeals(db: VitalsDb): MealSummary[]`
 - `function mealsContainingFood(db: VitalsDb, foodId: string): MealRef[]`
+- `function restoreMeal(db: VitalsDb, opts: Stamp & { mealId: string; itemIds: readonly string[] }): MealDetail`
 - `function setFoodArchived(db: VitalsDb, opts: Stamp & { id: string; archived: boolean }): FoodRow`
 - `function updateFood(db: VitalsDb, opts: Stamp & { id: string; patch: Partial<FoodInput> }): FoodRow`
+- `function updateMeal(db: VitalsDb, opts: Stamp & { id: string; patch: MealPatch }): MealDetail`
 - `function validateFoodInput(input: FoodInput): void`
 
 <sub>used by: `src/db/queries/search.ts`</sub>
@@ -1129,7 +1137,7 @@ _no exports_
 
 ## `src/db/`
 
-### `src/db/types.ts`  <sub>176 lines</sub>
+### `src/db/types.ts`  <sub>198 lines</sub>
 
 - `interface DayLogEntry`
 - `interface DayTotals`
@@ -1137,8 +1145,10 @@ _no exports_
 - `interface FoodInput`
 - `interface LogReceipt`
 - `interface MealCandidate`
+- `interface MealDeleteReceipt`
 - `interface MealDetail`
 - `interface MealItemInput`
+- `interface MealPatch`
 - `interface MealRef`
 - `interface MealSummary`
 - `interface SettingsInput`
