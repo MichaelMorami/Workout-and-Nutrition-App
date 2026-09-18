@@ -12,10 +12,15 @@
 --   1. RLS is enabled, FORCEd and per-user, declared in the same statement block that creates the
 --      table. A policy added in a later migration leaves a window where the table is readable, and
 --      a table rebuild drops policies without a word.
---   2. There is no DELETE policy, and neither DELETE nor TRUNCATE is granted. Deletes are
---      tombstones (`deleted = 1`): a hard delete cannot be synced, because the absence of a row is
---      indistinguishable from a row that has not arrived yet. TRUNCATE is a separate privilege that
---      RLS does not police at all, so it is revoked by name (#147).
+--   2. There is no DELETE policy, and neither DELETE nor TRUNCATE is granted — to `authenticated`
+--      or to `anon`. Deletes are tombstones (`deleted = 1`): a hard delete cannot be synced,
+--      because the absence of a row is indistinguishable from a row that has not arrived yet.
+--      TRUNCATE is a separate privilege that RLS does not police at all, so it is revoked by name
+--      (#147), from both roles: Supabase's stock default privileges grant ALL on public tables to
+--      `anon` too, and the anon key ships inside the app bundle. The secret-key role is untouched
+--      on purpose — it bypasses RLS by design, and nothing in this repository uses it. (Its name is
+--      not written here: the secret-scan test in schema.test.ts fails on that literal anywhere
+--      under supabase/**, and the check is worth more than the sentence.)
 --   3. `updated_at` is a bigint the *device* wrote, and nothing here touches it — no DEFAULT, no
 --      `now()`, no trigger. Last-write-wins is decided by `src/sync`, which compares a device clock
 --      to a device clock; a server-stamped value would make every pull look newer than local and
@@ -72,10 +77,12 @@ create policy foods_update_own on public.foods
 
 -- No DELETE policy, and the grant is revoked as well: two locks, because losing history to a
 -- stray `.delete()` is the one failure the user cannot undo. Tombstone instead.
-revoke delete on public.foods from authenticated;
+revoke delete on public.foods from authenticated, anon;
 -- TRUNCATE is a separate privilege in Postgres: revoking DELETE leaves it untouched, and RLS does
 -- not apply to it at all. One statement would empty the catalogue. Revoked on its own line (#147).
-revoke truncate on public.foods from authenticated;
+-- Both revokes name `anon` as well: forced RLS is what makes the shipped anon key safe for SELECT,
+-- INSERT and UPDATE, and it buys nothing against TRUNCATE (PR #155 review).
+revoke truncate on public.foods from authenticated, anon;
 
 -- ---------------------------------------------------------------------------------------------
 -- food_log — facts about the past. Immutable nutrition, literal amounts, a local calendar day.
@@ -137,6 +144,6 @@ create policy food_log_update_own on public.food_log
   using (user_id = (select auth.uid()))
   with check (user_id = (select auth.uid()));
 
-revoke delete on public.food_log from authenticated;
+revoke delete on public.food_log from authenticated, anon;
 -- And TRUNCATE, which would take every log the user has ever written in one statement (#147).
-revoke truncate on public.food_log from authenticated;
+revoke truncate on public.food_log from authenticated, anon;

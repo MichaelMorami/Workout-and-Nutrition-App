@@ -56,13 +56,43 @@ const OWNER = 'user_id = (select auth.uid())';
  * *separate* Postgres privilege — revoking DELETE does not touch it — so a migration granting it,
  * directly or through `grant all privileges`, could erase `food_log` with the contract still green.
  *
- * UPDATE is deliberately absent. It can rewrite a historical `kcal`, which the immutability rule
- * forbids, but sync needs it to push an edit and to set a tombstone (`deleted = 1`), so revoking it
- * would break the replica for every user. History is kept immutable by `food_log` storing
- * `kcal`/`protein` directly — correcting a food never rewrites a past log — and by the owner-scoped
- * UPDATE policy asserted below. The full reasoning is recorded on issue #147.
+ * **UPDATE is deliberately absent, and that is a judgement, not an oversight.** UPDATE *can* rewrite
+ * a historical `kcal`: `update food_log set kcal = 0 where local_date < '2026-01-01'` passes the
+ * owner-scoped policy, because `using` and `with check` constrain which *rows* may be written, never
+ * which *columns*. Nothing in the remote contract prevents it. What contains it today is client
+ * convention — the app never issues such a write — plus last-write-wins, under which a remote
+ * rewrite only reaches the device if it carries a newer `updated_at`. That is a convention, not a
+ * database guarantee, and it is labelled as one here on purpose. The separate `CLAUDE.md` invariant
+ * that `food_log` stores `kcal`/`protein` directly is airtight but answers a different question: it
+ * protects past logs from a *food edit*, not from a direct write to a past row.
+ *
+ * Revoking UPDATE anyway would break sync: an already-synced row upserts as an UPDATE, and a
+ * tombstone *is* an UPDATE (`deleted = 1`, new `updated_at`). Push errors are swallowed by design,
+ * so the failure would be silent. If immutability ever needs real enforcement, the mechanism that
+ * fits without breaking sync is a column-level `grant update (deleted, updated_at, ...)`, not a
+ * blanket revoke. The full reasoning is recorded on issue #147.
+ *
+ * Known gap, deliberately not closed here (PR #155 review): **TRIGGER** is the one other plausibly
+ * destructive privilege, and `grant all privileges` hands it over. It lets the grantee attach a
+ * `before update` trigger that rewrites `NEW.kcal`. Closing it needs no new machinery — one more
+ * entry in this list — but reaching it also needs `create` on `public` and a function to point at,
+ * neither of which Supabase gives `authenticated`. REFERENCES and MAINTAIN were weighed and left
+ * out: neither can destroy or rewrite a row.
  */
 const DESTRUCTIVE_PRIVILEGES = ['delete', 'truncate'] as const;
+
+/**
+ * The roles the destructive-privilege check covers. Both are reachable from a shipped app: the anon
+ * key is in the bundle, and `authenticated` is one sign-in away from it.
+ *
+ * `anon` is not covered by "RLS is forced, so anon reaches no row" — TRUNCATE is not policed by RLS
+ * at all — and Supabase's stock `alter default privileges ... grant all on tables to anon,
+ * authenticated, service_role` means an unstated privilege is a held one (PR #155 review).
+ *
+ * `service_role` is left out on purpose: it is the secret key, it bypasses RLS by design, no code in
+ * this repository uses it, and restricting it here would prove nothing about the app.
+ */
+const GUARDED_ROLES = ['authenticated', 'anon'] as const;
 
 /**
  * Every RLS invariant as one pure check over a parsed migration set. The named tests below assert it
@@ -92,13 +122,16 @@ function rlsViolations(set: ParsedSql): string[] {
         }
       }
     }
-    // 'unstated' is not safe: Supabase's bootstrap grants broad privileges to authenticated, so only an
-    // explicit revoke that no later grant undoes is a guarantee. The violation names the privilege,
-    // so a reader of the failure knows which lock was opened.
-    for (const privilege of DESTRUCTIVE_PRIVILEGES) {
-      const state = set.privilegeState(name, 'authenticated', privilege);
-      if (state !== 'revoked') {
-        found.push(`${name}: ${privilege.toUpperCase()} is ${state} for authenticated`);
+    // 'unstated' is not safe: Supabase's bootstrap grants broad privileges to both guarded roles, so
+    // only an explicit revoke that no later grant undoes is a guarantee. The violation names the
+    // privilege *and* the role, so a reader of the failure knows exactly which lock was opened.
+    // `privilegeState` folds in what was granted to `public`, which every role is a member of.
+    for (const role of GUARDED_ROLES) {
+      for (const privilege of DESTRUCTIVE_PRIVILEGES) {
+        const state = set.privilegeState(name, role, privilege);
+        if (state !== 'revoked') {
+          found.push(`${name}: ${privilege.toUpperCase()} is ${state} for ${role}`);
+        }
       }
     }
     for (const command of ['delete', 'all'] as const) {
@@ -661,8 +694,8 @@ describe('a later migration that weakens RLS turns the suite red', () => {
  * weakenings against the TRUNCATE revoke, which is a separate statement and a separate privilege.
  */
 describe.each([
-  ['DELETE', 'revoke delete on public.food_log from authenticated;'],
-  ['TRUNCATE', 'revoke truncate on public.food_log from authenticated;'],
+  ['DELETE', 'revoke delete on public.food_log from authenticated, anon;'],
+  ['TRUNCATE', 'revoke truncate on public.food_log from authenticated, anon;'],
 ])('a missing %s revoke is noticed, even when its text is still in the file', (privilege, REVOKE) => {
   it.each([
     ['commented out', `-- ${REVOKE}`],
@@ -691,14 +724,15 @@ describe.each([
 describe.each([['DELETE', 'delete'], ['TRUNCATE', 'truncate']])(
   'a grant-option revoke does not stand in for a %s revoke',
   (privilege, lower) => {
-    const REVOKE = `revoke ${lower} on public.food_log from authenticated;`;
+    const REVOKE = `revoke ${lower} on public.food_log from authenticated, anon;`;
 
     it(`reports a ${privilege} grant when the revoke only takes the grant option away`, () => {
       const sql = read(contractFile());
       expect(sql).toContain(REVOKE);
       const weakened = sql.replace(
         REVOKE,
-        `grant ${lower} on public.food_log to authenticated; ` +
+        `revoke ${lower} on public.food_log from anon; ` +
+          `grant ${lower} on public.food_log to authenticated; ` +
           `revoke grant option for ${lower} on public.food_log from authenticated;`,
       );
       const set = parseMigrations([{ name: contractFile(), sql: weakened }]);
@@ -708,7 +742,9 @@ describe.each([['DELETE', 'delete'], ['TRUNCATE', 'truncate']])(
 
     it(`keeps the real file clean: every synced table revokes ${privilege} outright`, () => {
       for (const name of SYNCED_TABLES) {
-        expect(parsed().privilegeState(name, 'authenticated', lower)).toBe('revoked');
+        for (const role of GUARDED_ROLES) {
+          expect(parsed().privilegeState(name, role, lower)).toBe('revoked');
+        }
       }
       expect(rlsViolations(parsed())).toEqual([]);
     });
