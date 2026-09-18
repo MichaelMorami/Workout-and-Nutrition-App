@@ -74,4 +74,12 @@ describe('useUndoToastStore', () => {
     jest.advanceTimersByTime(interaction.undoCeilingMs - 1);
     expect(useUndoToastStore.getState().toast?.title).toBe('unrelated');
   });
+
+  // Issue #100: a food-archive delete has no `UndoToken` — `action` stands in for it, and
+  // `token`/`candidateKey`/`delta` are all optional so this payload shape is still valid.
+  it('accepts a token-less payload carrying only an action, for a reversal UndoToken cannot express', () => {
+    const action = jest.fn();
+    useUndoToastStore.getState().show({ title: 'Greek yoghurt', meta: 'Removed', verb: 'deleting', action });
+    expect(useUndoToastStore.getState().toast).toEqual({ title: 'Greek yoghurt', meta: 'Removed', verb: 'deleting', action });
+  });
 });
