@@ -458,8 +458,6 @@
         "src/components/format/food.ts",
         "src/components/shared/SwipeToDelete.tsx",
         "src/db/index.ts",
-        "src/db/queries/catalog.ts",
-        "src/db/types.ts",
         "src/hooks/deviceWhen.ts",
         "src/hooks/useHapticFeedback.ts",
         "src/store/undoToast.ts",
@@ -1177,7 +1175,6 @@
       ],
       "loc": 394,
       "importedBy": [
-        "src/components/food-list/FoodList.tsx",
         "src/db/queries/search.ts"
       ]
     },
@@ -1401,7 +1398,6 @@
       ],
       "loc": 198,
       "importedBy": [
-        "src/components/food-list/FoodList.tsx",
         "src/db/queries/catalog.ts",
         "src/db/queries/nutrition.ts",
         "src/db/queries/search.ts",

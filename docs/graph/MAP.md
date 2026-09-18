@@ -1045,7 +1045,7 @@ _no exports_
 - `function updateMeal(db: VitalsDb, opts: Stamp & { id: string; patch: MealPatch }): MealDetail`
 - `function validateFoodInput(input: FoodInput): void`
 
-<sub>used by: `src/components/food-list/FoodList.tsx`, `src/db/queries/search.ts`</sub>
+<sub>used by: `src/db/queries/search.ts`</sub>
 
 ### `src/db/queries/nutrition.ts`  <sub>568 lines</sub>
 
@@ -1179,7 +1179,7 @@ _no exports_
   | { kind: 'restore'; logIds: readonly string[] } // undoes softDeleteLogEntries
   | { kind: 'revert'; previous: readonly LogAmount[] }`
 
-<sub>used by: `src/components/food-list/FoodList.tsx`, `src/db/queries/catalog.ts`, `src/db/queries/nutrition.ts`, `src/db/queries/search.ts`, `src/db/queries/settings.ts`, `src/db/queries/weight.ts`</sub>
+<sub>used by: `src/db/queries/catalog.ts`, `src/db/queries/nutrition.ts`, `src/db/queries/search.ts`, `src/db/queries/settings.ts`, `src/db/queries/weight.ts`</sub>
 
 ### `src/db/usage.ts`  <sub>94 lines</sub>
 
