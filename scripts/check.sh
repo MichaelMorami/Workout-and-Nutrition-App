@@ -20,6 +20,7 @@ step "typecheck"  npx tsc --noEmit
 step "boundaries" ./scripts/boundaries.sh
 step "pr title rule" ./scripts/pr-title.test.sh
 step "worktree node_modules protection" ./scripts/worktree.test.sh
+step "review-graph PR checkout handling" ./scripts/review-graph.test.sh
 step "metro blockList excludes test files" ./scripts/metro-blocklist.test.sh
 
 if [ "$FAST" = 1 ]; then
