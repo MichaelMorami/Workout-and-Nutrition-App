@@ -42,6 +42,12 @@ export interface ParsedColumn {
   readonly default: string | null;
   /** The referenced table and column (`auth.users (id)`), or `null`. */
   readonly references: string | null;
+  /**
+   * `true` for an inline `unique` — the spelling these migrations use, and one that was recorded
+   * nowhere until #148's review. `primary key` is not reported here: it is a different constraint,
+   * and it is already on {@link ParsedTable.primaryKey}.
+   */
+  readonly unique: boolean;
 }
 
 export interface ParsedCheck {
@@ -69,7 +75,11 @@ export interface ParsedUnique {
 export interface ParsedForeignKey {
   readonly name: string | null;
   readonly columns: readonly string[];
-  /** The target as written, whitespace-normalised: `auth.users (id)`. */
+  /**
+   * The target, with every name folded the way Postgres folds it: `AUTH . USERS ( ID )` and
+   * `auth.users (id)` are the same table, so they record the same string and an equality assertion
+   * on this field means something (#148 review).
+   */
   readonly references: string;
 }
 
@@ -256,10 +266,12 @@ const bareName = (name: string): string => {
 const CONSTRAINT_NAME = `(?:constraint\\s+(${IDENTIFIER})\\s+)?`;
 const CHECK_CONSTRAINT = new RegExp(`^${CONSTRAINT_NAME}check\\s*\\(`, 'i');
 const PRIMARY_KEY_CONSTRAINT = new RegExp(`^${CONSTRAINT_NAME}primary\\s+key\\s*\\(`, 'i');
-const UNIQUE_CONSTRAINT = new RegExp(
-  `^${CONSTRAINT_NAME}unique\\s*(?:nulls\\s+(?:not\\s+)?distinct\\s*)?\\(`,
-  'i',
-);
+/**
+ * Plain `unique (…)` only. `nulls not distinct` rejects a second NULL row that plain `unique`
+ * accepts, so reading the two as the same shape would record semantics the table has not got; it is
+ * not in the pattern, so it falls through to the refusal below (#148 review).
+ */
+const UNIQUE_CONSTRAINT = new RegExp(`^${CONSTRAINT_NAME}unique\\s*\\(`, 'i');
 const FOREIGN_KEY_CONSTRAINT = new RegExp(`^${CONSTRAINT_NAME}foreign\\s+key\\s*\\(`, 'i');
 
 /**
@@ -514,6 +526,9 @@ function parseColumn(item: string): ParsedColumn {
     notNull: /\bnot\s+null\b/i.test(rest) || /\bprimary\s+key\b/i.test(rest),
     default: defaultMatch?.[1]?.trim() ?? null,
     references: referencesMatch?.[1]?.trim() ?? null,
+    // Read the same way `primary key` is, and blind in the same one way: a literal `default 'unique'`
+    // would trip it. That is the existing limitation of scanning `rest`, not a new one (#148 review).
+    unique: /\bunique\b/i.test(rest),
   };
 }
 
@@ -590,10 +605,11 @@ function readTableConstraint(item: string, into: TableConstraints, where: string
     const { body, tail } = constraintParens(item, foreignKey);
     const target = FOREIGN_KEY_TARGET.exec(tail);
     if (!target) throw refusal('foreign key target this reader does not read');
+    const targetColumns = target[2] === undefined ? '' : ` (${constraintColumns(target[2].slice(1, -1)).join(', ')})`;
     into.foreignKeys.push({
       name: constraintName(foreignKey),
       columns: constraintColumns(body),
-      references: squash(`${target[1] as string} ${target[2] ?? ''}`),
+      references: `${nameParts(target[1] as string).join('.')}${targetColumns}`,
     });
     return;
   }
@@ -904,10 +920,11 @@ const CREATE_INDEX =
   /^create\s+(?:unique\s+)?index\s+(?:concurrently\s+)?(?:if\s+not\s+exists\s+)?[\w".]+\s+on\s+[\w".]+\s*\(/is;
 /**
  * `drop policy [if exists] <name> on <table>`. Both names are whole identifiers (#148): the old
- * `[\w"]+` was the last pattern in this reader that was not one — it could not read `"my policy"` or
- * `public . t` at all, and it happily accepted `a"b`, a name Postgres cannot produce. A drop the
- * reader mis-keys leaves a permissive policy standing in the parse, or removes one that is still
- * there. A name this cannot read whole leaves the statement unmatched, and it is rejected.
+ * `[\w"]+` was the last pattern in this reader that was not one, and it could not read `"my policy"`
+ * or `public . t` at all — a drop the reader cannot see leaves a policy standing in the parse that is
+ * gone from the database. (It also captured shapes no identifier takes, such as `a"b`, though
+ * `bareName` threw on those rather than mis-keying them.) A name this cannot read whole leaves the
+ * statement unmatched, and an unmatched statement is rejected.
  */
 const DROP_POLICY = new RegExp(
   `^drop\\s+policy\\s+(?:if\\s+exists\\s+)?(${IDENTIFIER})\\s+on\\s+(${QUALIFIED_NAME})$`,
