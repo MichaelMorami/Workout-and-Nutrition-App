@@ -173,8 +173,11 @@ describe('volume food edit -> save round-trip (data layer)', () => {
     expect(saved.servingMl).toBe(expected.servingMl);
     expect(saved.servingGrams).toBe(expected.servingGrams);
 
+    // Destructured rather than passed whole: `toMatchObject` wants an index-signature type, and
+    // `FoodServing` is a closed interface (see `src/db/foods-basis.test.ts`'s own note on this).
+    const { kcalPerServing, proteinPerServing, servingMl, servingGrams } = expected;
     const reread = getFood(handle, created.id)!;
-    expect(reread).toMatchObject(expected);
+    expect(reread).toMatchObject({ kcalPerServing, proteinPerServing, servingMl, servingGrams });
   });
 
   it('never rewrites an already-logged entry — history stays immutable through the edit', () => {
