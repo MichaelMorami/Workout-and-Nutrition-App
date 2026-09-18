@@ -27,20 +27,20 @@
  * is in no saved meal. This is deliberately the *toast*'s job, not a second dialog: the ruling on
  * #100 only requires the user be told, not stopped.
  *
- * A TEMPORARY DEEP IMPORT, FLAGGED FOR db-engineer. `mealsContainingFood` and `MealRef` (issue
- * #153, PR #156) are implemented and tested in `src/db/queries/catalog.ts` / `src/db/types.ts`, but
- * neither is re-exported from the `src/db` barrel (`src/db/index.ts`) yet — every other symbol this
- * file needs comes from `../../db` as the module's own contract requires. `src/db/index.ts` is
- * db-engineer's file, not `ui-engineer`'s, so this file reaches around the barrel for just these
- * two names rather than editing it — see the PR body for the one-line fix this is waiting on.
+ * `mealsContainingFood` and `MealRef` (issue #153, PR #156) now come from the `src/db` barrel like
+ * every other symbol this file needs (issue #164, PR #170 re-exported them) — the deep import this
+ * file used to reach past the barrel for is gone (issue #167).
  */
 import { useState } from 'react';
 import { FlatList, Pressable, StyleSheet, Text, View, type AccessibilityActionEvent, type TextStyle } from 'react-native';
-import { setFoodArchived, VitalsDbError, type FoodRow, type VitalsDb } from '../../db';
-// TEMPORARY: see the module note above. `mealsContainingFood`/`MealRef` are not yet re-exported
-// from the `../../db` barrel — this reaches past it for just these two names (issue #100).
-import { mealsContainingFood } from '../../db/queries/catalog';
-import type { MealRef } from '../../db/types';
+import {
+  mealsContainingFood,
+  setFoodArchived,
+  VitalsDbError,
+  type FoodRow,
+  type MealRef,
+  type VitalsDb,
+} from '../../db';
 import { deviceWhen } from '../../hooks/deviceWhen';
 import { useHapticFeedback } from '../../hooks/useHapticFeedback';
 import { formatGrams } from '../format/food';

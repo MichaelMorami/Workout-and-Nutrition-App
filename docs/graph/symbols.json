@@ -1,6 +1,6 @@
 {
   "generated": "scripts/graph-gen.mjs — do not edit by hand",
-  "moduleCount": 87,
+  "moduleCount": 86,
   "modules": {
     "app/(tabs)/_layout.tsx": {
       "exports": [
@@ -458,8 +458,6 @@
         "src/components/format/food.ts",
         "src/components/shared/SwipeToDelete.tsx",
         "src/db/index.ts",
-        "src/db/queries/catalog.ts",
-        "src/db/types.ts",
         "src/hooks/deviceWhen.ts",
         "src/hooks/useHapticFeedback.ts",
         "src/store/undoToast.ts",
@@ -555,28 +553,18 @@
       "exports": [
         "function MealForm({ db, initial, onSave, onCancel, locale, theme, testID = 'meal-form' }: MealFormProps): import(\"react\").JSX.Element",
         "function MealList({ db, meals, onSelect, onCreate, locale, theme, testID = 'meal-list' }: MealListProps): import(\"react\").JSX.Element",
-        "function candidateForMeal(meal: MealSummary): MealCandidate",
         "type MealFormInitial = {\n  readonly name: string;\n  readonly items: readonly { readonly id: string; readonly name: string; readonly qty: number }[];\n}",
         "type MealFormProps = {\n  readonly db: VitalsDb;\n  /** `undefined`/`null` — a fresh meal, blank name, no ingredients. Given — an edit, pre-filled at\n   * exactly what the meal currently holds (issue #101). */\n  readonly initial?: MealFormInitial | null;\n  readonly onSave: (values: MealFormValues) => void;\n  readonly onCancel: () => void;\n  /** Formatting locale for the dropdown's kcal/protein fi...",
         "type MealFormValues = { readonly name: string; readonly items: readonly MealItemInput[] }",
         "type MealListProps = {\n  readonly db: VitalsDb;\n  readonly meals: readonly MealSummary[];\n  /** Tapping a row calls this with the meal to edit — the caller navigates to `/meals/[id]`. */\n  readonly onSelect: (meal: MealSummary) => void;\n  readonly onCreate: () => void;\n  readonly locale?: string;\n  readonly theme: Theme;\n  readonly testID?: string;\n}"
       ],
       "imports": [],
-      "loc": 4,
+      "loc": 3,
       "importedBy": [
         "app/meals/[id].tsx",
         "app/meals/index.tsx",
         "app/meals/new.tsx"
       ]
-    },
-    "src/components/meals/meal-candidate.ts": {
-      "exports": [
-        "function candidateForMeal(meal: MealSummary): MealCandidate"
-      ],
-      "imports": [
-        "src/db/index.ts"
-      ],
-      "loc": 22
     },
     "src/components/quick-add/PortionSheet.tsx": {
       "exports": [
@@ -1089,7 +1077,6 @@
         "src/components/food-list/FoodList.tsx",
         "src/components/meals/MealForm.tsx",
         "src/components/meals/MealList.tsx",
-        "src/components/meals/meal-candidate.ts",
         "src/components/quick-add/PortionSheet.tsx",
         "src/components/quick-add/QuickAddGrid.tsx",
         "src/components/quick-add/QuickAddTile.tsx",
@@ -1177,7 +1164,6 @@
       ],
       "loc": 394,
       "importedBy": [
-        "src/components/food-list/FoodList.tsx",
         "src/db/queries/search.ts"
       ]
     },
@@ -1401,7 +1387,6 @@
       ],
       "loc": 198,
       "importedBy": [
-        "src/components/food-list/FoodList.tsx",
         "src/db/queries/catalog.ts",
         "src/db/queries/nutrition.ts",
         "src/db/queries/search.ts",
