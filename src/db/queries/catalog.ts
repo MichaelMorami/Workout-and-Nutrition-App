@@ -11,7 +11,7 @@ import { newId } from '../ids';
 import type { Stamp } from '../local-time';
 import { foods, mealItems, meals, type MealItemRow, type MealRow, type NewFoodRow, type NewMealRow } from '../schema';
 import { servingOf, withServing } from '../servings';
-import type { FoodInput, FoodRow, MealDetail, MealItemInput, MealRef, MealSummary } from '../types';
+import type { FoodInput, FoodRow, MealDeleteReceipt, MealDetail, MealItemInput, MealPatch, MealRef, MealSummary } from '../types';
 
 // ---------------------------------------------------------------------------------------------
 // Foods — createFood, updateFood, setFoodArchived, getFood, listFoods.
@@ -247,6 +247,130 @@ export function getMeal(db: VitalsDb, id: string): MealDetail | null {
 
   const items = liveMealItemsWithFood(db, id);
   return { ...summaryOf(meal, items), items };
+}
+
+// ---------------------------------------------------------------------------------------------
+// updateMeal, deleteMeal, restoreMeal — issue #154, the data-layer slice of #101: rename and/or
+// replace a meal's items, and tombstone (never remove) a meal on delete, with an undo path.
+// ---------------------------------------------------------------------------------------------
+
+/**
+ * Patches a meal: rename and/or replace its item set in one transaction. `patch.items`, when
+ * given, fully replaces the live set — every currently-live item is tombstoned (not removed) and
+ * every item in `patch.items` is inserted fresh, so add, remove and change-qty are all the same
+ * write. Omitting `items` leaves the meal's items untouched. Always bumps `updated_at`, even for
+ * a rename-only or otherwise empty patch. Never touches `food_log` — a row logged from this meal
+ * already holds its own literal `kcal`/`protein` (invariant: history is immutable).
+ */
+export function updateMeal(db: VitalsDb, opts: Stamp & { id: string; patch: MealPatch }): MealDetail {
+  const { patch } = opts;
+  if (patch.name !== undefined && patch.name.trim().length === 0) {
+    throw new VitalsDbError('invalid_input', 'name must not be empty');
+  }
+  if (patch.items !== undefined) {
+    if (patch.items.length === 0) throw new VitalsDbError('empty_meal', 'a meal needs at least one item');
+    for (const item of patch.items) {
+      if (item.qty <= 0) throw new VitalsDbError('invalid_input', 'qty must be > 0');
+    }
+  }
+
+  return db.transaction((tx) => {
+    const current = tx.select().from(meals).where(eq(meals.id, opts.id)).get();
+    if (!current || current.deleted === 1) throw new VitalsDbError('not_found', `meal ${opts.id} not found`);
+
+    if (patch.items !== undefined) {
+      for (const item of patch.items) {
+        const food = tx.select().from(foods).where(eq(foods.id, item.foodId)).get();
+        if (!food || food.deleted === 1) throw new VitalsDbError('not_found', `food ${item.foodId} not found`);
+      }
+
+      tx.update(mealItems)
+        .set({ deleted: 1, updatedAt: opts.at })
+        .where(and(eq(mealItems.mealId, opts.id), eq(mealItems.deleted, 0)))
+        .run();
+      tx.insert(mealItems)
+        .values(
+          patch.items.map((item) => ({
+            id: newId(),
+            updatedAt: opts.at,
+            deleted: 0,
+            mealId: opts.id,
+            foodId: item.foodId,
+            qty: item.qty,
+          })),
+        )
+        .run();
+    }
+
+    tx.update(meals)
+      .set({ name: patch.name ?? current.name, updatedAt: opts.at })
+      .where(eq(meals.id, opts.id))
+      .run();
+
+    const updatedMeal = tx.select().from(meals).where(eq(meals.id, opts.id)).get();
+    if (!updatedMeal) throw new Error(`unreachable: meal ${opts.id} was just updated`);
+    const items = liveMealItemsWithFood(tx, opts.id);
+    return { ...summaryOf(updatedMeal, items), items };
+  });
+}
+
+/**
+ * Tombstones a meal and its live items in one transaction — never a row removal. Never touches
+ * `food_log`: a row logged from this meal already holds its own literal `kcal`/`protein`
+ * (invariant: history is immutable), so deleting the meal it came from changes nothing about the
+ * past. Returns the item ids it tombstoned, which `restoreMeal` needs to undo exactly this call —
+ * not any item that was already dead before it (say, one `updateMeal` removed on purpose).
+ */
+export function deleteMeal(db: VitalsDb, opts: Stamp & { id: string }): MealDeleteReceipt {
+  return db.transaction((tx) => {
+    const current = tx.select().from(meals).where(eq(meals.id, opts.id)).get();
+    if (!current || current.deleted === 1) throw new VitalsDbError('not_found', `meal ${opts.id} not found`);
+
+    const liveItems = tx
+      .select({ id: mealItems.id })
+      .from(mealItems)
+      .where(and(eq(mealItems.mealId, opts.id), eq(mealItems.deleted, 0)))
+      .all();
+
+    tx.update(meals).set({ deleted: 1, updatedAt: opts.at }).where(eq(meals.id, opts.id)).run();
+    if (liveItems.length > 0) {
+      tx.update(mealItems)
+        .set({ deleted: 1, updatedAt: opts.at })
+        .where(and(eq(mealItems.mealId, opts.id), eq(mealItems.deleted, 0)))
+        .run();
+    }
+
+    return { mealId: opts.id, itemIds: liveItems.map((i) => i.id) };
+  });
+}
+
+/**
+ * Undoes `deleteMeal`: restores the meal and exactly the item ids given — that call's own
+ * `itemIds`, never every tombstoned item under the meal, which could include ones an earlier
+ * `updateMeal` removed on purpose. Idempotent: a meal that is already live is left untouched, so
+ * a duplicate undo (a double-tapped toast) bumps nothing. Throws `not_found` only when the meal
+ * id never existed at all.
+ */
+export function restoreMeal(db: VitalsDb, opts: Stamp & { mealId: string; itemIds: readonly string[] }): MealDetail {
+  return db.transaction((tx) => {
+    const current = tx.select().from(meals).where(eq(meals.id, opts.mealId)).get();
+    if (!current) throw new VitalsDbError('not_found', `meal ${opts.mealId} not found`);
+
+    if (current.deleted === 1) {
+      tx.update(meals).set({ deleted: 0, updatedAt: opts.at }).where(eq(meals.id, opts.mealId)).run();
+    }
+    for (const itemId of opts.itemIds) {
+      tx.update(mealItems)
+        .set({ deleted: 0, updatedAt: opts.at })
+        .where(and(eq(mealItems.id, itemId), eq(mealItems.mealId, opts.mealId), eq(mealItems.deleted, 1)))
+        .run();
+    }
+
+    const restoredMeal = tx.select().from(meals).where(eq(meals.id, opts.mealId)).get();
+    if (!restoredMeal) throw new Error(`unreachable: meal ${opts.mealId} was just restored`);
+    const items = liveMealItemsWithFood(tx, opts.mealId);
+    return { ...summaryOf(restoredMeal, items), items };
+  });
 }
 
 // ---------------------------------------------------------------------------------------------

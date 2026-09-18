@@ -616,7 +616,9 @@ describe('updateMeal', () => {
 
     const updated = updateMeal(db, { at: 2_000, id: meal.id, patch: { name: 'New name' } });
 
-    expect(updated).toMatchObject({ name: 'New name', updatedAt: 2_000, itemCount: 1, kcal: 200, protein: 20 });
+    expect(updated).toMatchObject({ name: 'New name', itemCount: 1, kcal: 200, protein: 20 });
+    const mealRow = db.select().from(schema.meals).where(eq(schema.meals.id, meal.id)).get();
+    expect(mealRow).toMatchObject({ updatedAt: 2_000 });
     const itemRow = db.select().from(schema.mealItems).where(eq(schema.mealItems.id, item.id)).get();
     expect(itemRow).toMatchObject({ deleted: 0, updatedAt: 1_000 });
   });
@@ -677,8 +679,9 @@ describe('updateMeal', () => {
     const meal = makeMeal({ updatedAt: 1_000 });
     db.insert(schema.meals).values(meal).run();
 
-    const updated = updateMeal(db, { at: 2_000, id: meal.id, patch: {} });
-    expect(updated.updatedAt).toBe(2_000);
+    updateMeal(db, { at: 2_000, id: meal.id, patch: {} });
+    const mealRow = db.select().from(schema.meals).where(eq(schema.meals.id, meal.id)).get();
+    expect(mealRow).toMatchObject({ updatedAt: 2_000 });
   });
 
   it('throws empty_meal when the items patch is empty, and changes nothing', () => {
@@ -837,8 +840,8 @@ describe('deleteMeal', () => {
     const timeZone = 'America/Los_Angeles';
     const food = makeFood();
     db.insert(schema.foods).values(food).run();
-    const meal = makeMeal({ name: 'Post-gym shake', useCount: 1, lastUsedAt: at });
-    db.insert(schema.meals).values(meal).run();
+    const meal = makeMeal({ name: 'Post-gym shake' });
+    db.insert(schema.meals).values({ ...meal, useCount: 1, lastUsedAt: at }).run();
     db.insert(schema.mealItems).values(makeMealItem({ mealId: meal.id, foodId: food.id })).run();
 
     deleteMeal(db, { at: at + 1, id: meal.id });

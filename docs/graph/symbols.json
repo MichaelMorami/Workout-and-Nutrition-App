@@ -964,6 +964,7 @@
         "function createFoodAndLog(db: VitalsDb, opts: When & { food: FoodInput; amount?: Amount; slot?: MealSlot }): { food: FoodRow; receipt: LogReceipt }",
         "function createMeal(db: VitalsDb, opts: Stamp & { name: string; items: readonly MealItemInput[] }): MealDetail",
         "function dayLog(db: VitalsDb, localDate: LocalDate): DayLogEntry[]",
+        "function deleteMeal(db: VitalsDb, opts: Stamp & { id: string }): MealDeleteReceipt",
         "function getFood(db: VitalsDb, id: string): FoodRow | null",
         "function getMeal(db: VitalsDb, id: string): MealDetail | null",
         "function getSettings(db: VitalsDb): SettingsView",
@@ -978,6 +979,7 @@
         "function parseHourHistogram(text: string | null): HourHistogram",
         "function quickAddCandidates(db: VitalsDb, opts: When & { limit?: number }): Candidate[]",
         "function recentFoods(db: VitalsDb, opts: When & { days: number; limit?: number }): Candidate[]",
+        "function restoreMeal(db: VitalsDb, opts: Stamp & { mealId: string; itemIds: readonly string[] }): MealDetail",
         "function searchFoods(db: VitalsDb, opts: When & { query: string; limit?: number }): Candidate[]",
         "function searchFoodsOnly(db: VitalsDb, opts: When & { query: string; limit?: number }): FoodCandidate[]",
         "function servingOf(food: ServingSource): FoodServing",
@@ -987,6 +989,7 @@
         "function undo(db: VitalsDb, opts: Stamp & { token: UndoToken }): void",
         "function updateFood(db: VitalsDb, opts: Stamp & { id: string; patch: Partial<FoodInput> }): FoodRow",
         "function updateLogEntry(db: VitalsDb, opts: Stamp & { id: string; amount?: Amount; slot?: MealSlot }): { entry: FoodLogRow; undo: UndoToken }",
+        "function updateMeal(db: VitalsDb, opts: Stamp & { id: string; patch: MealPatch }): MealDetail",
         "function updateSettings(db: VitalsDb, opts: Stamp & Partial<SettingsInput>): SettingsView",
         "function weightSummary(db: VitalsDb, localDate: LocalDate): WeightSummary",
         "function withServing(food: T): T & FoodServing",
@@ -997,8 +1000,10 @@
         "interface FoodServing",
         "interface LogReceipt",
         "interface MealCandidate",
+        "interface MealDeleteReceipt",
         "interface MealDetail",
         "interface MealItemInput",
+        "interface MealPatch",
         "interface MealSummary",
         "interface ServingPreset",
         "interface SettingsInput",
@@ -1035,7 +1040,7 @@
         "type VitalsSchema = typeof schema"
       ],
       "imports": [],
-      "loc": 90,
+      "loc": 96,
       "importedBy": [
         "app/(tabs)/index.tsx",
         "app/foods/[id].tsx",
@@ -1116,13 +1121,16 @@
       "exports": [
         "function createFood(db: VitalsDb, opts: Stamp & { food: FoodInput }): FoodRow",
         "function createMeal(db: VitalsDb, opts: Stamp & { name: string; items: readonly MealItemInput[] }): MealDetail",
+        "function deleteMeal(db: VitalsDb, opts: Stamp & { id: string }): MealDeleteReceipt",
         "function getFood(db: VitalsDb, id: string): FoodRow | null",
         "function getMeal(db: VitalsDb, id: string): MealDetail | null",
         "function listFoods(db: VitalsDb, opts: { includeArchived?: boolean } = {}): FoodRow[]",
         "function listMeals(db: VitalsDb): MealSummary[]",
         "function mealsContainingFood(db: VitalsDb, foodId: string): MealRef[]",
+        "function restoreMeal(db: VitalsDb, opts: Stamp & { mealId: string; itemIds: readonly string[] }): MealDetail",
         "function setFoodArchived(db: VitalsDb, opts: Stamp & { id: string; archived: boolean }): FoodRow",
         "function updateFood(db: VitalsDb, opts: Stamp & { id: string; patch: Partial<FoodInput> }): FoodRow",
+        "function updateMeal(db: VitalsDb, opts: Stamp & { id: string; patch: MealPatch }): MealDetail",
         "function validateFoodInput(input: FoodInput): void"
       ],
       "imports": [
@@ -1135,7 +1143,7 @@
         "src/db/servings.ts",
         "src/db/types.ts"
       ],
-      "loc": 270,
+      "loc": 394,
       "importedBy": [
         "src/db/queries/search.ts"
       ]
@@ -1334,8 +1342,10 @@
         "interface FoodInput",
         "interface LogReceipt",
         "interface MealCandidate",
+        "interface MealDeleteReceipt",
         "interface MealDetail",
         "interface MealItemInput",
+        "interface MealPatch",
         "interface MealRef",
         "interface MealSummary",
         "interface SettingsInput",
@@ -1356,7 +1366,7 @@
         "src/db/schema.ts",
         "src/db/servings.ts"
       ],
-      "loc": 176,
+      "loc": 198,
       "importedBy": [
         "src/db/queries/catalog.ts",
         "src/db/queries/nutrition.ts",

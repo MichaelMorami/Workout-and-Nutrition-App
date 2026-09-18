@@ -42,8 +42,10 @@ export type {
   LogAmount,
   LogReceipt,
   MealCandidate,
+  MealDeleteReceipt,
   MealDetail,
   MealItemInput,
+  MealPatch,
   MealSummary,
   SettingsInput,
   SettingsView,
@@ -69,16 +71,20 @@ export {
 } from './queries/nutrition';
 
 // Catalogue and meals — createFood/updateFood/setFoodArchived/getFood/listFoods and
-// createMeal/listMeals/getMeal (#36).
+// createMeal/listMeals/getMeal (#36). updateMeal/deleteMeal/restoreMeal (#154): rename and/or
+// replace a meal's items, tombstone (never remove) on delete, and undo it.
 export {
   createFood,
   createMeal,
+  deleteMeal,
   getFood,
   getMeal,
   listFoods,
   listMeals,
+  restoreMeal,
   setFoodArchived,
   updateFood,
+  updateMeal,
 } from './queries/catalog';
 
 // The Today weight chip (#36).
