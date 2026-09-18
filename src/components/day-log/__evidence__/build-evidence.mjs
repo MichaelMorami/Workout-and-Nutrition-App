@@ -6,8 +6,14 @@
  * itself uses — so the picture is evidence about these components, not a second implementation of
  * them. Same discipline as `src/components/today/__evidence__/build-evidence.mjs`.
  *
- * Three states, per theme: a populated log, a row mid-swipe with Delete revealed, and the empty
- * state a day with nothing logged yet shows.
+ * Three states, per theme: a populated log, a row mid-swipe with the square trash button revealed,
+ * and the empty state a day with nothing logged yet shows.
+ *
+ * THE DELETE ICON IS A STAND-IN. `SwipeToDelete.tsx` draws `glyph.delete` (`Ionicons` "trash") —
+ * Chrome headless has no Ionicons font loaded, so the button below shows the same square, the same
+ * `state.danger` fill and the same `size.deleteButton.side`/`radius.sm` geometry, with a plain
+ * unicode glyph standing in for the icon. Same stand-in `src/components/food-list/__evidence__/
+ * build-evidence.mjs` uses for the same button.
  *
  * Run: node src/components/day-log/__evidence__/build-evidence.mjs
  * (Node >= 23.6 — imports the .ts sources directly via native type stripping.)
@@ -17,7 +23,7 @@ import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { size, space, themes, type as typeTokens } from '../../../theme/tokens.ts';
+import { radius, size, space, themes, type as typeTokens } from '../../../theme/tokens.ts';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const CHROME = '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
@@ -44,21 +50,25 @@ const ROWS = [
   { name: 'Chicken & rice', kcal: 640, protein: 52, localMinute: 780 },
 ];
 
-/** One row, matching `DayLogRow.tsx`'s own markup: time · name · kcal · protein, with the Delete
- * pane always mounted underneath, just covered — `reveal` slides the front layer left to show it,
- * the same effect the row's own `PanResponder`-driven `offset` produces on a real swipe. */
+/** One row, matching `DayLogRow.tsx`'s own markup: time · name · kcal · protein, with the delete
+ * layer always mounted underneath, just covered — `reveal` slides the front layer left by
+ * `DELETE_SLIDE_WIDTH` (`SwipeToDelete.tsx`'s own `deleteButton.gap + deleteButton.side`) to show
+ * it, the same effect the row's own `PanResponder`-driven `offset` produces on a real swipe. The
+ * button drawn underneath is `SwipeToDelete.tsx`'s own square button — its size, corner, fill and
+ * icon tint all come from that component's tokens, not a second implementation of it. */
 function row(theme, entry, { reveal = false } = {}) {
-  const { logRow } = theme.color;
-  const deletePaneWidth = size.tapTargetMin + space[5];
-  const translateX = reveal ? -deletePaneWidth : 0;
+  const { logRow, state, text: textColor } = theme.color;
+  const { deleteButton: db } = size;
+  const slideWidth = db.gap + db.side;
+  const translateX = reveal ? -slideWidth : 0;
   const kcalText = Math.round(entry.kcal).toLocaleString(LOCALE);
   const proteinText = Math.round(entry.protein).toLocaleString(LOCALE);
 
   return `
   <div class="row-wrap" style="height:${size.row.logHit}px">
-    <div class="back-layer">
-      <div class="delete-action" style="width:${deletePaneWidth}px;min-height:${size.tapTargetMin}px">
-        <span style="${font(typeTokens.label)}color:${logRow.deleteText}">Delete</span>
+    <div class="back-layer" style="opacity:${reveal ? 1 : 0}">
+      <div class="delete-btn" style="width:${db.side}px;height:${db.side}px;border-radius:${radius.sm}px;background:${state.danger}">
+        <span style="color:${textColor.onDanger};font-size:${size.icon.deleteAction}px;line-height:1">🗑</span>
       </div>
     </div>
     <div class="front" style="transform:translateX(${translateX}px);min-height:${size.row.logHit}px;
@@ -120,9 +130,8 @@ function page(theme) {
     .list { width:100%; box-sizing:border-box; border-radius:18px; padding:${space[5]}px;
             display:flex; flex-direction:column; gap:${space[3]}px; overflow:hidden; }
     .row-wrap { position:relative; width:100%; overflow:hidden; }
-    .back-layer { position:absolute; inset:0; display:flex; justify-content:flex-end; align-items:stretch;
-                  background:${theme.color.state.danger}22; }
-    .delete-action { display:flex; align-items:center; justify-content:center; }
+    .back-layer { position:absolute; inset:0; display:flex; justify-content:flex-end; align-items:center; }
+    .delete-btn { display:flex; align-items:center; justify-content:center; box-sizing:border-box; }
     .front { position:relative; display:flex; align-items:center; gap:${space[2]}px;
               padding:0 ${space[1]}px; background:${theme.color.bg.canvas}; transition:none; }
     .name { flex:1; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
