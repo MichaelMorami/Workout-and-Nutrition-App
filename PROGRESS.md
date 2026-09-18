@@ -90,3 +90,5 @@ For the sprint-by-sprint plan see [`README.md`](README.md); for open work see th
 - 2026-09-18  docs: grant a narrow mock carve-out to the ownership rule (issue #143)  (PR #152 closes #143)
 - 2026-09-18  feat: mealsContainingFood — which saved meals still log an archived food (issue #153)  (PR #156 closes #153)
 - 2026-09-18  fix: revoke TRUNCATE and assert it, on every synced table (issue #147)  (PR #155 closes #147)
+- 2026-09-18  feat: updateMeal, deleteMeal and restoreMeal — the data-layer slice of #101 (issue #154)  (PR #157 closes #154)
+- 2026-09-18  docs: record the UPDATE and destructive-privilege decision (issue #158)  (PR #159 closes #158)

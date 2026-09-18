@@ -117,4 +117,59 @@ describe('<UndoToast>', () => {
     expect(mockForgetLog).not.toHaveBeenCalled();
     expect(onUndo).not.toHaveBeenCalled();
   });
+
+  // Issue #100: a food-archive delete's undo is `action`, not `undo(db, { token })` — see
+  // `undoToast.ts`'s own doc comment for why the payload allows this.
+  describe('a payload carrying action instead of token (issue #100)', () => {
+    const archivePayload = (overrides: Partial<UndoToastPayload> = {}): UndoToastPayload => ({
+      title: 'Greek yoghurt',
+      meta: 'Removed',
+      verb: 'deleting',
+      action: jest.fn(),
+      ...overrides,
+    });
+
+    it('reads verb into the Undo button label instead of the default "logging"', async () => {
+      useUndoToastStore.getState().show(archivePayload());
+      await renderToast();
+
+      expect(screen.getByTestId('toast-undo').props.accessibilityLabel).toBe('Undo deleting Greek yoghurt');
+    });
+
+    it('tapping Undo calls action instead of undo(), never forgets a candidate, and still dismisses', async () => {
+      const action = jest.fn();
+      useUndoToastStore.getState().show(archivePayload({ action }));
+      await renderToast();
+
+      await fireEvent.press(screen.getByTestId('toast-undo'));
+
+      expect(action).toHaveBeenCalledTimes(1);
+      expect(mockUndo).not.toHaveBeenCalled();
+      expect(mockForgetLog).not.toHaveBeenCalled();
+      expect(useUndoToastStore.getState().toast).toBeNull();
+      expect(mockImpact).toHaveBeenCalledTimes(1);
+    });
+
+    it('a thrown action is swallowed the same way a failed undo() is: the toast stays up', async () => {
+      const action = jest.fn(() => {
+        throw new VitalsDbError('not_found', 'already gone');
+      });
+      useUndoToastStore.getState().show(archivePayload({ action }));
+      await renderToast();
+
+      await expect(fireEvent.press(screen.getByTestId('toast-undo'))).resolves.not.toThrow();
+
+      expect(useUndoToastStore.getState().toast).not.toBeNull();
+    });
+
+    it('never calls onUndo — there is no delta to subtract from a running total', async () => {
+      const onUndo = jest.fn();
+      useUndoToastStore.getState().show(archivePayload());
+      await renderToast({ onUndo });
+
+      await fireEvent.press(screen.getByTestId('toast-undo'));
+
+      expect(onUndo).not.toHaveBeenCalled();
+    });
+  });
 });

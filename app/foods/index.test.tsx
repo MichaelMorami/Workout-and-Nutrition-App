@@ -13,6 +13,9 @@ import { listFoods, withServing, type FoodRow } from '../../src/db';
 import { themes } from '../../src/theme/tokens';
 import FoodsScreen from './index';
 
+// `<UndoToast>` (issue #100) pulls in `<QuickAddGrid>`'s reanimated-based `<QuickAddTile>` —
+// `/meals/index.test.tsx` mocks reanimated for the exact same reason, mounting the same toast.
+jest.mock('react-native-reanimated', () => jest.requireActual('../../src/components/today/test-support/reanimated-mock'));
 jest.mock('../../src/db', () => ({
   ...jest.requireActual<typeof import('../../src/db')>('../../src/db'),
   listFoods: jest.fn(),

@@ -137,11 +137,12 @@
         "react",
         "react-native",
         "src/components/food-list/index.ts",
+        "src/components/quick-add/index.ts",
         "src/db/index.ts",
         "src/hooks/useDb.ts",
         "src/hooks/useTheme.ts"
       ],
-      "loc": 48
+      "loc": 55
     },
     "app/foods/new.tsx": {
       "exports": [
@@ -430,21 +431,29 @@
     },
     "src/components/food-list/FoodList.tsx": {
       "exports": [
-        "function FoodList({ foods, onSelect, onAdd, locale, theme, testID = 'food-list' }: FoodListProps): import(\"react\").JSX.Element",
-        "type FoodListProps = {\n  readonly foods: readonly FoodRow[];\n  readonly onSelect: (food: FoodRow) => void;\n  readonly onAdd: () => void;\n  /** Formatting locale for the kcal/protein figures. Defaults to the device's. */\n  readonly locale?: string;\n  readonly theme: Theme;\n  readonly testID?: string;\n}"
+        "function FoodList({ db, foods, onSelect, onAdd, locale, theme, testID = 'food-list' }: FoodListProps): import(\"react\").JSX.Element",
+        "function archiveToastMeta(food: FoodRow, meals: readonly MealRef[], locale?: string): string",
+        "type FoodListProps = {\n  readonly db: VitalsDb;\n  readonly foods: readonly FoodRow[];\n  readonly onSelect: (food: FoodRow) => void;\n  readonly onAdd: () => void;\n  /** Formatting locale for the kcal/protein figures. Defaults to the device's. */\n  readonly locale?: string;\n  readonly theme: Theme;\n  readonly testID?: string;\n}"
       ],
       "imports": [
+        "react",
         "react-native",
         "src/components/format/food.ts",
+        "src/components/shared/SwipeToDelete.tsx",
         "src/db/index.ts",
+        "src/db/queries/catalog.ts",
+        "src/db/types.ts",
+        "src/hooks/deviceWhen.ts",
+        "src/hooks/useHapticFeedback.ts",
+        "src/store/undoToast.ts",
         "src/theme/tokens.ts"
       ],
-      "loc": 151
+      "loc": 255
     },
     "src/components/food-list/index.ts": {
       "exports": [
-        "function FoodList({ foods, onSelect, onAdd, locale, theme, testID = 'food-list' }: FoodListProps): import(\"react\").JSX.Element",
-        "type FoodListProps = {\n  readonly foods: readonly FoodRow[];\n  readonly onSelect: (food: FoodRow) => void;\n  readonly onAdd: () => void;\n  /** Formatting locale for the kcal/protein figures. Defaults to the device's. */\n  readonly locale?: string;\n  readonly theme: Theme;\n  readonly testID?: string;\n}"
+        "function FoodList({ db, foods, onSelect, onAdd, locale, theme, testID = 'food-list' }: FoodListProps): import(\"react\").JSX.Element",
+        "type FoodListProps = {\n  readonly db: VitalsDb;\n  readonly foods: readonly FoodRow[];\n  readonly onSelect: (food: FoodRow) => void;\n  readonly onAdd: () => void;\n  /** Formatting locale for the kcal/protein figures. Defaults to the device's. */\n  readonly locale?: string;\n  readonly theme: Theme;\n  readonly testID?: string;\n}"
       ],
       "imports": [],
       "loc": 2,
@@ -631,7 +640,7 @@
         "src/store/undoToast.ts",
         "src/theme/tokens.ts"
       ],
-      "loc": 216
+      "loc": 228
     },
     "src/components/quick-add/index.ts": {
       "exports": [
@@ -648,6 +657,7 @@
       "loc": 5,
       "importedBy": [
         "app/(tabs)/index.tsx",
+        "app/foods/index.tsx",
         "app/meals/index.tsx"
       ]
     },
@@ -757,7 +767,8 @@
       ],
       "loc": 225,
       "importedBy": [
-        "src/components/day-log/DayLogRow.tsx"
+        "src/components/day-log/DayLogRow.tsx",
+        "src/components/food-list/FoodList.tsx"
       ]
     },
     "src/components/theme/ThemeProvider.tsx": {
@@ -1145,6 +1156,7 @@
       ],
       "loc": 394,
       "importedBy": [
+        "src/components/food-list/FoodList.tsx",
         "src/db/queries/search.ts"
       ]
     },
@@ -1368,6 +1380,7 @@
       ],
       "loc": 198,
       "importedBy": [
+        "src/components/food-list/FoodList.tsx",
         "src/db/queries/catalog.ts",
         "src/db/queries/nutrition.ts",
         "src/db/queries/search.ts",
@@ -1407,6 +1420,7 @@
         "app/foods/new.tsx",
         "app/meals/new.tsx",
         "src/components/day-log/DayLogList.tsx",
+        "src/components/food-list/FoodList.tsx",
         "src/components/meals/MealForm.tsx",
         "src/components/meals/MealList.tsx",
         "src/components/quick-add/QuickAddGrid.tsx",
@@ -1452,6 +1466,7 @@
       ],
       "loc": 49,
       "importedBy": [
+        "src/components/food-list/FoodList.tsx",
         "src/components/meals/MealList.tsx",
         "src/components/quick-add/PortionSheet.tsx",
         "src/components/quick-add/QuickAddTile.tsx",
@@ -1531,10 +1546,11 @@
         "src/theme/tokens.ts",
         "zustand"
       ],
-      "loc": 71,
+      "loc": 84,
       "importedBy": [
         "app/(tabs)/index.tsx",
         "src/components/day-log/DayLogList.tsx",
+        "src/components/food-list/FoodList.tsx",
         "src/components/meals/MealList.tsx",
         "src/components/quick-add/QuickAddGrid.tsx",
         "src/components/quick-add/UndoToast.tsx",
