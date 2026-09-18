@@ -55,7 +55,7 @@ issue_from_branch() {
 # of continuing on to the misleading "every commit on this branch is a refresh" message.
 pr_title_for_branch() {
   local base="$1" branch="$2"
-  local log non_refresh non_test
+  local log non_refresh
 
   log="$(git log --no-merges --pretty=%s "$base..$branch")" || {
     warn "pr_title_for_branch: 'git log $base..$branch' failed — is '$base' a valid, fetched ref?"
@@ -70,10 +70,27 @@ pr_title_for_branch() {
   non_refresh="$(printf '%s\n' "$log" | grep -v -x -F "docs: refresh PROGRESS.md")" || true
   [ -n "$non_refresh" ] || return 0
 
-  non_test="$(printf '%s\n' "$non_refresh" | grep -v -E '^test:')" || true
-  if [ -n "$non_test" ]; then
-    printf '%s\n' "$non_test" | tail -n 1
-  else
-    printf '%s\n' "$non_refresh" | tail -n 1
-  fi
+  # Rank the survivors by commit type — feat: > fix: > refactor:/perf: > chore:/docs:/ci: >
+  # test: (anything unconventional ranks with chore:/docs:/ci:) — rather than just taking the
+  # oldest regardless of type. Otherwise an early docs:/chore:/refactor: commit beats the
+  # feat:/fix: commit the PR exists for (issue #168; PR #166 shipped as a "docs:" title for a
+  # feature). `git log` prints newest-first; scanning in that order and overwriting the best
+  # match on `<=` (not `<`) means later — i.e. older — commits at the same rank replace earlier
+  # ones, so the final result is the oldest commit at the best rank found.
+  local best_rank=6 best_title="" line rank
+  while IFS= read -r line; do
+    case "$line" in
+      feat:*) rank=1 ;;
+      fix:*) rank=2 ;;
+      refactor:*|perf:*) rank=3 ;;
+      test:*) rank=5 ;;
+      *) rank=4 ;;  # chore:/docs:/ci: and anything unconventional
+    esac
+    if [ "$rank" -le "$best_rank" ]; then
+      best_rank="$rank"
+      best_title="$line"
+    fi
+  done <<<"$non_refresh"
+
+  printf '%s\n' "$best_title"
 }

@@ -172,6 +172,59 @@ assert_eq \
   "test: first pass at the harness" \
   "$(cd "$WORK/repo" && pr_title_for_branch origin/main test/41-harness)"
 
+# Scenario 10: ranking (issue #168) — a `docs:` commit lands before the `feat:` commit that the
+# PR actually exists for (plus a leading `test:` commit, TDD's own shape). `pr_title_for_branch`
+# used to take the *oldest* survivor with no regard for type, so `docs:` won and shipped as the
+# changelog entry for a feature PR (PR #166 on issue #101). It must rank by type instead:
+# feat: > fix: > refactor:/perf: > chore:/docs:/ci: > test:.
+repo
+git -C "$WORK/repo" checkout --quiet -b feat/50-widget
+commit "test: red for the widget"
+commit "docs: evidence for the widget"
+commit "feat: add the widget"
+assert_eq \
+  "a docs: commit before the feat: commit does not win the title" \
+  "feat: add the widget" \
+  "$(cd "$WORK/repo" && pr_title_for_branch origin/main feat/50-widget)"
+
+# Scenario 11: same as above, reversed order — feat: lands before docs:. Ranking must not depend
+# on commit order, only on type (with oldest-within-rank as the tiebreak).
+repo
+git -C "$WORK/repo" checkout --quiet -b feat/51-widget
+commit "test: red for the widget"
+commit "feat: add the widget"
+commit "docs: evidence for the widget"
+assert_eq \
+  "a docs: commit after the feat: commit still does not win the title" \
+  "feat: add the widget" \
+  "$(cd "$WORK/repo" && pr_title_for_branch origin/main feat/51-widget)"
+
+# Scenario 12: full ranking order in one branch — fix: must beat refactor:, which must beat
+# chore:, which must beat test:, and feat: must beat all of them regardless of commit order.
+repo
+git -C "$WORK/repo" checkout --quiet -b feat/52-widget
+commit "test: harness for the widget"
+commit "chore: tidy up widget config"
+commit "refactor: simplify widget internals"
+commit "fix: widget edge case"
+commit "feat: add the widget"
+assert_eq \
+  "feat: outranks fix:, refactor:, chore: and test: regardless of order" \
+  "feat: add the widget" \
+  "$(cd "$WORK/repo" && pr_title_for_branch origin/main feat/52-widget)"
+
+# Scenario 13: with no feat: commit present, fix: outranks refactor:/perf:/chore:/docs:/ci:/test:.
+repo
+git -C "$WORK/repo" checkout --quiet -b fix/53-widget
+commit "test: harness for the widget"
+commit "chore: tidy up widget config"
+commit "refactor: simplify widget internals"
+commit "fix: widget edge case"
+assert_eq \
+  "fix: outranks refactor:, chore: and test: when there is no feat:" \
+  "fix: widget edge case" \
+  "$(cd "$WORK/repo" && pr_title_for_branch origin/main fix/53-widget)"
+
 say "pr-title.test.sh: $pass passed, $fail failed"
 if [ "$fail" -gt 0 ]; then
   die "pr_title_for_branch is titling PRs after the refresh commit — see scripts/lib.sh"
