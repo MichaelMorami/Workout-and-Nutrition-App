@@ -48,6 +48,14 @@ export interface ParsedColumn {
    * and it is already on {@link ParsedTable.primaryKey}.
    */
   readonly unique: boolean;
+  /**
+   * Every inline `check (…)` on this column, expression text captured whole and not parsed —
+   * the same gap #148's review found for a column-level `unique`, just for `check` (#162). Kept
+   * separate from {@link ParsedTable.checks}, exactly as column-level `unique` is kept separate from
+   * {@link ParsedTable.uniques}: a table-level and a column-level spelling are different constraints
+   * in Postgres, and folding them together would let one hide the other.
+   */
+  readonly checks: readonly ParsedCheck[];
 }
 
 export interface ParsedCheck {
@@ -494,6 +502,45 @@ function splitItems(body: string): string[] {
 }
 
 /**
+ * Every inline `check (…)` on a column, read the way a table-level `check` is: the expression is
+ * captured whole via balanced parentheses (so a nested-paren expression comes back intact) and never
+ * parsed. `constraint <name> check (…)` immediately before the keyword names it, exactly as a
+ * table-level check's name is read; anything else is left unnamed (#148, #162).
+ *
+ * A `check` keyword not immediately followed by `(` — the shape a real migration should never write —
+ * throws instead of being silently skipped. The old reader had no field for this constraint at all,
+ * which is a silent-drop, fail-open bug in its own right (#162); reading the keyword and then doing
+ * nothing with it would be the same bug with a different shape.
+ *
+ * Scans `rest` as plain text, same as `default` and `references` above it, so it shares their one
+ * known limitation: a string literal that merely *contains* the word `check` (`default 'please
+ * check'`) is not distinguished from the keyword (#148 review, of the analogous case for `unique`).
+ */
+function columnChecks(rest: string): ParsedCheck[] {
+  const checks: ParsedCheck[] = [];
+  const word = /\bcheck\b/gi;
+  let match: RegExpExecArray | null;
+  while ((match = word.exec(rest))) {
+    const afterWord = rest.slice(match.index + match[0].length);
+    const opener = /^\s*\(/.exec(afterWord);
+    if (!opener) {
+      throw new SqlSyntaxError(
+        `column check this reader does not read as check (…): "${squash(rest).slice(0, 80)}"`,
+        0,
+      );
+    }
+    const open = match.index + match[0].length + opener[0].length - 1;
+    const body = parenBody(rest, open);
+    const named = new RegExp(`constraint\\s+(${IDENTIFIER})\\s*$`, 'i').exec(
+      rest.slice(0, match.index),
+    );
+    checks.push({ name: named ? bareName(named[1] as string) : null, expression: squash(body) });
+    word.lastIndex = open + body.length + 2;
+  }
+  return checks;
+}
+
+/**
  * One column definition. The name is read as an identifier and resolved through {@link identifier}
  * (#135), so `Note` keys as `note` and `"my col"` stays one name: splitting on spaces and stripping
  * quotes made `"my col" text` a column called `my` of type `col"`, and a mixed-case column landed
@@ -529,6 +576,7 @@ function parseColumn(item: string): ParsedColumn {
     // Read the same way `primary key` is, and blind in the same one way: a literal `default 'unique'`
     // would trip it. That is the existing limitation of scanning `rest`, not a new one (#148 review).
     unique: /\bunique\b/i.test(rest),
+    checks: columnChecks(rest),
   };
 }
 
