@@ -8,14 +8,15 @@ import { useTheme } from '../../src/hooks/useTheme';
 import { listMeals, type MealSummary } from '../../src/db';
 
 /**
- * `/meals` — issue #43's saved-meals screen. Reached from Settings, same reasoning as `/foods`
- * (`<MealList>`'s own module note: this list is reached far less often than the Today screen's
- * main loop). Tapping a meal logs it immediately — `<MealList>`'s own one-tap doctrine, unchanged
- * — so `<UndoToast>` mounts here too, the only way this screen's own log taps get an undo.
+ * `/meals` — issue #101's saved-meals management screen. Reached from Settings, same reasoning as
+ * `/foods` (`<MealList>`'s own module note: this list is reached far less often than the Today
+ * screen's main loop). Tapping a meal now opens `/meals/[id]` to edit it (the #101 ruling retired
+ * the old #43 tap-to-log behaviour here); swipe-left deletes with undo, so `<UndoToast>` still
+ * mounts here — the only way this screen's own delete taps get an undo.
  *
  * `listMeals` is re-read on every focus, the same reasoning as `/foods`'s own `listFoods` refetch:
- * `/meals/new` is pushed on top of this screen and pops back to it, and that pop is exactly the
- * moment a newly created meal needs to show up here.
+ * `/meals/new` and `/meals/[id]` are both pushed on top of this screen and pop back to it, and that
+ * pop is exactly the moment a created or edited meal needs to show up here.
  */
 export default function MealsScreen(): React.JSX.Element {
   const db = useDb();
@@ -31,7 +32,14 @@ export default function MealsScreen(): React.JSX.Element {
 
   return (
     <View style={[styles.screen, { backgroundColor: theme.color.bg.canvas }]}>
-      <MealList db={db} meals={meals} onCreate={() => router.push('/meals/new')} theme={theme} testID="meals-screen-list" />
+      <MealList
+        db={db}
+        meals={meals}
+        onSelect={(meal) => router.push(`/meals/${meal.id}`)}
+        onCreate={() => router.push('/meals/new')}
+        theme={theme}
+        testID="meals-screen-list"
+      />
       <UndoToast testID="meals-screen-undo-toast" />
     </View>
   );

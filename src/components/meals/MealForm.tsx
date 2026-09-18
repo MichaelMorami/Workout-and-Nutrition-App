@@ -18,6 +18,12 @@
  * `foods` library (`listFoods`, read once — this screen is never open long enough for the catalogue
  * to change under it), so the search field never even appears: the empty state says so and offers no
  * Save button to fail against, rather than letting a tap discover the error.
+ *
+ * `initial` (issue #101): pre-fills name and every ingredient row at exactly what the meal currently
+ * holds — `/meals/[id]` (issue #101) is the edit screen this makes possible, the same "pre-fill
+ * everything that can be predicted" doctrine `<FoodForm initial={...}>` already follows for a food
+ * (issue #43). Ingredients from `initial` are ordinary `Ingredient` rows once seeded: they steppe,
+ * remove and get filtered out of later search matches exactly like one added by hand in this visit.
  */
 import { useMemo, useState } from 'react';
 import { FlatList, Pressable, ScrollView, StyleSheet, Text, TextInput, View, type TextStyle } from 'react-native';
@@ -29,8 +35,18 @@ import { Stepper } from '../food-form';
 
 export type MealFormValues = { readonly name: string; readonly items: readonly MealItemInput[] };
 
+/** What `/meals/[id]` (issue #101) hands in to pre-fill an edit: a `MealDetail`'s name and items,
+ * reduced to the name each ingredient row needs to display (a `MealItemInput` alone has no name). */
+export type MealFormInitial = {
+  readonly name: string;
+  readonly items: readonly { readonly id: string; readonly name: string; readonly qty: number }[];
+};
+
 export type MealFormProps = {
   readonly db: VitalsDb;
+  /** `undefined`/`null` — a fresh meal, blank name, no ingredients. Given — an edit, pre-filled at
+   * exactly what the meal currently holds (issue #101). */
+  readonly initial?: MealFormInitial | null;
   readonly onSave: (values: MealFormValues) => void;
   readonly onCancel: () => void;
   /** Formatting locale for the dropdown's kcal/protein figures. Defaults to the device's. */
@@ -117,7 +133,7 @@ function MatchRow({
   );
 }
 
-export function MealForm({ db, onSave, onCancel, locale, theme, testID = 'meal-form' }: MealFormProps) {
+export function MealForm({ db, initial, onSave, onCancel, locale, theme, testID = 'meal-form' }: MealFormProps) {
   const { button, state, searchSheet, text } = theme.color;
 
   // Read once per mount (`SearchSheet`'s own "ranked once per visit" discipline) — this screen is
@@ -125,9 +141,9 @@ export function MealForm({ db, onSave, onCancel, locale, theme, testID = 'meal-f
   const [when] = useState(deviceWhen);
   const [hasFoods] = useState(() => listFoods(db).length > 0);
 
-  const [name, setName] = useState('');
+  const [name, setName] = useState(initial?.name ?? '');
   const [query, setQuery] = useState('');
-  const [items, setItems] = useState<readonly Ingredient[]>([]);
+  const [items, setItems] = useState<readonly Ingredient[]>(() => initial?.items ?? []);
   const [error, setError] = useState<string | null>(null);
 
   const trimmedQuery = query.trim();

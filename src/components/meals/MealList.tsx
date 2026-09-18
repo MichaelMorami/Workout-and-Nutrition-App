@@ -1,31 +1,47 @@
 /**
- * `<MealList>` — issue #43's "saved meals: log as one tap". Tapping a row logs one portion of that
- * meal immediately (`logMeal`) — the same tap doctrine `QuickAddTile` follows for a food: no
- * confirmation, no navigation, a haptic and an undo toast are the only feedback. `FlatList`, not a
- * `map` — the saved-meals catalogue, like the foods list, has no bound on how it grows.
+ * `<MealList>` — issue #101's "Meals (Settings): tap to edit, swipe to delete". The ruling on #101
+ * retired the old #43 tap-to-log behaviour for this list: tapping a row now opens `/meals/[id]`
+ * through `onSelect` (`<MealForm initial={...}>`, pre-filled), exactly as `<FoodList>` already does
+ * for a food (#100). Saved meals are still logged in one tap — from the quick-add grid and search —
+ * just never from here. `FlatList`, not a `map` — the saved-meals catalogue, like the foods list, has
+ * no bound on how it grows.
  *
- * ONE TAP, NOT A DOUBLE-TAP-ADDS-A-PORTION. Issue #21's `logTracker`/`addPortion` double-tap
- * machinery lives on the quick-add grid, where the six most-used items are re-tapped constantly —
- * this management list is reached far less often (via Settings, not the Today screen's main loop),
- * so a second tap here simply logs a second, independent portion rather than needing that repeat-
- * window bookkeeping. Nothing about the undo path changes: `logMeal`'s own `UndoToken` still
- * reverses exactly the entries this tap created.
+ * SWIPE-LEFT DELETES, WITH UNDO (issue #101). Tap edits; swipe reveals the same `<SwipeToDelete>`
+ * trash button `<FoodList>`/`DayLogRow` give (issue #80/#85/#141) — one gesture, one danger button,
+ * defined once. Delete here is `deleteMeal`, which tombstones the meal and its live items in one
+ * transaction but never touches `food_log` — a row already logged from this meal keeps its own
+ * literal `kcal`/`protein` (`CLAUDE.md`'s immutability rule), so deleting the meal it came from
+ * changes nothing about the past. Undo calls `restoreMeal` with the exact receipt `deleteMeal`
+ * returned, the mechanism db-engineer built in #154/#157 for precisely this: it can only resurrect
+ * items that were live at delete time, scoped to this meal, so double-undo and an earlier
+ * `updateMeal` removal both stay correct.
+ *
+ * `UndoToken` HAS NO PATH TO UN-TOMBSTONE A MEAL (raised on #101, same trap #100 found for a food
+ * archive). The toast payload here carries `action`, not `token` — `src/store/undoToast.ts`'s own
+ * doc comment covers exactly this case, and #100/`FoodList` already set the precedent for reusing it
+ * rather than widening the `UndoToken` union for a second, unrelated write shape.
+ *
+ * OPTIMISTIC, LOCAL-ONLY HIDING. `hiddenIds` is this component's own state, not a prop — swiping
+ * delete must hide the row the same instant it fires, without waiting for the parent's next
+ * `listMeals()` refetch (`CLAUDE.md`: the UI never waits on a round trip for its own write). An undo
+ * removes the id from the set, restoring the row in place; a genuine refetch (the screen refocusing)
+ * naturally supersedes it either way, since a deleted meal no longer comes back from `listMeals()`.
  */
-import { FlatList, Pressable, StyleSheet, Text, View, type TextStyle } from 'react-native';
-import { logMeal, VitalsDbError, type MealSummary, type VitalsDb } from '../../db';
+import { useState } from 'react';
+import { FlatList, Pressable, StyleSheet, Text, View, type AccessibilityActionEvent, type TextStyle } from 'react-native';
+import { deleteMeal, restoreMeal, VitalsDbError, type MealSummary, type VitalsDb } from '../../db';
 import { formatGrams } from '../format/food';
 import { deviceWhen } from '../../hooks/deviceWhen';
 import { useHapticFeedback } from '../../hooks/useHapticFeedback';
-import { logTrackerKey } from '../../store/logTracker';
-import { useUndoToastStore, type LogDelta } from '../../store/undoToast';
+import { SwipeToDelete } from '../shared/SwipeToDelete';
+import { useUndoToastStore } from '../../store/undoToast';
 import { haptics, size, space, type, type Theme, type TypeStyle } from '../../theme/tokens';
-import { candidateForMeal } from './meal-candidate';
 
 export type MealListProps = {
   readonly db: VitalsDb;
   readonly meals: readonly MealSummary[];
-  /** Called after a meal logs successfully, with the delta a caller's running totals need. */
-  readonly onLogged?: (delta: LogDelta) => void;
+  /** Tapping a row calls this with the meal to edit — the caller navigates to `/meals/[id]`. */
+  readonly onSelect: (meal: MealSummary) => void;
   readonly onCreate: () => void;
   readonly locale?: string;
   readonly theme: Theme;
@@ -57,64 +73,92 @@ function EmptyState({ theme, testID }: { theme: Theme; testID: string }) {
   );
 }
 
-export function MealList({ db, meals, onLogged, onCreate, locale, theme, testID = 'meal-list' }: MealListProps) {
+export function MealList({ db, meals, onSelect, onCreate, locale, theme, testID = 'meal-list' }: MealListProps) {
   const { resultRow, sectionLabel } = theme.color;
   const fireHaptic = useHapticFeedback();
 
-  const handleTap = (meal: MealSummary): void => {
+  // See the module note: local-only, optimistic hiding of a just-deleted row. A real refetch (the
+  // screen regaining focus) supersedes this either way, since `listMeals()` already excludes a
+  // tombstoned meal on its own.
+  const [hiddenIds, setHiddenIds] = useState<ReadonlySet<string>>(() => new Set());
+  const visibleMeals = meals.filter((meal) => !hiddenIds.has(meal.id));
+
+  const handleDelete = (meal: MealSummary): void => {
     const now = deviceWhen();
+    let itemIds: readonly string[];
     try {
-      const receipt = logMeal(db, { ...now, mealId: meal.id });
-      fireHaptic(haptics.foodLogged);
-      const kcal = receipt.entries.reduce((sum, entry) => sum + entry.kcal, 0);
-      const protein = receipt.entries.reduce((sum, entry) => sum + entry.protein, 0);
-      const delta: LogDelta = { kcal, protein, entryCountDelta: receipt.entries.length };
-      useUndoToastStore.getState().show({
-        token: receipt.undo,
-        candidateKey: logTrackerKey(candidateForMeal(meal)),
-        title: meal.name,
-        meta: toastMeta(kcal, protein, locale),
-        delta,
-      });
-      onLogged?.(delta);
+      itemIds = deleteMeal(db, { at: now.at, id: meal.id }).itemIds;
     } catch (err) {
-      // See the module note: a failed write is never a user-visible event, and there is nothing to
-      // undo from a log that never landed.
+      // Same doctrine as every write in `QuickAddGrid`: no dialog, no crash for a failed delete.
       if (!(err instanceof VitalsDbError)) throw err;
+      return;
     }
+    setHiddenIds((current) => new Set(current).add(meal.id));
+    fireHaptic(haptics.destructiveConfirm);
+    useUndoToastStore.getState().show({
+      title: meal.name,
+      meta: toastMeta(meal.kcal, meal.protein, locale),
+      verb: 'deleting',
+      action: () => {
+        restoreMeal(db, { at: deviceWhen().at, mealId: meal.id, itemIds });
+        setHiddenIds((current) => {
+          const next = new Set(current);
+          next.delete(meal.id);
+          return next;
+        });
+      },
+    });
   };
 
   const renderRow = ({ item }: { item: MealSummary }) => {
     const kcalText = Math.round(item.kcal).toLocaleString(locale);
-    const proteinText = Math.round(item.protein).toLocaleString(locale);
+
+    const handleAccessibilityAction = (event: AccessibilityActionEvent): void => {
+      if (event.nativeEvent.actionName === 'delete') handleDelete(item);
+    };
+
+    const rowTestID = `${testID}-row-${item.id}`;
+
     return (
-      <Pressable
-        testID={`${testID}-row-${item.id}`}
-        onPress={() => handleTap(item)}
-        accessibilityRole="button"
-        accessibilityLabel={`Log ${item.name}, ${kcalText} kilocalories, ${proteinText} grams protein`}
-        style={[
-          styles.row,
-          { minHeight: size.tapTargetMin, backgroundColor: resultRow.bg, borderBottomColor: resultRow.divider, borderBottomWidth: StyleSheet.hairlineWidth },
-        ]}
+      <SwipeToDelete
+        theme={theme}
+        deleteLabel={item.name}
+        onDelete={() => handleDelete(item)}
+        style={{ minHeight: size.tapTargetMin }}
+        testID={rowTestID}
       >
-        <View style={styles.rowText}>
-          <Text testID={`${testID}-row-${item.id}-name`} style={textStyle(type.body, resultRow.nameText)}>
-            {item.name}
-          </Text>
-          <Text testID={`${testID}-row-${item.id}-meta`} style={textStyle(type.caption, resultRow.servingText)}>
-            {`${item.itemCount} item${item.itemCount === 1 ? '' : 's'}`}
-          </Text>
-        </View>
-        <View style={styles.rowFigures}>
-          <Text testID={`${testID}-row-${item.id}-kcal`} style={textStyle(type.numeric, resultRow.kcalText)}>
-            {`${kcalText} kcal`}
-          </Text>
-          <Text testID={`${testID}-row-${item.id}-protein`} style={textStyle(type.numeric, resultRow.proteinText)}>
-            {formatGrams(item.protein, locale)}
-          </Text>
-        </View>
-      </Pressable>
+        {({ revealed, close }) => (
+          <Pressable
+            testID={rowTestID}
+            onPress={revealed ? close : () => onSelect(item)}
+            accessibilityRole="button"
+            accessibilityLabel={`Edit ${item.name}`}
+            accessibilityActions={[{ name: 'delete', label: 'Delete' }]}
+            onAccessibilityAction={handleAccessibilityAction}
+            style={[
+              styles.row,
+              { minHeight: size.tapTargetMin, backgroundColor: resultRow.bg, borderBottomColor: resultRow.divider, borderBottomWidth: StyleSheet.hairlineWidth },
+            ]}
+          >
+            <View style={styles.rowText}>
+              <Text testID={`${testID}-row-${item.id}-name`} style={textStyle(type.body, resultRow.nameText)}>
+                {item.name}
+              </Text>
+              <Text testID={`${testID}-row-${item.id}-meta`} style={textStyle(type.caption, resultRow.servingText)}>
+                {`${item.itemCount} item${item.itemCount === 1 ? '' : 's'}`}
+              </Text>
+            </View>
+            <View style={styles.rowFigures}>
+              <Text testID={`${testID}-row-${item.id}-kcal`} style={textStyle(type.numeric, resultRow.kcalText)}>
+                {`${kcalText} kcal`}
+              </Text>
+              <Text testID={`${testID}-row-${item.id}-protein`} style={textStyle(type.numeric, resultRow.proteinText)}>
+                {formatGrams(item.protein, locale)}
+              </Text>
+            </View>
+          </Pressable>
+        )}
+      </SwipeToDelete>
     );
   };
 
@@ -134,10 +178,10 @@ export function MealList({ db, meals, onLogged, onCreate, locale, theme, testID 
         </Pressable>
       </View>
 
-      {meals.length === 0 ? (
+      {visibleMeals.length === 0 ? (
         <EmptyState theme={theme} testID={`${testID}-empty`} />
       ) : (
-        <FlatList data={meals} keyExtractor={(meal) => meal.id} renderItem={renderRow} />
+        <FlatList data={visibleMeals} keyExtractor={(meal) => meal.id} renderItem={renderRow} />
       )}
     </View>
   );
