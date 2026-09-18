@@ -92,3 +92,5 @@ For the sprint-by-sprint plan see [`README.md`](README.md); for open work see th
 - 2026-09-18  fix: revoke TRUNCATE and assert it, on every synced table (issue #147)  (PR #155 closes #147)
 - 2026-09-18  feat: updateMeal, deleteMeal and restoreMeal — the data-layer slice of #101 (issue #154)  (PR #157 closes #154)
 - 2026-09-18  docs: record the UPDATE and destructive-privilege decision (issue #158)  (PR #159 closes #158)
+- 2026-09-18  feat: FoodList tap-to-edit, swipe-left delete with undo (issue #100)  (PR #163 closes #100)
+- 2026-09-18  fix: close the four fail-open holes in the contract reader (issue #148)  (PR #161 closes #148)

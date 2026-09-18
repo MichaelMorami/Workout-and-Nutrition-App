@@ -36,6 +36,16 @@ issue_from_branch() {
 # describable work on it, so it falls back to the oldest non-refresh commit rather than losing its
 # title entirely. `git log` lists newest-first, so "oldest" is the *last* surviving line.
 #
+# Merge commits (e.g. "Merge remote-tracking branch 'origin/main' into ...") are excluded from the
+# log up front, via `--no-merges`, before any of the above filtering runs. CLAUDE.md instructs
+# every agent to merge the base branch in before opening a PR, so a merge commit is present on
+# almost every branch by the time pr.sh runs — it carries no description of the work and must
+# never be a title candidate, at any stage of the filter. Left in, it is merely a second
+# "docs: refresh PROGRESS.md" waiting to happen: harmless most of the time because a real work
+# commit usually still sorts oldest, but the one branch where every real commit is `test:` (so the
+# `test:` filter would otherwise leave nothing else standing) hits it and titles the PR after the
+# merge instead — see issue #151 / PR #150, retitled by hand.
+#
 # Prints nothing if every commit on the branch is a refresh commit — there is no real subject to
 # title the PR with, and the caller (pr.sh) must refuse rather than fall back to it.
 #
@@ -47,7 +57,7 @@ pr_title_for_branch() {
   local base="$1" branch="$2"
   local log non_refresh non_test
 
-  log="$(git log --pretty=%s "$base..$branch")" || {
+  log="$(git log --no-merges --pretty=%s "$base..$branch")" || {
     warn "pr_title_for_branch: 'git log $base..$branch' failed — is '$base' a valid, fetched ref?"
     return 1
   }

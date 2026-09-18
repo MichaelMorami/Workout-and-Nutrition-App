@@ -134,6 +134,44 @@ else
   fail=$((fail + 1))
 fi
 
+# Scenario 8: the branch merged the base in before the PR was opened (CLAUDE.md's own documented
+# workflow: "Before opening a PR, merge the base branch in"). The merge commit sorts ahead of the
+# real work commit and must not win the title — see issue #151 / PR #150, which had to be
+# retitled by hand.
+repo
+git -C "$WORK/repo" checkout --quiet -b fix/40-example
+commit "feat: add the thing"
+git -C "$WORK/repo" checkout --quiet main
+commit "chore: unrelated main work"
+git -C "$WORK/repo" update-ref refs/remotes/origin/main refs/heads/main
+git -C "$WORK/repo" checkout --quiet fix/40-example
+git -C "$WORK/repo" -c user.email=test@example.com -c user.name=Test \
+  merge --quiet --no-edit origin/main
+commit "docs: refresh PROGRESS.md"
+assert_eq \
+  "a branch that merged base in first titles from its own commit, not the merge" \
+  "feat: add the thing" \
+  "$(cd "$WORK/repo" && pr_title_for_branch origin/main fix/40-example)"
+
+# Scenario 9: the worst case from #151 — a test-only branch (every real commit is `test:`, so the
+# `test:` filter would otherwise leave nothing but the merge commit standing) that also merged
+# base in first. The fallback must land on the branch's own oldest `test:` commit, never the merge
+# commit.
+repo
+git -C "$WORK/repo" checkout --quiet -b test/41-harness
+commit "test: first pass at the harness"
+git -C "$WORK/repo" checkout --quiet main
+commit "chore: unrelated main work"
+git -C "$WORK/repo" update-ref refs/remotes/origin/main refs/heads/main
+git -C "$WORK/repo" checkout --quiet test/41-harness
+git -C "$WORK/repo" -c user.email=test@example.com -c user.name=Test \
+  merge --quiet --no-edit origin/main
+commit "docs: refresh PROGRESS.md"
+assert_eq \
+  "a test-only branch that merged base in first still falls back to its own test: commit" \
+  "test: first pass at the harness" \
+  "$(cd "$WORK/repo" && pr_title_for_branch origin/main test/41-harness)"
+
 say "pr-title.test.sh: $pass passed, $fail failed"
 if [ "$fail" -gt 0 ]; then
   die "pr_title_for_branch is titling PRs after the refresh commit — see scripts/lib.sh"
