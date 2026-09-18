@@ -1231,7 +1231,7 @@ _no exports_
 
 ## `src/sync/contract/`
 
-### `src/sync/contract/sql.ts`  <sub>985 lines</sub>
+### `src/sync/contract/sql.ts`  <sub>1152 lines</sub>
 
 - `class SqlSyntaxError`
 - `function parseMigrations(sources: readonly MigrationSource[]): ParsedSql`
@@ -1240,10 +1240,12 @@ _no exports_
 - `interface MigrationSource`
 - `interface ParsedCheck`
 - `interface ParsedColumn`
+- `interface ParsedForeignKey`
 - `interface ParsedPolicy`
 - `interface ParsedRls`
 - `interface ParsedSql`
 - `interface ParsedTable`
+- `interface ParsedUnique`
 - `type PolicyCommand = 'select' | 'insert' | 'update' | 'delete' | 'all'`
 - `type PrivilegeState = 'granted' | 'revoked' | 'unstated'`
 
