@@ -95,3 +95,4 @@ For the sprint-by-sprint plan see [`README.md`](README.md); for open work see th
 - 2026-09-18  feat: FoodList tap-to-edit, swipe-left delete with undo (issue #100)  (PR #163 closes #100)
 - 2026-09-18  fix: close the four fail-open holes in the contract reader (issue #148)  (PR #161 closes #148)
 - 2026-09-18  fix: exclude merge commits when titling a PR (issue #151)  (PR #165 closes #151)
+- 2026-09-18  docs: visual evidence for tap-to-edit, swipe-delete and pre-fill (issue #101)  (PR #166 closes #101)

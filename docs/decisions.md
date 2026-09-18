@@ -371,3 +371,33 @@ The rule the whole section reduces to: **revoke what erases, constrain what edit
 
 In-repo copies: `supabase/README.md`, and the `DESTRUCTIVE_PRIVILEGES` / `GUARDED_ROLES` docblocks in
 `src/sync/contract/schema.test.ts`.
+
+---
+
+## Phone QA — where a meal is logged, and where it is managed
+
+Ruled by the client on 2026-09-15 in issue #101, landed in PRs #157 and #166 · binds
+`src/components/meals/**` and `app/meals/**` · no change to the data model
+
+### 10. The Settings meal list is for managing meals, not logging them
+
+**The situation.** Tapping a row in Settings → Meals used to log the meal. That left nowhere to
+edit or delete one, and the client reported from the phone that saved meals couldn't be changed at
+all.
+
+**The ruling.** In Settings → Meals, **a tap opens the meal's edit screen** (`/meals/[id]`, the meal
+form pre-filled) and **a swipe left deletes it**, with the undo toast. Nothing in that list logs a
+meal. Meals are logged from the **quick-add grid and search**, the same places as foods.
+
+**Why it costs no taps.** Logging never needed a trip into Settings: the grid and search already put a
+meal on the log in one tap. The Settings path was a second way to do the same
+thing, and it took the only gesture that could have opened the editor. Giving that tap to editing
+means logging keeps its one-tap path, and managing a meal gets a path it didn't have before.
+
+**How to read it for a new case.** Settings lists are for **curating the catalogue**: rename, fix
+the ingredients, delete. The daily log is fed from Today's surfaces. If a Settings list ever seems to
+need a "log this" action, the catalogue item is probably missing from the grid or search, so fix it
+there. The foods list in Settings (#100) follows the same rule.
+
+Deleting a meal tombstones the meal and its items. It never touches past `food_log` rows, because
+they store their own `kcal`/`protein` (see `CLAUDE.md`, "History is immutable").
