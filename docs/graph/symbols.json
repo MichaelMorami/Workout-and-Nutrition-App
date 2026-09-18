@@ -1005,6 +1005,7 @@
         "function localStamp(at: number, timeZone: string): { localDate: LocalDate; localMinute: number }",
         "function logFood(db: VitalsDb, opts: When & { foodId: string; amount?: Amount; slot?: MealSlot }): LogReceipt",
         "function logMeal(db: VitalsDb, opts: When & { mealId: string; portions?: number; slot?: MealSlot }): LogReceipt",
+        "function mealsContainingFood(db: VitalsDb, foodId: string): MealRef[]",
         "function parseHourHistogram(text: string | null): HourHistogram",
         "function quickAddCandidates(db: VitalsDb, opts: When & { limit?: number }): Candidate[]",
         "function recentFoods(db: VitalsDb, opts: When & { days: number; limit?: number }): Candidate[]",
@@ -1033,6 +1034,7 @@
         "interface MealDetail",
         "interface MealItemInput",
         "interface MealPatch",
+        "interface MealRef",
         "interface MealSummary",
         "interface ServingPreset",
         "interface SettingsInput",
@@ -1069,7 +1071,7 @@
         "type VitalsSchema = typeof schema"
       ],
       "imports": [],
-      "loc": 96,
+      "loc": 98,
       "importedBy": [
         "app/(tabs)/index.tsx",
         "app/foods/[id].tsx",
