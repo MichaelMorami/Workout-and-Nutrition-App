@@ -3,6 +3,12 @@
  * `setFoodArchived`, `getFood`, `listFoods` (live, name order; archived only when asked);
  * `createMeal`, `listMeals`, `getMeal`. Plus: editing a food never changes past `food_log` rows,
  * and archived foods leave `listFoods` but their logs stay.
+ *
+ * Issue #153 (the data-layer slice of #100) adds `mealsContainingFood` — the saved meals that
+ * still reference a food, live meals and live items only — and confirms `setFoodArchived` is
+ * already an undo-able path: archiving hides a food from the grid, search and recents;
+ * un-archiving (the same function, `archived: false`) restores it to all three, and neither
+ * direction ever touches a past `food_log` row.
  */
 import { eq } from 'drizzle-orm';
 import { makeTestDb } from '../../../test/db';
@@ -11,7 +17,8 @@ import { makeFood } from '../test-support/foods';
 import { VitalsDbError, type VitalsDbErrorCode } from '../errors';
 import * as schema from '../schema';
 import type { FoodBasis } from '../schema';
-import { dayLog, logFood } from './nutrition';
+import { quickAddCandidates, dayLog, logFood, todayTotals } from './nutrition';
+import { recentFoods, searchFoodsOnly } from './search';
 import {
   createFood,
   createMeal,
@@ -19,6 +26,7 @@ import {
   getMeal,
   listFoods,
   listMeals,
+  mealsContainingFood,
   setFoodArchived,
   updateFood,
 } from './catalog';
@@ -237,6 +245,46 @@ describe('setFoodArchived', () => {
     db.insert(schema.foods).values(food).run();
     expectDbError(() => setFoodArchived(db, { at: 1_000, id: food.id, archived: true }), 'not_found');
   });
+
+  // Issue #153: archive is undo-able — the same function, called with `archived: false`, restores
+  // the food to every surface that hides an archived one.
+  it('is undo-able: un-archiving restores the food to the grid, search and recents', () => {
+    const { db } = setup();
+    const at = Date.parse('2025-03-09T16:00:00.000Z');
+    const timeZone = 'America/Los_Angeles';
+    const food = makeFood({ name: 'Skyr', useCount: 1, lastUsedAt: at });
+    db.insert(schema.foods).values(food).run();
+    logFood(db, { at, timeZone, foodId: food.id });
+
+    setFoodArchived(db, { at: at + 1, id: food.id, archived: true });
+    expect(quickAddCandidates(db, { at, timeZone }).map((c) => c.id)).not.toContain(food.id);
+    expect(searchFoodsOnly(db, { at, timeZone, query: 'Skyr' }).map((c) => c.id)).not.toContain(food.id);
+    expect(recentFoods(db, { at, timeZone, days: 7 }).map((c) => c.id)).not.toContain(food.id);
+    expect(listFoods(db).map((f) => f.id)).not.toContain(food.id);
+
+    setFoodArchived(db, { at: at + 2, id: food.id, archived: false });
+    expect(quickAddCandidates(db, { at, timeZone }).map((c) => c.id)).toContain(food.id);
+    expect(searchFoodsOnly(db, { at, timeZone, query: 'Skyr' }).map((c) => c.id)).toContain(food.id);
+    expect(recentFoods(db, { at, timeZone, days: 7 }).map((c) => c.id)).toContain(food.id);
+    expect(listFoods(db).map((f) => f.id)).toContain(food.id);
+  });
+
+  it('archiving (and un-archiving) never changes a past food_log row or past totals', () => {
+    const { db } = setup();
+    const at = Date.parse('2025-03-09T16:00:00.000Z');
+    const food = makeFood({ name: 'Discontinued', kcalPerServing: 50, proteinPerServing: 5 });
+    db.insert(schema.foods).values(food).run();
+    logFood(db, { at, timeZone: 'America/Los_Angeles', foodId: food.id });
+
+    const before = todayTotals(db, '2025-03-09');
+    setFoodArchived(db, { at: at + 1, id: food.id, archived: true });
+    setFoodArchived(db, { at: at + 2, id: food.id, archived: false });
+    const after = todayTotals(db, '2025-03-09');
+
+    expect(after).toEqual(before);
+    const [entry] = dayLog(db, '2025-03-09');
+    expect(entry).toMatchObject({ foodId: food.id, kcal: 50, protein: 5 });
+  });
 });
 
 // -------------------------------------------------------------------------------------------
@@ -453,5 +501,90 @@ describe('getMeal', () => {
     const meal = makeMeal({ deleted: 1 });
     db.insert(schema.meals).values(meal).run();
     expect(getMeal(db, meal.id)).toBeNull();
+  });
+});
+
+// -------------------------------------------------------------------------------------------
+// mealsContainingFood — issue #153: which saved meals still reference a food, for the "these
+// meals still have it" notice shown when archiving.
+// -------------------------------------------------------------------------------------------
+
+describe('mealsContainingFood', () => {
+  it('on an empty database, returns []', () => {
+    const { db } = setup();
+    expect(mealsContainingFood(db, 'no-such-food')).toEqual([]);
+  });
+
+  it('returns a food with no meals as []', () => {
+    const { db } = setup();
+    const food = makeFood();
+    db.insert(schema.foods).values(food).run();
+    expect(mealsContainingFood(db, food.id)).toEqual([]);
+  });
+
+  it('returns live meals with a live item referencing the food, name order', () => {
+    const { db } = setup();
+    const food = makeFood();
+    db.insert(schema.foods).values(food).run();
+    const zebra = makeMeal({ name: 'Zebra' });
+    const apple = makeMeal({ name: 'Apple meal' });
+    db.insert(schema.meals).values([zebra, apple]).run();
+    db.insert(schema.mealItems)
+      .values([makeMealItem({ mealId: zebra.id, foodId: food.id }), makeMealItem({ mealId: apple.id, foodId: food.id })])
+      .run();
+
+    expect(mealsContainingFood(db, food.id)).toEqual([
+      { id: apple.id, name: 'Apple meal' },
+      { id: zebra.id, name: 'Zebra' },
+    ]);
+  });
+
+  it('excludes a meal referencing a different food', () => {
+    const { db } = setup();
+    const [target, other] = [makeFood({ name: 'Target' }), makeFood({ name: 'Other' })];
+    db.insert(schema.foods).values([target, other]).run();
+    const meal = makeMeal();
+    db.insert(schema.meals).values(meal).run();
+    db.insert(schema.mealItems).values(makeMealItem({ mealId: meal.id, foodId: other.id })).run();
+
+    expect(mealsContainingFood(db, target.id)).toEqual([]);
+  });
+
+  it('excludes a tombstoned meal', () => {
+    const { db } = setup();
+    const food = makeFood();
+    db.insert(schema.foods).values(food).run();
+    const meal = makeMeal({ deleted: 1 });
+    db.insert(schema.meals).values(meal).run();
+    db.insert(schema.mealItems).values(makeMealItem({ mealId: meal.id, foodId: food.id })).run();
+
+    expect(mealsContainingFood(db, food.id)).toEqual([]);
+  });
+
+  it('excludes a tombstoned item — the meal is live but no longer contains the food', () => {
+    const { db } = setup();
+    const food = makeFood();
+    db.insert(schema.foods).values(food).run();
+    const meal = makeMeal();
+    db.insert(schema.meals).values(meal).run();
+    db.insert(schema.mealItems).values(makeMealItem({ mealId: meal.id, foodId: food.id, deleted: 1 })).run();
+
+    expect(mealsContainingFood(db, food.id)).toEqual([]);
+  });
+
+  it('lists a meal once even when the food appears in it more than once', () => {
+    const { db } = setup();
+    const food = makeFood();
+    db.insert(schema.foods).values(food).run();
+    const meal = makeMeal({ name: 'Double up' });
+    db.insert(schema.meals).values(meal).run();
+    db.insert(schema.mealItems)
+      .values([
+        makeMealItem({ mealId: meal.id, foodId: food.id, qty: 1 }),
+        makeMealItem({ mealId: meal.id, foodId: food.id, qty: 2 }),
+      ])
+      .run();
+
+    expect(mealsContainingFood(db, food.id)).toEqual([{ id: meal.id, name: 'Double up' }]);
   });
 });

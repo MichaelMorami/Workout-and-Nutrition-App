@@ -87,3 +87,4 @@ For the sprint-by-sprint plan see [`README.md`](README.md); for open work see th
 - 2026-09-18  feat: extract <SwipeToDelete> — DayLogRow becomes its first consumer (issue #141)  (PR #145 closes #141)
 - 2026-09-18  fix: review-graph.sh diffs a PR without checking it out (issue #129)  (PR #149 closes #129)
 - 2026-09-18  test: prove the volume-food edit-save round-trip is lossless (#125)  (PR #150 closes #125)
+- 2026-09-18  docs: grant a narrow mock carve-out to the ownership rule (issue #143)  (PR #152 closes #143)

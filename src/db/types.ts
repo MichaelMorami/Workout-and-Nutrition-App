@@ -143,6 +143,12 @@ export interface MealDetail extends MealSummary {
   items: readonly { item: MealItemRow; food: FoodRow }[];
 }
 
+/** Enough to name a saved meal in a notice — `mealsContainingFood`'s element (issue #153). */
+export interface MealRef {
+  id: string;
+  name: string;
+}
+
 /** One weigh-in, as `weightSummary` reports it. Weight in kg. */
 export interface WeighIn {
   localDate: LocalDate;
