@@ -360,6 +360,20 @@ describe('row level security', () => {
     expect(parsed().privilegeState(name, 'authenticated', 'truncate')).toBe('revoked');
   });
 
+  /**
+   * PR #155 review: the destructive-privilege check named `authenticated` and nothing else, so
+   * `grant truncate on public.food_log to anon;` produced zero violations. For DELETE the gap is
+   * survivable — RLS is enabled and forced and no policy names `anon` — but TRUNCATE is not policed
+   * by RLS at all, and `anon` is the role whose key ships inside the app bundle. Supabase's stock
+   * default privileges grant ALL on public tables to `anon` as well as `authenticated`, so unstated
+   * means held. `service_role` is left alone on purpose: it is the secret key, used by nothing here.
+   */
+  it.each(['foods', 'food_log'])('%s revokes DELETE and TRUNCATE from anon as well', (name) => {
+    for (const privilege of ['delete', 'truncate']) {
+      expect(parsed().privilegeState(name, 'anon', privilege)).toBe('revoked');
+    }
+  });
+
   it('grants nothing to anon', () => {
     for (const policy of parsed().policies) expect(policy.roles).not.toContain('anon');
   });
@@ -471,6 +485,45 @@ describe('a later migration that weakens RLS turns the suite red', () => {
     ],
   ])('%s', (_label, sql, violation) => {
     expect(rlsViolations(withLater(sql)).join('\n')).toContain(violation);
+  });
+
+  /**
+   * PR #155 review, blocking finding: every one of these used to yield zero violations, because the
+   * check asked about `authenticated` only. The violation names the role as well as the privilege.
+   */
+  it.each([
+    [
+      'grants TRUNCATE to anon — the role whose key ships in the app bundle',
+      'grant truncate on public.food_log to anon;',
+      'food_log: TRUNCATE is granted for anon',
+    ],
+    [
+      'grants DELETE to anon',
+      'grant delete on public.foods to anon;',
+      'foods: DELETE is granted for anon',
+    ],
+    [
+      'grants ALL PRIVILEGES to anon',
+      'grant all privileges on public.food_log to anon;',
+      'food_log: TRUNCATE is granted for anon',
+    ],
+    [
+      'grants TRUNCATE to anon under a folded name and role',
+      'GRANT TRUNCATE ON PUBLIC.Foods TO ANON;',
+      'foods: TRUNCATE is granted for anon',
+    ],
+    [
+      'grants TRUNCATE to anon with grant option and granted by',
+      'grant truncate on public.foods to anon with grant option granted by postgres;',
+      'foods: TRUNCATE is granted for anon',
+    ],
+  ])('%s', (_label, sql, violation) => {
+    expect(rlsViolations(withLater(sql)).join('\n')).toContain(violation);
+  });
+
+  it("the reviewer's exact anon reproduction is no longer clean", () => {
+    // Verbatim from the PR #155 review: this yielded zero violations.
+    expect(rlsViolations(withLater('grant truncate on public.food_log to anon;'))).not.toEqual([]);
   });
 
   /**
