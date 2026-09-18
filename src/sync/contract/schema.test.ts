@@ -50,6 +50,21 @@ const SYNCED_TABLES = ['foods', 'food_log'] as const;
 const OWNER = 'user_id = (select auth.uid())';
 
 /**
+ * The privileges that can destroy history, each of which must be revoked outright (#147).
+ *
+ * DELETE takes rows one at a time. TRUNCATE takes the whole table in a single statement, and it is a
+ * *separate* Postgres privilege — revoking DELETE does not touch it — so a migration granting it,
+ * directly or through `grant all privileges`, could erase `food_log` with the contract still green.
+ *
+ * UPDATE is deliberately absent. It can rewrite a historical `kcal`, which the immutability rule
+ * forbids, but sync needs it to push an edit and to set a tombstone (`deleted = 1`), so revoking it
+ * would break the replica for every user. History is kept immutable by `food_log` storing
+ * `kcal`/`protein` directly — correcting a food never rewrites a past log — and by the owner-scoped
+ * UPDATE policy asserted below. The full reasoning is recorded on issue #147.
+ */
+const DESTRUCTIVE_PRIVILEGES = ['delete', 'truncate'] as const;
+
+/**
  * Every RLS invariant as one pure check over a parsed migration set. The named tests below assert it
  * piece by piece against the real set; the regression tests feed it deliberately weakened sets, so
  * they prove this exact check — not a look-alike — catches each weakening.
@@ -78,9 +93,13 @@ function rlsViolations(set: ParsedSql): string[] {
       }
     }
     // 'unstated' is not safe: Supabase's bootstrap grants broad privileges to authenticated, so only an
-    // explicit revoke that no later grant undoes is a guarantee.
-    if (set.privilegeState(name, 'authenticated', 'delete') !== 'revoked') {
-      found.push(`${name}: DELETE is ${set.privilegeState(name, 'authenticated', 'delete')} for authenticated`);
+    // explicit revoke that no later grant undoes is a guarantee. The violation names the privilege,
+    // so a reader of the failure knows which lock was opened.
+    for (const privilege of DESTRUCTIVE_PRIVILEGES) {
+      const state = set.privilegeState(name, 'authenticated', privilege);
+      if (state !== 'revoked') {
+        found.push(`${name}: ${privilege.toUpperCase()} is ${state} for authenticated`);
+      }
     }
     for (const command of ['delete', 'all'] as const) {
       for (const policy of set.policiesFor(name, command)) {

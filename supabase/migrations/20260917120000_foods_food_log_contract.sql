@@ -12,9 +12,10 @@
 --   1. RLS is enabled, FORCEd and per-user, declared in the same statement block that creates the
 --      table. A policy added in a later migration leaves a window where the table is readable, and
 --      a table rebuild drops policies without a word.
---   2. There is no DELETE policy and no DELETE grant. Deletes are tombstones (`deleted = 1`): a
---      hard delete cannot be synced, because the absence of a row is indistinguishable from a row
---      that has not arrived yet.
+--   2. There is no DELETE policy, and neither DELETE nor TRUNCATE is granted. Deletes are
+--      tombstones (`deleted = 1`): a hard delete cannot be synced, because the absence of a row is
+--      indistinguishable from a row that has not arrived yet. TRUNCATE is a separate privilege that
+--      RLS does not police at all, so it is revoked by name (#147).
 --   3. `updated_at` is a bigint the *device* wrote, and nothing here touches it — no DEFAULT, no
 --      `now()`, no trigger. Last-write-wins is decided by `src/sync`, which compares a device clock
 --      to a device clock; a server-stamped value would make every pull look newer than local and
@@ -72,6 +73,9 @@ create policy foods_update_own on public.foods
 -- No DELETE policy, and the grant is revoked as well: two locks, because losing history to a
 -- stray `.delete()` is the one failure the user cannot undo. Tombstone instead.
 revoke delete on public.foods from authenticated;
+-- TRUNCATE is a separate privilege in Postgres: revoking DELETE leaves it untouched, and RLS does
+-- not apply to it at all. One statement would empty the catalogue. Revoked on its own line (#147).
+revoke truncate on public.foods from authenticated;
 
 -- ---------------------------------------------------------------------------------------------
 -- food_log — facts about the past. Immutable nutrition, literal amounts, a local calendar day.
@@ -134,3 +138,5 @@ create policy food_log_update_own on public.food_log
   with check (user_id = (select auth.uid()));
 
 revoke delete on public.food_log from authenticated;
+-- And TRUNCATE, which would take every log the user has ever written in one statement (#147).
+revoke truncate on public.food_log from authenticated;

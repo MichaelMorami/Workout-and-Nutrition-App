@@ -21,6 +21,8 @@ command is not something a test can undo.
 | The remote columns equal the local Drizzle columns, minus the device-local usage cache, plus `user_id` | asserted against `src/db/schema.ts` on every test run |
 | RLS enabled **and** forced, per-user, in the same migration that creates the table | a later migration leaves a readable window; a table rebuild drops policies silently |
 | No `DELETE` policy and no `DELETE` grant | deletes are tombstones (`deleted = 1`); a hard delete cannot be synced |
+| No `TRUNCATE` grant either | a separate privilege that RLS does not police: one statement would empty `food_log` (#147) |
+| `UPDATE` stays granted, owner-scoped | sync needs it to push an edit and to write a tombstone; history is immutable because `food_log` stores `kcal`/`protein` directly, not because the privilege is withheld |
 | `updated_at` is a device-written `bigint`, never defaulted or triggered | last-write-wins compares device clock to device clock; a server stamp would make every pull win |
 | `local_date` is `text`, CHECKed as `YYYY-MM-DD` | a calendar day is never derived from a UTC instant |
 
