@@ -9,26 +9,36 @@
  * already an undo-able path: archiving hides a food from the grid, search and recents;
  * un-archiving (the same function, `archived: false`) restores it to all three, and neither
  * direction ever touches a past `food_log` row.
+ *
+ * Issue #154 (the data-layer slice of #101) adds `updateMeal` (rename and/or replace the item
+ * set in one transaction — add/remove/change are all the same "give me the new list" write) and
+ * `deleteMeal` (tombstones the meal and its live items). `restoreMeal` is the undo path deleteMeal
+ * needs: it takes back exactly the item ids that call tombstoned, never an item an earlier
+ * `updateMeal` already removed on purpose. Both `updateMeal` and `deleteMeal` never touch
+ * `food_log` — a row logged from a meal already holds its own literal `kcal`/`protein`.
  */
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import { makeTestDb } from '../../../test/db';
 import { makeMeal, makeMealItem } from '../../../test/factories';
 import { makeFood } from '../test-support/foods';
 import { VitalsDbError, type VitalsDbErrorCode } from '../errors';
 import * as schema from '../schema';
 import type { FoodBasis } from '../schema';
-import { quickAddCandidates, dayLog, logFood, todayTotals } from './nutrition';
-import { recentFoods, searchFoodsOnly } from './search';
+import { quickAddCandidates, dayLog, logFood, logMeal, todayTotals } from './nutrition';
+import { recentFoods, searchFoods, searchFoodsOnly } from './search';
 import {
   createFood,
   createMeal,
+  deleteMeal,
   getFood,
   getMeal,
   listFoods,
   listMeals,
   mealsContainingFood,
+  restoreMeal,
   setFoodArchived,
   updateFood,
+  updateMeal,
 } from './catalog';
 
 function setup() {
@@ -586,5 +596,335 @@ describe('mealsContainingFood', () => {
       .run();
 
     expect(mealsContainingFood(db, food.id)).toEqual([{ id: meal.id, name: 'Double up' }]);
+  });
+});
+
+// -------------------------------------------------------------------------------------------
+// updateMeal — issue #154: rename and/or replace the item set in one transaction. `patch.items`,
+// when given, fully replaces the live set — add, remove and change-qty are all the same write.
+// -------------------------------------------------------------------------------------------
+
+describe('updateMeal', () => {
+  it('renames a meal, bumping updated_at, leaving its items untouched', () => {
+    const { db } = setup();
+    const food = makeFood({ kcalPerServing: 100, proteinPerServing: 10 });
+    db.insert(schema.foods).values(food).run();
+    const meal = makeMeal({ name: 'Old name', updatedAt: 1_000 });
+    db.insert(schema.meals).values(meal).run();
+    const item = makeMealItem({ mealId: meal.id, foodId: food.id, qty: 2, updatedAt: 1_000 });
+    db.insert(schema.mealItems).values(item).run();
+
+    const updated = updateMeal(db, { at: 2_000, id: meal.id, patch: { name: 'New name' } });
+
+    expect(updated).toMatchObject({ name: 'New name', updatedAt: 2_000, itemCount: 1, kcal: 200, protein: 20 });
+    const itemRow = db.select().from(schema.mealItems).where(eq(schema.mealItems.id, item.id)).get();
+    expect(itemRow).toMatchObject({ deleted: 0, updatedAt: 1_000 });
+  });
+
+  it('replacing items tombstones the removed ones and inserts the rest live — add, remove and change-qty in one patch', () => {
+    const { db } = setup();
+    const oats = makeFood({ name: 'Oats', kcalPerServing: 200, proteinPerServing: 8 });
+    const milk = makeFood({ name: 'Milk', kcalPerServing: 100, proteinPerServing: 7 });
+    const honey = makeFood({ name: 'Honey', kcalPerServing: 60, proteinPerServing: 0 });
+    db.insert(schema.foods).values([oats, milk, honey]).run();
+    const meal = makeMeal();
+    db.insert(schema.meals).values(meal).run();
+    const oatsItem = makeMealItem({ mealId: meal.id, foodId: oats.id, qty: 1 });
+    const milkItem = makeMealItem({ mealId: meal.id, foodId: milk.id, qty: 1 }); // will be removed
+    db.insert(schema.mealItems).values([oatsItem, milkItem]).run();
+
+    const updated = updateMeal(db, {
+      at: 2_000,
+      id: meal.id,
+      // oats: qty changed 1 -> 2; milk: removed; honey: added.
+      patch: { items: [{ foodId: oats.id, qty: 2 }, { foodId: honey.id, qty: 1 }] },
+    });
+
+    expect(updated.itemCount).toBe(2);
+    expect(updated.kcal).toBe(200 * 2 + 60 * 1);
+
+    const liveItems = db
+      .select()
+      .from(schema.mealItems)
+      .where(and(eq(schema.mealItems.mealId, meal.id), eq(schema.mealItems.deleted, 0)))
+      .all();
+    const byFood = new Map(liveItems.map((i) => [i.foodId, i]));
+    expect(byFood.size).toBe(2);
+    expect(byFood.get(oats.id)).toMatchObject({ qty: 2 });
+    expect(byFood.get(honey.id)).toMatchObject({ qty: 1 });
+    expect(byFood.has(milk.id)).toBe(false);
+
+    const oldOatsRow = db.select().from(schema.mealItems).where(eq(schema.mealItems.id, oatsItem.id)).get();
+    const milkRow = db.select().from(schema.mealItems).where(eq(schema.mealItems.id, milkItem.id)).get();
+    expect(oldOatsRow).toMatchObject({ deleted: 1, updatedAt: 2_000 });
+    expect(milkRow).toMatchObject({ deleted: 1, updatedAt: 2_000 });
+  });
+
+  it('a patch with only items given leaves the name untouched', () => {
+    const { db } = setup();
+    const food = makeFood();
+    db.insert(schema.foods).values(food).run();
+    const meal = makeMeal({ name: 'Keep me' });
+    db.insert(schema.meals).values(meal).run();
+    db.insert(schema.mealItems).values(makeMealItem({ mealId: meal.id, foodId: food.id })).run();
+
+    const updated = updateMeal(db, { at: 2_000, id: meal.id, patch: { items: [{ foodId: food.id, qty: 1 }] } });
+    expect(updated.name).toBe('Keep me');
+  });
+
+  it('bumps updated_at even for an empty patch', () => {
+    const { db } = setup();
+    const meal = makeMeal({ updatedAt: 1_000 });
+    db.insert(schema.meals).values(meal).run();
+
+    const updated = updateMeal(db, { at: 2_000, id: meal.id, patch: {} });
+    expect(updated.updatedAt).toBe(2_000);
+  });
+
+  it('throws empty_meal when the items patch is empty, and changes nothing', () => {
+    const { db } = setup();
+    const food = makeFood();
+    db.insert(schema.foods).values(food).run();
+    const meal = makeMeal();
+    db.insert(schema.meals).values(meal).run();
+    const item = makeMealItem({ mealId: meal.id, foodId: food.id });
+    db.insert(schema.mealItems).values(item).run();
+
+    expectDbError(() => updateMeal(db, { at: 2_000, id: meal.id, patch: { items: [] } }), 'empty_meal');
+    const itemRow = db.select().from(schema.mealItems).where(eq(schema.mealItems.id, item.id)).get();
+    expect(itemRow).toMatchObject({ deleted: 0 });
+  });
+
+  it('rejects a non-positive qty in the items patch', () => {
+    const { db } = setup();
+    const food = makeFood();
+    db.insert(schema.foods).values(food).run();
+    const meal = makeMeal();
+    db.insert(schema.meals).values(meal).run();
+
+    expectDbError(
+      () => updateMeal(db, { at: 2_000, id: meal.id, patch: { items: [{ foodId: food.id, qty: 0 }] } }),
+      'invalid_input',
+    );
+  });
+
+  it('throws not_found when an item patch references a missing food, and changes nothing', () => {
+    const { db } = setup();
+    const food = makeFood();
+    db.insert(schema.foods).values(food).run();
+    const meal = makeMeal();
+    db.insert(schema.meals).values(meal).run();
+    const item = makeMealItem({ mealId: meal.id, foodId: food.id });
+    db.insert(schema.mealItems).values(item).run();
+
+    expectDbError(
+      () => updateMeal(db, { at: 2_000, id: meal.id, patch: { items: [{ foodId: 'no-such-food', qty: 1 }] } }),
+      'not_found',
+    );
+    const itemRow = db.select().from(schema.mealItems).where(eq(schema.mealItems.id, item.id)).get();
+    expect(itemRow).toMatchObject({ deleted: 0 });
+  });
+
+  it('throws not_found when an item patch references a tombstoned food', () => {
+    const { db } = setup();
+    const gone = makeFood({ deleted: 1 });
+    db.insert(schema.foods).values(gone).run();
+    const meal = makeMeal();
+    db.insert(schema.meals).values(meal).run();
+
+    expectDbError(
+      () => updateMeal(db, { at: 2_000, id: meal.id, patch: { items: [{ foodId: gone.id, qty: 1 }] } }),
+      'not_found',
+    );
+  });
+
+  it('rejects an empty name', () => {
+    const { db } = setup();
+    const meal = makeMeal();
+    db.insert(schema.meals).values(meal).run();
+    expectDbError(() => updateMeal(db, { at: 2_000, id: meal.id, patch: { name: '  ' } }), 'invalid_input');
+  });
+
+  it('throws not_found for a missing meal', () => {
+    const { db } = setup();
+    expectDbError(() => updateMeal(db, { at: 2_000, id: 'no-such-meal', patch: { name: 'X' } }), 'not_found');
+  });
+
+  it('throws not_found for a tombstoned meal', () => {
+    const { db } = setup();
+    const meal = makeMeal({ deleted: 1 });
+    db.insert(schema.meals).values(meal).run();
+    expectDbError(() => updateMeal(db, { at: 2_000, id: meal.id, patch: { name: 'X' } }), 'not_found');
+  });
+
+  it('never changes a past food_log row — history is immutable', () => {
+    const { db } = setup();
+    const oats = makeFood({ name: 'Oats', kcalPerServing: 200, proteinPerServing: 8 });
+    const honey = makeFood({ name: 'Honey', kcalPerServing: 60, proteinPerServing: 0 });
+    db.insert(schema.foods).values([oats, honey]).run();
+    const meal = makeMeal({ name: 'Breakfast' });
+    db.insert(schema.meals).values(meal).run();
+    db.insert(schema.mealItems).values(makeMealItem({ mealId: meal.id, foodId: oats.id, qty: 1 })).run();
+    const receipt = logMeal(db, { at: 1_000, timeZone: 'America/Los_Angeles', mealId: meal.id });
+    const loggedRow = receipt.entries[0]!;
+
+    updateMeal(db, {
+      at: 2_000,
+      id: meal.id,
+      patch: { name: 'Renamed', items: [{ foodId: honey.id, qty: 5 }] },
+    });
+
+    const row = db.select().from(schema.foodLog).where(eq(schema.foodLog.id, loggedRow.id)).get();
+    expect(row).toMatchObject({ kcal: 200, protein: 8, foodId: oats.id });
+  });
+
+  it('a tombstoned item — one an update removed — is absent from getMeal', () => {
+    const { db } = setup();
+    const oats = makeFood({ name: 'Oats' });
+    const milk = makeFood({ name: 'Milk' });
+    db.insert(schema.foods).values([oats, milk]).run();
+    const meal = makeMeal();
+    db.insert(schema.meals).values(meal).run();
+    db.insert(schema.mealItems)
+      .values([makeMealItem({ mealId: meal.id, foodId: oats.id }), makeMealItem({ mealId: meal.id, foodId: milk.id })])
+      .run();
+
+    updateMeal(db, { at: 2_000, id: meal.id, patch: { items: [{ foodId: oats.id, qty: 1 }] } });
+
+    const detail = getMeal(db, meal.id);
+    expect(detail?.items.map((i) => i.food.id)).toEqual([oats.id]);
+  });
+});
+
+// -------------------------------------------------------------------------------------------
+// deleteMeal — issue #154: tombstones the meal and its live items, never a row removal.
+// -------------------------------------------------------------------------------------------
+
+describe('deleteMeal', () => {
+  it('tombstones a meal and its live items, bumping updated_at on both', () => {
+    const { db } = setup();
+    const food = makeFood();
+    db.insert(schema.foods).values(food).run();
+    const meal = makeMeal();
+    db.insert(schema.meals).values(meal).run();
+    const item = makeMealItem({ mealId: meal.id, foodId: food.id });
+    db.insert(schema.mealItems).values(item).run();
+
+    const receipt = deleteMeal(db, { at: 2_000, id: meal.id });
+
+    expect(receipt).toEqual({ mealId: meal.id, itemIds: [item.id] });
+    const mealRow = db.select().from(schema.meals).where(eq(schema.meals.id, meal.id)).get();
+    expect(mealRow).toMatchObject({ deleted: 1, updatedAt: 2_000 });
+    const itemRow = db.select().from(schema.mealItems).where(eq(schema.mealItems.id, item.id)).get();
+    expect(itemRow).toMatchObject({ deleted: 1, updatedAt: 2_000 });
+  });
+
+  it('throws not_found for a missing meal', () => {
+    const { db } = setup();
+    expectDbError(() => deleteMeal(db, { at: 2_000, id: 'no-such-meal' }), 'not_found');
+  });
+
+  it('throws not_found for an already-tombstoned meal', () => {
+    const { db } = setup();
+    const meal = makeMeal({ deleted: 1 });
+    db.insert(schema.meals).values(meal).run();
+    expectDbError(() => deleteMeal(db, { at: 2_000, id: meal.id }), 'not_found');
+  });
+
+  it('a deleted meal is absent from listMeals, getMeal, search and quick-add', () => {
+    const { db } = setup();
+    const at = Date.parse('2025-03-09T16:00:00.000Z');
+    const timeZone = 'America/Los_Angeles';
+    const food = makeFood();
+    db.insert(schema.foods).values(food).run();
+    const meal = makeMeal({ name: 'Post-gym shake', useCount: 1, lastUsedAt: at });
+    db.insert(schema.meals).values(meal).run();
+    db.insert(schema.mealItems).values(makeMealItem({ mealId: meal.id, foodId: food.id })).run();
+
+    deleteMeal(db, { at: at + 1, id: meal.id });
+
+    expect(listMeals(db).map((m) => m.id)).not.toContain(meal.id);
+    expect(getMeal(db, meal.id)).toBeNull();
+    expect(searchFoods(db, { at, timeZone, query: 'Post-gym' }).map((c) => c.id)).not.toContain(meal.id);
+    expect(quickAddCandidates(db, { at, timeZone }).map((c) => c.id)).not.toContain(meal.id);
+  });
+
+  it('never changes a past food_log row — history is immutable', () => {
+    const { db } = setup();
+    const food = makeFood({ name: 'Oats', kcalPerServing: 200, proteinPerServing: 8 });
+    db.insert(schema.foods).values(food).run();
+    const meal = makeMeal();
+    db.insert(schema.meals).values(meal).run();
+    db.insert(schema.mealItems).values(makeMealItem({ mealId: meal.id, foodId: food.id, qty: 1 })).run();
+    const receipt = logMeal(db, { at: 1_000, timeZone: 'America/Los_Angeles', mealId: meal.id });
+    const loggedRow = receipt.entries[0]!;
+
+    deleteMeal(db, { at: 2_000, id: meal.id });
+
+    const row = db.select().from(schema.foodLog).where(eq(schema.foodLog.id, loggedRow.id)).get();
+    expect(row).toMatchObject({ kcal: 200, protein: 8, foodId: food.id, mealId: meal.id });
+  });
+});
+
+// -------------------------------------------------------------------------------------------
+// restoreMeal — issue #154: deleteMeal's undo. Takes back exactly the item ids that call
+// tombstoned, never an item an earlier updateMeal already removed on purpose.
+// -------------------------------------------------------------------------------------------
+
+describe('restoreMeal', () => {
+  it('undoes deleteMeal: restores the meal and exactly the items that call tombstoned', () => {
+    const { db } = setup();
+    const food = makeFood({ name: 'Whey', kcalPerServing: 120, proteinPerServing: 24 });
+    db.insert(schema.foods).values(food).run();
+    const meal = makeMeal({ name: 'Shake' });
+    db.insert(schema.meals).values(meal).run();
+    db.insert(schema.mealItems).values(makeMealItem({ mealId: meal.id, foodId: food.id, qty: 2 })).run();
+    const receipt = deleteMeal(db, { at: 2_000, id: meal.id });
+
+    const restored = restoreMeal(db, { at: 3_000, mealId: receipt.mealId, itemIds: receipt.itemIds });
+
+    expect(restored).toMatchObject({ name: 'Shake', itemCount: 1, kcal: 240, protein: 48 });
+    expect(getMeal(db, meal.id)).not.toBeNull();
+    const mealRow = db.select().from(schema.meals).where(eq(schema.meals.id, meal.id)).get();
+    expect(mealRow).toMatchObject({ deleted: 0, updatedAt: 3_000 });
+  });
+
+  it('does not resurrect an item an earlier updateMeal already removed', () => {
+    const { db } = setup();
+    const oats = makeFood({ name: 'Oats' });
+    const milk = makeFood({ name: 'Milk' });
+    db.insert(schema.foods).values([oats, milk]).run();
+    const meal = makeMeal();
+    db.insert(schema.meals).values(meal).run();
+    db.insert(schema.mealItems)
+      .values([makeMealItem({ mealId: meal.id, foodId: oats.id }), makeMealItem({ mealId: meal.id, foodId: milk.id })])
+      .run();
+    // Milk is removed by an edit, well before the meal is ever deleted.
+    updateMeal(db, { at: 1_500, id: meal.id, patch: { items: [{ foodId: oats.id, qty: 1 }] } });
+
+    const receipt = deleteMeal(db, { at: 2_000, id: meal.id });
+    restoreMeal(db, { at: 3_000, mealId: receipt.mealId, itemIds: receipt.itemIds });
+
+    const detail = getMeal(db, meal.id);
+    expect(detail?.items.map((i) => i.food.id)).toEqual([oats.id]);
+  });
+
+  it('throws not_found for a meal id that never existed', () => {
+    const { db } = setup();
+    expectDbError(() => restoreMeal(db, { at: 3_000, mealId: 'no-such-meal', itemIds: [] }), 'not_found');
+  });
+
+  it('is idempotent: restoring an already-live meal changes nothing', () => {
+    const { db } = setup();
+    const food = makeFood();
+    db.insert(schema.foods).values(food).run();
+    const meal = makeMeal({ updatedAt: 1_000 });
+    db.insert(schema.meals).values(meal).run();
+    db.insert(schema.mealItems).values(makeMealItem({ mealId: meal.id, foodId: food.id })).run();
+
+    restoreMeal(db, { at: 3_000, mealId: meal.id, itemIds: [] });
+
+    const mealRow = db.select().from(schema.meals).where(eq(schema.meals.id, meal.id)).get();
+    expect(mealRow).toMatchObject({ deleted: 0, updatedAt: 1_000 });
   });
 });
