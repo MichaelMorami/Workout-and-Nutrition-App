@@ -97,3 +97,5 @@ For the sprint-by-sprint plan see [`README.md`](README.md); for open work see th
 - 2026-09-18  fix: exclude merge commits when titling a PR (issue #151)  (PR #165 closes #151)
 - 2026-09-18  docs: visual evidence for tap-to-edit, swipe-delete and pre-fill (issue #101)  (PR #166 closes #101)
 - 2026-09-18  docs: record that the Settings meal list manages meals, not logs them (issue #101)  (PR #169 closes #101)
+- 2026-09-18  feat: re-export mealsContainingFood and MealRef from src/db barrel (#164)  (PR #170 closes #164)
+- 2026-09-18  fix: rank PR title by commit type instead of just oldest survivor (issue #168)  (PR #171 closes #168)

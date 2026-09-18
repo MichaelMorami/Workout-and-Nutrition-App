@@ -30,9 +30,12 @@ command is not something a test can undo.
 
 Nothing in this repository holds a credential. The project URL and the anon key come from
 environment config; the anon key is public by design and is safe in a shipped app **because** RLS is
-on every table — and, for the one privilege RLS does not police, because `DELETE` and `TRUNCATE` are
-revoked from `anon` by name. The service-role key is never used by the app, never committed, and never needed by
-any script here — a leak of it bypasses every policy above.
+on every table, policing `DELETE` the same as every other command — and, for `TRUNCATE`, the one
+privilege RLS does not police at all, because it is revoked from `anon` by name instead. `DELETE` is
+also revoked from `anon` and `authenticated` (there are no `DELETE` policies to bypass in the first
+place), but that revoke is a second lock, not the only one; the `TRUNCATE` revoke is. The
+service-role key is never used by the app, never committed, and never needed by any script here — a
+leak of it bypasses every policy above.
 
 `src/sync/contract/schema.test.ts` fails the build if a key, a JWT or a project URL appears in this
 directory.
