@@ -1008,6 +1008,35 @@ describe('a column-level check is recorded (#162)', () => {
       SqlSyntaxError,
     );
   });
+
+  /**
+   * Review of PR #173: real SQL freely omits the space before `check`'s parenthesis, and the type
+   * scanner only broke out of the type on a *whole* token equal to `check` — so `check(qty > 0)`,
+   * glued with no space, was never recognised as the modifier at all. It was read as part of the
+   * *type* instead (`type: "integer check(qty > 0)"`), and everything after it — the check itself,
+   * any `not null` or `default` that followed — vanished into a type string nothing else on this
+   * reader ever looks at. That is #162's own spelling under-reported by #162's own fix.
+   */
+  it('records a check with no space before its parenthesis, the spelling the type scanner used to swallow', () => {
+    expect(column('qty integer check(qty > 0)', 'qty')).toMatchObject({
+      type: 'integer',
+      checks: [{ name: null, expression: 'qty > 0' }],
+    });
+  });
+
+  it('records a named check with no space before its parenthesis', () => {
+    expect(column('qty integer constraint t_qty_check check(qty > 0)', 'qty')).toMatchObject({
+      type: 'integer',
+      checks: [{ name: 't_qty_check', expression: 'qty > 0' }],
+    });
+  });
+
+  it('still reads a type glued to its own parenthesis, e.g. numeric(10,2), ahead of a glued check', () => {
+    expect(column('amount numeric(10,2) check(amount > 0)', 'amount')).toMatchObject({
+      type: 'numeric(10,2)',
+      checks: [{ name: null, expression: 'amount > 0' }],
+    });
+  });
 });
 
 /**
