@@ -1,14 +1,15 @@
 /**
- * `/meals` — issue #43's saved-meals screen. Behaviour only: it renders `listMeals`, tapping a
- * meal logs it in one tap (`<MealList>`'s own doctrine, unchanged here) with the shared
- * `<UndoToast>` mounted so that tap's undo is reachable from this screen, "+ New meal" navigates to
- * `/meals/new`, and it refetches `listMeals` on every focus.
+ * `/meals` — issue #101's saved-meals management screen. Behaviour only: it renders `listMeals`,
+ * tapping a meal navigates to `/meals/[id]` to edit it (the #101 ruling — tap no longer logs here),
+ * "+ New meal" navigates to `/meals/new`, and it refetches `listMeals` on every focus. Swipe-to-
+ * delete and its undo toast are `<MealList>`'s own behaviour, covered in `MealList.test.tsx`; this
+ * screen only proves `<UndoToast>` is mounted so that delete's undo is reachable here.
  */
 import { act, fireEvent, render, screen } from '@testing-library/react-native';
 import React from 'react';
 import { DbProvider } from '../../src/components/db/DbProvider';
 import { ThemeContext } from '../../src/components/theme/theme-context';
-import { listMeals, logMeal, type MealSummary } from '../../src/db';
+import { listMeals, type MealSummary } from '../../src/db';
 import { themes } from '../../src/theme/tokens';
 import MealsScreen from './index';
 
@@ -16,7 +17,6 @@ jest.mock('react-native-reanimated', () => jest.requireActual('../../src/compone
 jest.mock('../../src/db', () => ({
   ...jest.requireActual<typeof import('../../src/db')>('../../src/db'),
   listMeals: jest.fn(),
-  logMeal: jest.fn(),
 }));
 
 const mockPush = jest.fn();
@@ -35,7 +35,6 @@ jest.mock('expo-router', () => {
 });
 
 const mockListMeals = jest.mocked(listMeals);
-const mockLogMeal = jest.mocked(logMeal);
 
 const breakfast: MealSummary = { id: 'meal-1', name: 'Breakfast bowl', itemCount: 3, kcal: 420, protein: 30 };
 
@@ -61,20 +60,13 @@ describe('MealsScreen', () => {
     expect(screen.getByTestId('meals-screen-list-row-meal-1-name')).toHaveTextContent('Breakfast bowl');
   });
 
-  it('tapping a meal logs it via logMeal and shows the undo toast', async () => {
+  it('tapping a meal navigates to its edit screen', async () => {
     mockListMeals.mockReturnValue([breakfast]);
-    mockLogMeal.mockReturnValue({
-      target: { kind: 'meal', id: 'meal-1' },
-      entries: [],
-      portions: 1,
-      undo: { kind: 'unlog', logIds: ['log-1'] },
-    });
     await renderScreen();
 
     await fireEvent.press(screen.getByTestId('meals-screen-list-row-meal-1'));
 
-    expect(mockLogMeal).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ mealId: 'meal-1' }));
-    expect(screen.getByTestId('meals-screen-undo-toast')).toBeTruthy();
+    expect(mockPush).toHaveBeenCalledWith('/meals/meal-1');
   });
 
   it('"+ New meal" navigates to the new-meal screen', async () => {

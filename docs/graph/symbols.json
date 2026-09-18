@@ -1,6 +1,6 @@
 {
   "generated": "scripts/graph-gen.mjs — do not edit by hand",
-  "moduleCount": 86,
+  "moduleCount": 87,
   "modules": {
     "app/(tabs)/_layout.tsx": {
       "exports": [
@@ -161,6 +161,23 @@
       ],
       "loc": 43
     },
+    "app/meals/[id].tsx": {
+      "exports": [
+        "function default(): React.JSX.Element"
+      ],
+      "imports": [
+        "expo-router",
+        "react",
+        "react-native",
+        "src/components/meals/index.ts",
+        "src/db/index.ts",
+        "src/hooks/deviceWhen.ts",
+        "src/hooks/useDb.ts",
+        "src/hooks/useTheme.ts",
+        "src/theme/tokens.ts"
+      ],
+      "loc": 78
+    },
     "app/meals/index.tsx": {
       "exports": [
         "function default(): React.JSX.Element"
@@ -175,7 +192,7 @@
         "src/hooks/useDb.ts",
         "src/hooks/useTheme.ts"
       ],
-      "loc": 45
+      "loc": 53
     },
     "app/meals/new.tsx": {
       "exports": [
@@ -500,8 +517,9 @@
     },
     "src/components/meals/MealForm.tsx": {
       "exports": [
-        "function MealForm({ db, onSave, onCancel, locale, theme, testID = 'meal-form' }: MealFormProps): import(\"react\").JSX.Element",
-        "type MealFormProps = {\n  readonly db: VitalsDb;\n  readonly onSave: (values: MealFormValues) => void;\n  readonly onCancel: () => void;\n  /** Formatting locale for the dropdown's kcal/protein figures. Defaults to the device's. */\n  readonly locale?: string;\n  readonly theme: Theme;\n  readonly testID?: string;\n}",
+        "function MealForm({ db, initial, onSave, onCancel, locale, theme, testID = 'meal-form' }: MealFormProps): import(\"react\").JSX.Element",
+        "type MealFormInitial = {\n  readonly name: string;\n  readonly items: readonly { readonly id: string; readonly name: string; readonly qty: number }[];\n}",
+        "type MealFormProps = {\n  readonly db: VitalsDb;\n  /** `undefined`/`null` — a fresh meal, blank name, no ingredients. Given — an edit, pre-filled at\n   * exactly what the meal currently holds (issue #101). */\n  readonly initial?: MealFormInitial | null;\n  readonly onSave: (values: MealFormValues) => void;\n  readonly onCancel: () => void;\n  /** Formatting locale for the dropdown's kcal/protein fi...",
         "type MealFormValues = { readonly name: string; readonly items: readonly MealItemInput[] }"
       ],
       "imports": [
@@ -513,38 +531,40 @@
         "src/hooks/deviceWhen.ts",
         "src/theme/tokens.ts"
       ],
-      "loc": 428
+      "loc": 444
     },
     "src/components/meals/MealList.tsx": {
       "exports": [
-        "function MealList({ db, meals, onLogged, onCreate, locale, theme, testID = 'meal-list' }: MealListProps): import(\"react\").JSX.Element",
-        "type MealListProps = {\n  readonly db: VitalsDb;\n  readonly meals: readonly MealSummary[];\n  /** Called after a meal logs successfully, with the delta a caller's running totals need. */\n  readonly onLogged?: (delta: LogDelta) => void;\n  readonly onCreate: () => void;\n  readonly locale?: string;\n  readonly theme: Theme;\n  readonly testID?: string;\n}"
+        "function MealList({ db, meals, onSelect, onCreate, locale, theme, testID = 'meal-list' }: MealListProps): import(\"react\").JSX.Element",
+        "type MealListProps = {\n  readonly db: VitalsDb;\n  readonly meals: readonly MealSummary[];\n  /** Tapping a row calls this with the meal to edit — the caller navigates to `/meals/[id]`. */\n  readonly onSelect: (meal: MealSummary) => void;\n  readonly onCreate: () => void;\n  readonly locale?: string;\n  readonly theme: Theme;\n  readonly testID?: string;\n}"
       ],
       "imports": [
+        "react",
         "react-native",
         "src/components/format/food.ts",
-        "src/components/meals/meal-candidate.ts",
+        "src/components/shared/SwipeToDelete.tsx",
         "src/db/index.ts",
         "src/hooks/deviceWhen.ts",
         "src/hooks/useHapticFeedback.ts",
-        "src/store/logTracker.ts",
         "src/store/undoToast.ts",
         "src/theme/tokens.ts"
       ],
-      "loc": 186
+      "loc": 230
     },
     "src/components/meals/index.ts": {
       "exports": [
-        "function MealForm({ db, onSave, onCancel, locale, theme, testID = 'meal-form' }: MealFormProps): import(\"react\").JSX.Element",
-        "function MealList({ db, meals, onLogged, onCreate, locale, theme, testID = 'meal-list' }: MealListProps): import(\"react\").JSX.Element",
+        "function MealForm({ db, initial, onSave, onCancel, locale, theme, testID = 'meal-form' }: MealFormProps): import(\"react\").JSX.Element",
+        "function MealList({ db, meals, onSelect, onCreate, locale, theme, testID = 'meal-list' }: MealListProps): import(\"react\").JSX.Element",
         "function candidateForMeal(meal: MealSummary): MealCandidate",
-        "type MealFormProps = {\n  readonly db: VitalsDb;\n  readonly onSave: (values: MealFormValues) => void;\n  readonly onCancel: () => void;\n  /** Formatting locale for the dropdown's kcal/protein figures. Defaults to the device's. */\n  readonly locale?: string;\n  readonly theme: Theme;\n  readonly testID?: string;\n}",
+        "type MealFormInitial = {\n  readonly name: string;\n  readonly items: readonly { readonly id: string; readonly name: string; readonly qty: number }[];\n}",
+        "type MealFormProps = {\n  readonly db: VitalsDb;\n  /** `undefined`/`null` — a fresh meal, blank name, no ingredients. Given — an edit, pre-filled at\n   * exactly what the meal currently holds (issue #101). */\n  readonly initial?: MealFormInitial | null;\n  readonly onSave: (values: MealFormValues) => void;\n  readonly onCancel: () => void;\n  /** Formatting locale for the dropdown's kcal/protein fi...",
         "type MealFormValues = { readonly name: string; readonly items: readonly MealItemInput[] }",
-        "type MealListProps = {\n  readonly db: VitalsDb;\n  readonly meals: readonly MealSummary[];\n  /** Called after a meal logs successfully, with the delta a caller's running totals need. */\n  readonly onLogged?: (delta: LogDelta) => void;\n  readonly onCreate: () => void;\n  readonly locale?: string;\n  readonly theme: Theme;\n  readonly testID?: string;\n}"
+        "type MealListProps = {\n  readonly db: VitalsDb;\n  readonly meals: readonly MealSummary[];\n  /** Tapping a row calls this with the meal to edit — the caller navigates to `/meals/[id]`. */\n  readonly onSelect: (meal: MealSummary) => void;\n  readonly onCreate: () => void;\n  readonly locale?: string;\n  readonly theme: Theme;\n  readonly testID?: string;\n}"
       ],
       "imports": [],
       "loc": 4,
       "importedBy": [
+        "app/meals/[id].tsx",
         "app/meals/index.tsx",
         "app/meals/new.tsx"
       ]
@@ -556,10 +576,7 @@
       "imports": [
         "src/db/index.ts"
       ],
-      "loc": 22,
-      "importedBy": [
-        "src/components/meals/MealList.tsx"
-      ]
+      "loc": 22
     },
     "src/components/quick-add/PortionSheet.tsx": {
       "exports": [
@@ -768,7 +785,8 @@
       "loc": 225,
       "importedBy": [
         "src/components/day-log/DayLogRow.tsx",
-        "src/components/food-list/FoodList.tsx"
+        "src/components/food-list/FoodList.tsx",
+        "src/components/meals/MealList.tsx"
       ]
     },
     "src/components/theme/ThemeProvider.tsx": {
@@ -1057,6 +1075,7 @@
         "app/foods/[id].tsx",
         "app/foods/index.tsx",
         "app/foods/new.tsx",
+        "app/meals/[id].tsx",
         "app/meals/index.tsx",
         "app/meals/new.tsx",
         "src/components/day-log/DayLogList.tsx",
@@ -1418,6 +1437,7 @@
         "app/(tabs)/index.tsx",
         "app/foods/[id].tsx",
         "app/foods/new.tsx",
+        "app/meals/[id].tsx",
         "app/meals/new.tsx",
         "src/components/day-log/DayLogList.tsx",
         "src/components/food-list/FoodList.tsx",
@@ -1447,6 +1467,7 @@
         "app/foods/[id].tsx",
         "app/foods/index.tsx",
         "app/foods/new.tsx",
+        "app/meals/[id].tsx",
         "app/meals/index.tsx",
         "app/meals/new.tsx",
         "src/components/day-log/DayLogList.tsx",
@@ -1493,6 +1514,7 @@
         "app/foods/[id].tsx",
         "app/foods/index.tsx",
         "app/foods/new.tsx",
+        "app/meals/[id].tsx",
         "app/meals/index.tsx",
         "app/meals/new.tsx",
         "src/components/day-log/DayLogList.tsx",
@@ -1516,7 +1538,6 @@
       "loc": 59,
       "importedBy": [
         "src/components/day-log/DayLogList.tsx",
-        "src/components/meals/MealList.tsx",
         "src/components/quick-add/QuickAddGrid.tsx",
         "src/components/quick-add/UndoToast.tsx",
         "src/components/search/SearchSheet.tsx"
@@ -1687,6 +1708,7 @@
         "app/_layout.tsx",
         "app/foods/[id].tsx",
         "app/foods/new.tsx",
+        "app/meals/[id].tsx",
         "app/meals/new.tsx",
         "src/components/charts/ProgressArc.tsx",
         "src/components/day-log/DayLogList.tsx",

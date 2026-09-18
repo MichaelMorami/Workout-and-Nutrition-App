@@ -163,3 +163,59 @@ describe('MealForm', () => {
     expect(screen.queryByTestId('meal-form-save')).toBeNull();
   });
 });
+
+describe('MealForm pre-fill from initial (issue #101)', () => {
+  it('pre-fills the name and every ingredient row from initial values', async () => {
+    await renderForm({ initial: { name: 'Breakfast bowl', items: [{ id: 'food-1', name: 'Greek yoghurt', qty: 2 }] } });
+
+    expect(screen.getByTestId('meal-form-name').props.value).toBe('Breakfast bowl');
+    expect(screen.getByTestId('meal-form-item-food-1')).toBeTruthy();
+    expect(screen.getByTestId('meal-form-item-food-1-value')).toHaveTextContent('2');
+  });
+
+  it('does not offer an already-pre-filled ingredient again in search', async () => {
+    mockSearch.mockReturnValue([yoghurt, granola]);
+    await renderForm({ initial: { name: 'Breakfast bowl', items: [{ id: 'food-1', name: 'Greek yoghurt', qty: 2 }] } });
+
+    await fireEvent.changeText(screen.getByTestId('meal-form-search'), 'g');
+
+    expect(screen.queryByTestId('meal-form-match-food-1')).toBeNull();
+    expect(screen.getByTestId('meal-form-match-food-2')).toBeTruthy();
+  });
+
+  it('saving from initial values includes the pre-filled items plus any newly added', async () => {
+    mockSearch.mockReturnValue([granola]);
+    const onSave = jest.fn();
+    await renderForm({ initial: { name: 'Breakfast bowl', items: [{ id: 'food-1', name: 'Greek yoghurt', qty: 2 }] }, onSave });
+
+    await fireEvent.changeText(screen.getByTestId('meal-form-search'), 'gran');
+    await fireEvent.press(screen.getByTestId('meal-form-match-food-2'));
+    await fireEvent.press(screen.getByTestId('meal-form-save'));
+
+    expect(onSave).toHaveBeenCalledWith({
+      name: 'Breakfast bowl',
+      items: [
+        { foodId: 'food-1', qty: 2 },
+        { foodId: 'food-2', qty: 1 },
+      ],
+    });
+  });
+
+  it('removing every pre-filled ingredient still requires at least one to save', async () => {
+    const onSave = jest.fn();
+    await renderForm({ initial: { name: 'Breakfast bowl', items: [{ id: 'food-1', name: 'Greek yoghurt', qty: 2 }] }, onSave });
+
+    await fireEvent.press(screen.getByTestId('meal-form-item-food-1-remove'));
+    await fireEvent.press(screen.getByTestId('meal-form-save'));
+
+    expect(onSave).not.toHaveBeenCalled();
+    expect(screen.getByTestId('meal-form-error')).toHaveTextContent(/food/i);
+  });
+
+  it('starts blank with no initial, unchanged from before #101', async () => {
+    await renderForm({ initial: null });
+
+    expect(screen.getByTestId('meal-form-name').props.value).toBe('');
+    expect(screen.queryByTestId('meal-form-item-food-1')).toBeNull();
+  });
+});

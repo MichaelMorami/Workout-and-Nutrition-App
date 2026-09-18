@@ -1,14 +1,16 @@
 /**
- * Visual evidence for issue #43's saved meals and their Settings entry point — `<MealList>`
- * (one-tap logging, populated + teaching empty state), `<MealForm>` (issue #98: a search dropdown
- * over the whole food library adds ingredients, each still a `<Stepper>` in servings, unchanged)
- * and the Settings tab's "Library" group that reaches both of these plus `<FoodList>`. Both themes,
- * one PNG each.
+ * Visual evidence for issue #101's "Meals (Settings): tap to edit, swipe to delete" — `<MealList>`
+ * (tap-to-edit, populated + teaching empty state, swipe-left delete revealed, the undo toast it
+ * shows), `<MealForm>` (issue #98's search dropdown, plus issue #101's `initial` pre-fill for the
+ * edit screen) and the Settings tab's "Library" group that reaches both of these plus `<FoodList>`.
+ * Both themes, one PNG each.
  *
  * WHY THIS EXISTS. There is no simulator in this environment. This draws the same markup the real
- * components draw, using the same `tokens.ts` values `MealList.tsx`/`MealForm.tsx`/`settings.tsx`
- * themselves use — so the picture is evidence about these components, not a second implementation
- * of them. Same discipline as `src/components/day-log/__evidence__/build-evidence.mjs`.
+ * components draw, using the same `tokens.ts` values `MealList.tsx`/`MealForm.tsx`/`settings.tsx`/
+ * `SwipeToDelete.tsx`/`UndoToast.tsx` themselves use — so the picture is evidence about these
+ * components, not a second implementation of them. Same discipline as
+ * `src/components/food-list/__evidence__/build-evidence.mjs` (issue #100), which this mirrors for
+ * the delete/undo cards.
  *
  * Run: node src/components/meals/__evidence__/build-evidence.mjs
  * (Node >= 23.6 — imports the .ts sources directly via native type stripping.)
@@ -62,6 +64,49 @@ function listHeader(theme, label, addLabel) {
 
 function mealListPopulated(theme) {
   return `<div class="list">${listHeader(theme, 'Saved meals', '+ New meal')}${MEALS.map((m) => mealRow(theme, m)).join('')}</div>`;
+}
+
+/** One row wrapped in `<SwipeToDelete>`'s own geometry (`SwipeToDelete.tsx`) — verbatim from
+ * `food-list/__evidence__/build-evidence.mjs` (issue #100), applied to a meal row instead of a
+ * food row: the delete layer is always mounted underneath, just covered, and `reveal` slides the
+ * front layer left by `DELETE_SLIDE_WIDTH` (`deleteButton.gap + deleteButton.side`) to show it — the
+ * same effect the real `PanResponder`-driven `offset` produces on an actual swipe. */
+function swipeRow(theme, meal, { reveal = false } = {}) {
+  const { deleteButton: db } = size;
+  const slideWidth = db.gap + db.side;
+  const translateX = reveal ? -slideWidth : 0;
+  return `
+  <div class="swipe-wrap" style="min-height:${size.tapTargetMin}px">
+    <div class="delete-layer" style="opacity:${reveal ? 1 : 0}">
+      <div class="delete-btn" style="width:${db.side}px;height:${db.side}px;border-radius:${radius.sm}px;background:${theme.color.state.danger}">
+        <span style="color:${theme.color.text.onDanger};font-size:${size.icon.deleteAction}px;line-height:1">🗑</span>
+      </div>
+    </div>
+    <div class="swipe-front" style="transform:translateX(${translateX}px);min-height:${size.tapTargetMin}px;background:${theme.color.resultRow.bg}">
+      ${mealRow(theme, meal).replace('<div class="food-row"', '<div class="food-row" style="border-bottom:none"')}
+    </div>
+  </div>`;
+}
+
+/** `<UndoToast>`'s own markup (`UndoToast.tsx`) — verbatim from `food-list`'s own evidence (issue
+ * #100): check mark, title, meta, Undo button, same tokens throughout. A meal delete's meta is
+ * always the plain kcal/protein figure (`toastMeta()`, `MealList.tsx`) — there is no "still in"
+ * clause here, unlike a food's archive, since a deleted meal cannot itself be inside another meal. */
+function undoToast(theme, title, meta) {
+  const { toast } = theme.color;
+  return `
+  <div class="toast" style="height:${size.toast.height}px;border-radius:${radius.xl}px;background:${toast.bg};border:1px solid ${toast.border}">
+    <div class="toastBody">
+      <span style="color:${toast.checkIcon};font-size:${size.icon.md}px">✓</span>
+      <div class="toastText">
+        <span style="${font(typeTokens.body)}color:${toast.titleText}">${title}</span>
+        <span style="${font(typeTokens.label)}color:${toast.metaText}">${meta}</span>
+      </div>
+    </div>
+    <div class="toastUndo" style="min-width:${size.toast.undoMinWidth}px;min-height:${size.toast.undoHit}px;border-radius:${radius.md}px;background:${toast.undoBg}">
+      <span style="${font(typeTokens.button)}color:${toast.undoText}">Undo</span>
+    </div>
+  </div>`;
 }
 
 function mealListEmpty(theme) {
@@ -214,11 +259,17 @@ function card(theme, title, body, width = 360) {
 }
 
 function page(theme) {
-  const populated = card(theme, 'Saved meals — tap a row, log one portion instantly', mealListPopulated(theme));
+  const populated = card(theme, 'Saved meals — tap a row to edit it (issue #101)', mealListPopulated(theme));
   const empty = card(theme, 'No saved meals yet — the teaching empty state', mealListEmpty(theme));
   const formSearch = card(theme, 'New meal — searching the food library turns up matches to add', mealFormSearch(theme), 340);
-  const formItems = card(theme, 'New meal — added ingredients, each still a stepper in servings', mealFormItems(theme), 340);
+  const formItems = card(theme, '/meals/[id] — pre-filled from the existing meal (issue #101)', mealFormItems(theme), 340);
   const settings = card(theme, 'Settings — Library: the entry point into Foods and Meals', settingsGroup(theme), 320);
+  const swiping = card(
+    theme,
+    'Swipe-left — Delete revealed, no confirmation (issue #101)',
+    [swipeRow(theme, MEALS[0], { reveal: true }), swipeRow(theme, MEALS[1])].join(''),
+  );
+  const deleted = card(theme, 'Deleted — undo toast, history unchanged (issue #101)', undoToast(theme, 'Breakfast bowl', '420 kcal · 30 g protein'), 320);
 
   return `<!doctype html><meta charset="utf-8"><title>Saved meals — ${theme.name}</title>
   <style>
@@ -252,9 +303,17 @@ function page(theme) {
     .settingsGroup { overflow:hidden; }
     .settingsRow { display:flex; align-items:center; justify-content:space-between; padding:0 ${space[6]}px; box-sizing:border-box; }
     .divider { height:1px; }
+    .swipe-wrap { position:relative; width:100%; overflow:hidden; }
+    .delete-layer { position:absolute; inset:0; display:flex; justify-content:flex-end; align-items:center; padding-right:${space[4]}px; box-sizing:border-box; }
+    .delete-btn { display:flex; align-items:center; justify-content:center; box-sizing:border-box; }
+    .swipe-front { position:relative; box-sizing:border-box; }
+    .toast { display:flex; align-items:center; justify-content:space-between; padding:0 ${space[5]}px; box-sizing:border-box; gap:${space[3]}px; width:100%; }
+    .toastBody { display:flex; align-items:center; gap:${space[3]}px; flex:1; min-width:0; }
+    .toastText { display:flex; flex-direction:column; gap:${space[1]}px; min-width:0; }
+    .toastUndo { display:flex; align-items:center; justify-content:center; padding:0 ${space[4]}px; box-sizing:border-box; }
   </style>
-  <h1>Saved meals, meal form &amp; Settings entry point — ${theme.name} — real tokens</h1>
-  <div class="grid">${populated}${empty}${formSearch}${formItems}${settings}</div>`;
+  <h1>Saved meals, tap-to-edit, swipe-delete undo &amp; Settings entry point — ${theme.name} — real tokens</h1>
+  <div class="grid">${populated}${empty}${swiping}${deleted}${formSearch}${formItems}${settings}</div>`;
 }
 
 mkdirSync(HERE, { recursive: true });
@@ -267,7 +326,7 @@ for (const name of ['dark', 'light']) {
     '--disable-gpu',
     '--hide-scrollbars',
     '--force-device-scale-factor=2',
-    '--window-size=1500,700',
+    '--window-size=1500,900',
     `--screenshot=${join(HERE, `meals-${name}.png`)}`,
     `file://${html}`,
   ]);
