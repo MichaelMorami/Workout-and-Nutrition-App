@@ -6,19 +6,14 @@
  * `DayLogList.test.tsx` uses for its own delete path.
  */
 import { act, configure, fireEvent, render, screen } from '@testing-library/react-native';
-import { mealsContainingFood } from '../../db/queries/catalog';
-import { setFoodArchived, VitalsDbError, withServing, type FoodRow } from '../../db';
+import { mealsContainingFood, setFoodArchived, VitalsDbError, withServing, type FoodRow } from '../../db';
 import { useUndoToastStore } from '../../store/undoToast';
 import { themes } from '../../theme/tokens';
 import { FoodList } from './FoodList';
 
 jest.mock('../../db', () => {
   const actual = jest.requireActual<typeof import('../../db')>('../../db');
-  return { ...actual, setFoodArchived: jest.fn() };
-});
-jest.mock('../../db/queries/catalog', () => {
-  const actual = jest.requireActual<typeof import('../../db/queries/catalog')>('../../db/queries/catalog');
-  return { ...actual, mealsContainingFood: jest.fn() };
+  return { ...actual, setFoodArchived: jest.fn(), mealsContainingFood: jest.fn() };
 });
 
 // `<SwipeToDelete>`'s delete control leaves the accessibility tree at rest until the row has moved
