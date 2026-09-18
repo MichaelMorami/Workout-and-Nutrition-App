@@ -4,7 +4,7 @@
  * with every section mounted — not a placeholder — and a tile tap moves the rings without a
  * second database read.
  */
-import { act, fireEvent, render, screen, within } from '@testing-library/react-native';
+import { act, configure, fireEvent, render, screen, within } from '@testing-library/react-native';
 import { DbProvider } from '../../src/components/db/DbProvider';
 import { ThemeContext } from '../../src/components/theme/theme-context';
 import {
@@ -27,6 +27,14 @@ import {
 import { __resetLogTracker } from '../../src/store/logTracker';
 import { motion, themes } from '../../src/theme/tokens';
 import TodayScreen from './index';
+
+// `<DayLogRow>`'s delete control now leaves the accessibility tree at rest (issue #141, folding in
+// the a11y fix opus's review of #140 asked for) — RNTL 14 filters every query, `getByTestId`
+// included, against that same "hidden from accessibility" definition by default. The delete test
+// below still needs to reach the row's own delete control even while it is legitimately hidden from
+// assistive tech, to prove the tap itself is unaffected — see `DayLogRow.test.tsx`'s identical
+// comment for the full reasoning.
+configure({ defaultIncludeHiddenElements: true });
 
 jest.mock('react-native-reanimated', () => jest.requireActual('../../src/components/today/test-support/reanimated-mock'));
 // `useFocusEffect` (issue #103's grid refocus) just needs to not throw here — the focus/AppState

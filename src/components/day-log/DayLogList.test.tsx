@@ -6,7 +6,7 @@
  * mock of it — this is what proves the list actually plugs into the shared undo machinery rather
  * than inventing its own.
  */
-import { fireEvent, render, screen } from '@testing-library/react-native';
+import { configure, fireEvent, render, screen } from '@testing-library/react-native';
 import type { DayLogEntry, MealDetail } from '../../db';
 import { dayLog, getMeal, softDeleteLogEntries, updateLogEntry, VitalsDbError } from '../../db';
 import { DbProvider } from '../db/DbProvider';
@@ -25,6 +25,14 @@ jest.mock('../../db', () => {
     softDeleteLogEntries: jest.fn(),
   };
 });
+
+// `<DayLogRow>`'s delete control now leaves the accessibility tree at rest (issue #141, folding in
+// the a11y fix opus's review of #140 asked for) — RNTL 14 filters every query, `getByTestId`
+// included, against that same "hidden from accessibility" definition by default. The two tests below
+// that press the row's own testID-qualified delete button still need to reach it even while it is
+// legitimately hidden from assistive tech, to prove the tap itself is unaffected — see
+// `DayLogRow.test.tsx`'s identical comment for the full reasoning.
+configure({ defaultIncludeHiddenElements: true });
 
 const mockDayLog = jest.mocked(dayLog);
 const mockGetMeal = jest.mocked(getMeal);
