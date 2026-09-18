@@ -1567,15 +1567,17 @@
         "interface MigrationSource",
         "interface ParsedCheck",
         "interface ParsedColumn",
+        "interface ParsedForeignKey",
         "interface ParsedPolicy",
         "interface ParsedRls",
         "interface ParsedSql",
         "interface ParsedTable",
+        "interface ParsedUnique",
         "type PolicyCommand = 'select' | 'insert' | 'update' | 'delete' | 'all'",
         "type PrivilegeState = 'granted' | 'revoked' | 'unstated'"
       ],
       "imports": [],
-      "loc": 985
+      "loc": 1169
     },
     "src/sync/errors.ts": {
       "exports": [

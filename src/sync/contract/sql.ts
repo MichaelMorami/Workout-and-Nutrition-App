@@ -42,12 +42,45 @@ export interface ParsedColumn {
   readonly default: string | null;
   /** The referenced table and column (`auth.users (id)`), or `null`. */
   readonly references: string | null;
+  /**
+   * `true` for an inline `unique` — the spelling these migrations use, and one that was recorded
+   * nowhere until #148's review. `primary key` is not reported here: it is a different constraint,
+   * and it is already on {@link ParsedTable.primaryKey}.
+   */
+  readonly unique: boolean;
 }
 
 export interface ParsedCheck {
-  readonly name: string;
+  /**
+   * The constraint name, or `null` for an unnamed `check (…)`. Postgres names those itself at run
+   * time (`t_col_check`), and a name invented here is a name no contract test could trust — so an
+   * unnamed check is recorded with its expression and left unnamed (#148).
+   */
+  readonly name: string | null;
   /** The expression inside `check (…)`, whitespace-normalised. */
   readonly expression: string;
+}
+
+/** A table-level `unique (…)`. Recorded, never dropped (#148) — the columns are folded names. */
+export interface ParsedUnique {
+  readonly name: string | null;
+  readonly columns: readonly string[];
+}
+
+/**
+ * A table-level `foreign key (…) references …`. A column-level `references` is on
+ * {@link ParsedColumn} instead; both are recorded, because a foreign key this repo deliberately does
+ * *not* have (`food_log` to `foods`, so an out-of-order sync cannot be rejected) is worth proving.
+ */
+export interface ParsedForeignKey {
+  readonly name: string | null;
+  readonly columns: readonly string[];
+  /**
+   * The target, with every name folded the way Postgres folds it: `AUTH . USERS ( ID )` and
+   * `auth.users (id)` are the same table, so they record the same string and an equality assertion
+   * on this field means something (#148 review).
+   */
+  readonly references: string;
 }
 
 export interface ParsedTable {
@@ -55,6 +88,8 @@ export interface ParsedTable {
   readonly schema: string | null;
   readonly columns: readonly ParsedColumn[];
   readonly checks: readonly ParsedCheck[];
+  readonly uniques: readonly ParsedUnique[];
+  readonly foreignKeys: readonly ParsedForeignKey[];
   readonly primaryKey: readonly string[];
   /** The migration that created it. */
   readonly origin: string;
@@ -101,7 +136,11 @@ export interface ParsedRls {
  * with no later grant, is a guarantee.
  *
  * `revoke grant option for <privilege>` is not a revoke either: it takes away the right to re-grant
- * the privilege and leaves the privilege itself untouched, so it moves this state not at all (#135).
+ * the privilege and leaves the privilege of the role it names exactly as it was, so that role's
+ * state does not move (#135). `cascade` widens it — Postgres then also revokes the *dependent*
+ * grants, the ones that role made onward to somebody else. This reader does not model grantors, so
+ * it records nothing for anyone; a dependent grant it should have dropped stays `'granted'` here,
+ * which is the direction a contract check catches rather than the one it misses (#148).
  */
 export type PrivilegeState = 'granted' | 'revoked' | 'unstated';
 
@@ -165,11 +204,6 @@ const squash = (text: string): string => text.replace(/\s+/g, ' ').trim();
 const IDENTIFIER = '(?:"(?:[^"]|"")+"|[A-Za-z_][A-Za-z0-9_$]*)';
 const LEADING_IDENTIFIER = new RegExp(`^${IDENTIFIER}`);
 
-/**
- * `constraint <name> check (…)`. The name is a whole identifier, quoted or not: the old `[\w"]+`
- * could not read `"my check"`, and an unreadable constraint was skipped rather than reported.
- */
-const NAMED_CHECK = new RegExp(`^constraint\\s+(${IDENTIFIER})\\s+check\\s*\\(`, 'i');
 
 /**
  * Resolve one identifier the way Postgres does (#130): an unquoted name folds to lower case, so
@@ -222,6 +256,37 @@ const bareName = (name: string): string => {
   if (parts.length !== 1) throw new SqlSyntaxError(`expected an unqualified name: "${name}"`, 0);
   return parts[0] ?? name;
 };
+
+/**
+ * The four table-level constraint forms this reader records, each with an optional `constraint
+ * <name>` prefix. The name is a whole identifier, quoted or not: the old `[\w"]+` could not read
+ * `"my check"`, and an unreadable constraint was skipped rather than reported. Everything else —
+ * `exclude`, a bare `constraint c`, a form with a trailing clause — raises (#148).
+ */
+const CONSTRAINT_NAME = `(?:constraint\\s+(${IDENTIFIER})\\s+)?`;
+const CHECK_CONSTRAINT = new RegExp(`^${CONSTRAINT_NAME}check\\s*\\(`, 'i');
+const PRIMARY_KEY_CONSTRAINT = new RegExp(`^${CONSTRAINT_NAME}primary\\s+key\\s*\\(`, 'i');
+/**
+ * Plain `unique (…)` only. `nulls not distinct` rejects a second NULL row that plain `unique`
+ * accepts, so reading the two as the same shape would record semantics the table has not got; it is
+ * not in the pattern, so it falls through to the refusal below (#148 review).
+ */
+const UNIQUE_CONSTRAINT = new RegExp(`^${CONSTRAINT_NAME}unique\\s*\\(`, 'i');
+const FOREIGN_KEY_CONSTRAINT = new RegExp(`^${CONSTRAINT_NAME}foreign\\s+key\\s*\\(`, 'i');
+
+/**
+ * What may follow a `foreign key (…)`: the target, optional target columns, and referential actions.
+ * `match full`, `deferrable`, `initially deferred` and anything else are not read — they change when
+ * and how the constraint fires, and a reader that skipped them would vouch for a table it misread.
+ */
+const FOREIGN_KEY_TARGET = new RegExp(
+  `^references\\s+(${QUALIFIED_NAME})\\s*(\\([^()]*\\))?` +
+    `(?:\\s+on\\s+(?:delete|update)\\s+(?:cascade|restrict|no\\s+action|set\\s+(?:null|default)))*$`,
+  'i',
+);
+
+/** A `create table (like other)` entry: no column definitions at all, so the body cannot be read. */
+const LIKE_ENTRY = /^like\b/i;
 
 /** The role every role is a member of. A privilege granted to it is held by `authenticated` too. */
 const PUBLIC_ROLE = 'public';
@@ -461,49 +526,152 @@ function parseColumn(item: string): ParsedColumn {
     notNull: /\bnot\s+null\b/i.test(rest) || /\bprimary\s+key\b/i.test(rest),
     default: defaultMatch?.[1]?.trim() ?? null,
     references: referencesMatch?.[1]?.trim() ?? null,
+    // Read the same way `primary key` is, and blind in the same one way: a literal `default 'unique'`
+    // would trip it. That is the existing limitation of scanning `rest`, not a new one (#148 review).
+    unique: /\bunique\b/i.test(rest),
   };
 }
 
+/**
+ * The parenthesised list of a constraint, plus whatever follows its closing parenthesis. The tail is
+ * what the old reader never looked at: `unique (a) with (fillfactor = 70)` and `check (a) no inherit`
+ * were read as if the tail were not there.
+ */
+function constraintParens(item: string, match: RegExpExecArray): { body: string; tail: string } {
+  const open = item.indexOf('(', match[0].length - 1);
+  const body = parenBody(item, open);
+  return { body, tail: item.slice(open + body.length + 2).trim() };
+}
+
+/** The parenthesised list of a key constraint, as folded column names. */
+const constraintColumns = (body: string): string[] => splitItems(body).map(bareName);
+
+/** The name of a `constraint <name> …` prefix, folded like every other name (#135), or `null`. */
+const constraintName = (match: RegExpExecArray): string | null =>
+  match[1] === undefined ? null : bareName(match[1]);
+
+/** Everything a `create table` body says besides its columns. */
+interface TableConstraints {
+  readonly checks: ParsedCheck[];
+  readonly uniques: ParsedUnique[];
+  readonly foreignKeys: ParsedForeignKey[];
+  readonly primaryKey: string[];
+}
+
+/**
+ * One table-level constraint, recorded or refused (#148). The branch used to end in a bare
+ * `continue`: `constraint t_pkey primary key (a, b)` left the table with no primary key, and a
+ * `unique`, a `foreign key` or an unnamed `check` was read and thrown away. A dropped constraint is
+ * the fail-open direction — the contract test then asserts over a table the reader under-read.
+ */
+function readTableConstraint(item: string, into: TableConstraints, where: string): void {
+  const refusal = (why: string): SqlSyntaxError =>
+    new SqlSyntaxError(`${where}: ${why}: "${squash(item).slice(0, 80)}"`, 0);
+  const refuse = (why: string): never => {
+    throw refusal(why);
+  };
+  const noTail = (tail: string): void => {
+    if (tail.length > 0) refuse(`constraint clause this reader does not read ("${tail.slice(0, 40)}")`);
+  };
+
+  const check = CHECK_CONSTRAINT.exec(item);
+  if (check) {
+    const { body, tail } = constraintParens(item, check);
+    noTail(tail);
+    into.checks.push({ name: constraintName(check), expression: squash(body) });
+    return;
+  }
+
+  const primaryKey = PRIMARY_KEY_CONSTRAINT.exec(item);
+  if (primaryKey) {
+    const { body, tail } = constraintParens(item, primaryKey);
+    noTail(tail);
+    // Postgres allows exactly one. Appending to a second would report a key the table has not got.
+    if (into.primaryKey.length > 0) refuse('a second primary key');
+    into.primaryKey.push(...constraintColumns(body));
+    return;
+  }
+
+  const unique = UNIQUE_CONSTRAINT.exec(item);
+  if (unique) {
+    const { body, tail } = constraintParens(item, unique);
+    noTail(tail);
+    into.uniques.push({ name: constraintName(unique), columns: constraintColumns(body) });
+    return;
+  }
+
+  const foreignKey = FOREIGN_KEY_CONSTRAINT.exec(item);
+  if (foreignKey) {
+    const { body, tail } = constraintParens(item, foreignKey);
+    const target = FOREIGN_KEY_TARGET.exec(tail);
+    if (!target) throw refusal('foreign key target this reader does not read');
+    const targetColumns = target[2] === undefined ? '' : ` (${constraintColumns(target[2].slice(1, -1)).join(', ')})`;
+    into.foreignKeys.push({
+      name: constraintName(foreignKey),
+      columns: constraintColumns(body),
+      references: `${nameParts(target[1] as string).join('.')}${targetColumns}`,
+    });
+    return;
+  }
+
+  refuse('table constraint this reader does not read');
+}
+
+/**
+ * `create table`, or `null` when the statement is not one. Everything inside the parentheses is a
+ * column or a constraint this reader records; everything after them is a clause it refuses (#148).
+ */
+const CREATE_TABLE_HEAD = new RegExp(
+  `^create\\s+table\\s+(?:if\\s+not\\s+exists\\s+)?(${QUALIFIED_NAME})\\s*\\(`,
+  'is',
+);
+
 function parseCreateTable(statement: string, origin: string): ParsedTable | null {
-  const head = /^create\s+table\s+(?:if\s+not\s+exists\s+)?([\w".]+)\s*\(/is.exec(statement);
+  const head = CREATE_TABLE_HEAD.exec(statement);
   if (!head) return null;
   const qualified = head[1] as string;
-  const body = parenBody(statement, statement.indexOf('(', head[0].length - 1));
+  const where = `${origin}: create table ${squash(qualified)}`;
+  const open = statement.indexOf('(', head[0].length - 1);
+  const body = parenBody(statement, open);
+  // `partition by range (a)`, `inherits (other)`, `with (…)`, `tablespace …`: every one of them makes
+  // this a different table from the one the columns describe, and every one used to be dropped.
+  const trailing = statement.slice(open + body.length + 2).trim();
+  if (trailing.length > 0) {
+    throw new SqlSyntaxError(`${where}: trailing clause this reader does not read: "${squash(trailing).slice(0, 80)}"`, 0);
+  }
 
   const columns: ParsedColumn[] = [];
-  const checks: ParsedCheck[] = [];
-  const primaryKey: string[] = [];
+  const constraints: TableConstraints = { checks: [], uniques: [], foreignKeys: [], primaryKey: [] };
 
   for (const item of splitItems(body)) {
+    // `create table t (like other)` has no column definitions in it at all; the old reader made a
+    // column called `like` of type `other` and vouched for a table nobody wrote.
+    if (LIKE_ENTRY.test(item)) {
+      throw new SqlSyntaxError(`${where}: a like clause is not read: "${squash(item).slice(0, 80)}"`, 0);
+    }
     if (TABLE_CONSTRAINT.test(item)) {
-      const named = NAMED_CHECK.exec(item);
-      if (named) {
-        checks.push({
-          // Folded like every other name (#135): `constraint Thing_Check` is `thing_check`, and
-          // `constraint "my check"` is one name, not a constraint the old regex silently dropped.
-          name: bareName(named[1] as string),
-          expression: squash(parenBody(item, item.indexOf('(', named[0].length - 1))),
-        });
-        continue;
-      }
-      const tablePk = /^primary\s+key\s*\(/i.exec(item);
-      if (tablePk) {
-        primaryKey.push(...splitItems(parenBody(item, item.indexOf('('))).map(bareName));
-      }
+      readTableConstraint(item, constraints, where);
       continue;
     }
 
     const column = parseColumn(item);
     columns.push(column);
-    if (/\bprimary\s+key\b/i.test(item)) primaryKey.push(column.name);
+    if (/\bprimary\s+key\b/i.test(item)) {
+      if (constraints.primaryKey.length > 0) {
+        throw new SqlSyntaxError(`${where}: a second primary key: "${squash(item).slice(0, 80)}"`, 0);
+      }
+      constraints.primaryKey.push(column.name);
+    }
   }
 
   return makeTable({
     name: unqualified(qualified),
     schema: schemaOf(qualified),
     columns,
-    checks,
-    primaryKey,
+    checks: constraints.checks,
+    uniques: constraints.uniques,
+    foreignKeys: constraints.foreignKeys,
+    primaryKey: constraints.primaryKey,
     origin,
   });
 }
@@ -750,7 +918,18 @@ function parsePolicy(statement: string, origin: string): ParsedPolicy | null {
 
 const CREATE_INDEX =
   /^create\s+(?:unique\s+)?index\s+(?:concurrently\s+)?(?:if\s+not\s+exists\s+)?[\w".]+\s+on\s+[\w".]+\s*\(/is;
-const DROP_POLICY = /^drop\s+policy\s+(?:if\s+exists\s+)?([\w"]+)\s+on\s+([\w".]+)$/i;
+/**
+ * `drop policy [if exists] <name> on <table>`. Both names are whole identifiers (#148): the old
+ * `[\w"]+` was the last pattern in this reader that was not one, and it could not read `"my policy"`
+ * or `public . t` at all — a drop the reader cannot see leaves a policy standing in the parse that is
+ * gone from the database. (It also captured shapes no identifier takes, such as `a"b`, though
+ * `bareName` threw on those rather than mis-keying them.) A name this cannot read whole leaves the
+ * statement unmatched, and an unmatched statement is rejected.
+ */
+const DROP_POLICY = new RegExp(
+  `^drop\\s+policy\\s+(?:if\\s+exists\\s+)?(${IDENTIFIER})\\s+on\\s+(${QUALIFIED_NAME})$`,
+  'i',
+);
 /**
  * `granted by` names the grantor, not a grantee: it is matched off the end so it never reaches the
  * role list (#131). Its role is not recorded — it does not change who holds the privilege.
@@ -760,8 +939,11 @@ const GRANT =
 /**
  * `revoke [grant option for] … on … from …`. The `grant option for` prefix is **captured**, not
  * swallowed (#135): in Postgres it takes away only the right to re-grant the privilege, and the
- * privilege itself stays exactly as it was. Reading it as a full revoke let a migration grant DELETE,
- * write this, and pass the contract check while every user could still delete history.
+ * privilege of the role named stays exactly as it was. Reading it as a full revoke let a migration
+ * grant DELETE, write this, and pass the contract check while every user could still delete history.
+ *
+ * The trailing `cascade`/`restrict` is read and not acted on (#148): a `cascade` reaches the grants
+ * the named role made onward, which these migrations never make and this reader does not model.
  */
 const REVOKE =
   /^revoke\s+(grant\s+option\s+for\s+)?(.+?)\s+on\s+(?:table\s+)?([\w".]+)\s+from\s+(.+?)(?:\s+granted\s+by\s+\S+)?(?:\s+(?:cascade|restrict))?$/i;
@@ -908,8 +1090,10 @@ export function parseMigrations(sources: readonly MigrationSource[]): ParsedSql 
 
       const revoked = REVOKE.exec(flat);
       if (revoked) {
-        // `revoke grant option for delete` removes the right to re-grant DELETE and nothing else, so
-        // a privilege that was granted stays granted (#135). Read it strictly, then change nothing.
+        // `revoke grant option for delete` removes the named role's right to re-grant DELETE, and
+        // leaves its DELETE alone, so a privilege that was granted stays granted (#135). A trailing
+        // `cascade` reaches other roles' dependent grants, which this reader does not track (#148).
+        // Either way: read the statement strictly, then record nothing.
         const state = revoked[1] ? null : 'revoked';
         applyPrivileges(revoked[2] as string, revoked[3] as string, revoked[4] as string, state);
         continue;
