@@ -1320,6 +1320,12 @@ export const size = {
     chipBorderSelected: 1.5,
     /** A text field's height (Name, Brand, Custom label). Also its touch area. */
     fieldHit: 48,
+    /** Every hairline on the form at rest: text fields, the Cancel button, the selected Weight | Volume
+     * segment. `StyleSheet.hairlineWidth` on device; 1 pt on the canvas. */
+    fieldBorderWidth: 1,
+    /** The focus ring on a text field or a stepper's value well while it is being typed into, and the
+     * error outline — heavier than rest, so focus reads as shape as well as colour. */
+    fieldBorderWidthFocus: 1.5,
     /** The locked preset read-out ("250 ml · per 1 cup · volume") — the same slot the Custom fields
      * open into, so picking Custom grows the form downward instead of moving the chips. */
     lockedRowHeight: 48,
@@ -1330,6 +1336,9 @@ export const size = {
     nutritionButtonWidth: 44,
     /** Their touch height, and the value well's. */
     nutritionHit: 48,
+    /** The gap between a food-form stepper's −, value well and + — tighter than the Workout stepper's
+     * `space[3]`, so two steppers fit side by side on a 375 pt phone. */
+    stepperGap: space[1],
     /** The gap between the kcal and protein steppers. */
     nutritionGap: space[4],
     /** The live preview strip's height above Save. */

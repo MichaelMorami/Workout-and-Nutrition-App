@@ -71,12 +71,18 @@ const FRAC = { 0: '', 0.25: '¼', 0.5: '½', 0.75: '¾' };
 const frac = (x) => { const w = Math.floor(x), f = FRAC[x - w]; return (w ? String(w) : '') + f || '0'; };
 
 /* ------------------------------------------------------------------ chrome */
+// Device chrome — the phone draws these, not Vitals, so they are not tokens.
 const W = 390, H = 844, STATUS = 59, HOME = 26, KEYBOARD = 336;
 const G = layout.gutter;
 const FF = size.foodForm;
+const px = (n) => n + 'px';
+const HAIR = FF.fieldBorderWidth, FOCUS = FF.fieldBorderWidthFocus;
+// The text caret is the OS's own (TextInput `cursorColor`/`selectionColor` = `foodForm.caret`); its
+// width and height here only illustrate it and are not a build value.
+const nativeCaret = (c) => `<span style="${s({ width: '2px', height: '22px', borderRadius: '1px', background: c.foodForm.caret, flex: 'none' })}"></span>`;
 
 function keyboardZone(c) {
-  return `<div style="${s({ height: KEYBOARD + 'px', flex: 'none', background: c.bg.canvas, borderTop: `1px dashed ${c.line.strong}`, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '6px' })}"><span style="${t('micro', { color: c.text.tertiary })}">System number pad</span><span style="${t('label', { color: c.text.tertiary })}">${KEYBOARD} pt · drawn by the phone, not by Vitals</span></div>`;
+  return `<div style="${s({ height: KEYBOARD + 'px', flex: 'none', background: c.bg.canvas, borderTop: `${HAIR}px dashed ${c.line.strong}`, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: px(space[2]) })}"><span style="${t('micro', { color: c.text.tertiary })}">System number pad</span><span style="${t('label', { color: c.text.tertiary })}">${KEYBOARD} pt · drawn by the phone, not by Vitals</span></div>`;
 }
 
 /* ------------------------------------------------------------------ form parts */
@@ -87,17 +93,17 @@ function fieldLabel(c, label, unit) {
 
 function field(c, label, value, { placeholder, focused = false, error = null, flex = '1' } = {}) {
   const F = c.foodForm;
-  const border = error ? `1.5px solid ${F.fieldBorderError}` : focused ? `1.5px solid ${F.fieldBorderFocus}` : `1px solid ${F.fieldBorder}`;
+  const border = error ? `${FOCUS}px solid ${F.fieldBorderError}` : focused ? `${FOCUS}px solid ${F.fieldBorderFocus}` : `${HAIR}px solid ${F.fieldBorder}`;
   return `<div style="${s({ flex, minWidth: '0', display: 'flex', flexDirection: 'column', gap: space[2] + 'px' })}">
     ${fieldLabel(c, label)}
-    <span style="${s({ height: FF.fieldHit + 'px', borderRadius: radius.md + 'px', background: F.fieldBg, border, display: 'flex', alignItems: 'center', padding: '0 12px', gap: '1px', minWidth: '0' })}"><span style="${t('input', { color: value ? F.inputText : F.placeholderText, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' })}">${value || placeholder}</span>${focused ? `<span style="${s({ width: '2px', height: '22px', borderRadius: '1px', background: F.caret, flex: 'none' })}"></span>` : ''}</span>
+    <span style="${s({ height: FF.fieldHit + 'px', borderRadius: radius.md + 'px', background: F.fieldBg, border, display: 'flex', alignItems: 'center', padding: `0 ${space[5]}px`, minWidth: '0' })}"><span style="${t('input', { color: value ? F.inputText : F.placeholderText, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' })}">${value || placeholder}</span>${focused ? nativeCaret(c) : ''}</span>
     ${error ? `<span style="${t('label', { color: F.errorText })}">${error}</span>` : ''}
   </div>`;
 }
 
 function eyebrow(c, left, right) {
   const F = c.foodForm;
-  return `<div style="${s({ display: 'flex', justifyContent: 'space-between', alignItems: 'center', height: '16px' })}"><span style="${t('micro', { color: F.sectionText })}">${left}</span>${right ? `<span style="${t('label', { color: F.sectionMetaText })}">${right}</span>` : ''}</div>`;
+  return `<div style="${s({ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' })}"><span style="${t('micro', { color: F.sectionText })}">${left}</span>${right ? `<span style="${t('label', { color: F.sectionMetaText })}">${right}</span>` : ''}</div>`;
 }
 
 /* state per chip: 'rest' | 'press' | 'selected' */
@@ -113,38 +119,38 @@ function chipGrid(c, selectedKey) {
 function locked(c, key) {
   const F = c.foodForm, [basis, amount] = PRESET[key];
   const meta = 'Set by the preset. Pick Custom… to change it.';
-  return `<div style="${s({ height: FF.lockedRowHeight + 'px', display: 'flex', alignItems: 'center', gap: space[3] + 'px', padding: '0 2px' })}">
-    <span style="${s({ color: F.lockIcon })}">${ico(I.lock, { sz: FF.lockIcon + 2, w: 1.9 })}</span>
-    <span style="${s({ display: 'flex', alignItems: 'baseline', gap: '4px' })}"><span style="${t('numericLg', { color: F.lockedAmountText })}">${amount}</span><span style="${t('unit', { color: F.lockedMetaText })}">${unitOf(basis)}</span></span>
+  return `<div style="${s({ height: FF.lockedRowHeight + 'px', display: 'flex', alignItems: 'center', gap: space[3] + 'px' })}">
+    <span style="${s({ color: F.lockIcon })}">${ico(I.lock, { sz: FF.lockIcon })}</span>
+    <span style="${s({ display: 'flex', alignItems: 'baseline', gap: px(space[1]) })}"><span style="${t('numericLg', { color: F.lockedAmountText })}">${amount}</span><span style="${t('unit', { color: F.lockedMetaText })}">${unitOf(basis)}</span></span>
     <span style="${t('label', { color: F.lockedMetaText, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' })}">${meta}</span>
   </div>`;
 }
 
 function stepper(c, value, { color, unit, focused = false, width } = {}) {
   const S = c.stepper, F = c.foodForm;
-  const btn = (d) => `<span style="${s({ width: FF.nutritionButtonWidth + 'px', height: FF.nutritionHit + 'px', flex: 'none', borderRadius: radius.md + 'px', background: S.buttonBg, border: `1px solid ${c.line.hairline}`, color: S.buttonIcon, display: 'flex', alignItems: 'center', justifyContent: 'center' })}">${ico(d, { sz: 18, w: 2.2 })}</span>`;
-  return `<div style="${s({ display: 'flex', gap: space[1] + 'px', alignItems: 'center', width: width ? width + 'px' : undefined, flex: width ? 'none' : '1', minWidth: '0' })}">
-    ${btn(I.minus)}
-    <span style="${s({ flex: '1', minWidth: '0', height: FF.nutritionHit + 'px', borderRadius: radius.md + 'px', background: S.valueBg, border: focused ? `1.5px solid ${F.fieldBorderFocus}` : `1px solid ${c.line.hairline}`, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '3px' })}"><span style="${t('stepperValue', { color: color || S.valueText })}">${value}</span>${focused ? `<span style="${s({ width: '2px', height: '22px', borderRadius: '1px', background: F.caret })}"></span>` : ''}${unit ? `<span style="${t('unit', { color: S.unitText })}">${unit}</span>` : ''}</span>
-    ${btn(I.plus)}
+  // − and + are text in type.numericLg, exactly as Stepper.tsx draws them; neither button nor well has a border.
+  const btn = (g) => `<span style="${s({ width: px(FF.nutritionButtonWidth), height: px(FF.nutritionHit), flex: 'none', borderRadius: px(radius.md), background: S.buttonBg, color: S.buttonIcon, display: 'flex', alignItems: 'center', justifyContent: 'center', ...TYPE.numericLg })}">${g}</span>`;
+  return `<div style="${s({ display: 'flex', gap: px(FF.stepperGap), alignItems: 'center', width: width ? px(width) : undefined, flex: width ? 'none' : '1', minWidth: '0' })}">
+    ${btn('−')}
+    <span style="${s({ flex: '1', minWidth: '0', height: px(FF.nutritionHit), borderRadius: px(radius.md), background: S.valueBg, boxShadow: focused ? `inset 0 0 0 ${FOCUS}px ${F.fieldBorderFocus}` : undefined, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: px(space[1]) })}"><span style="${t('stepperValue', { color: color || S.valueText })}">${value}</span>${focused ? nativeCaret(c) : ''}${unit ? `<span style="${t('unit', { color: S.unitText })}">${unit}</span>` : ''}</span>
+    ${btn('+')}
   </div>`;
 }
 
 function segmented(c, opts, sel) {
   const C = c.segmented, P = size.portionSheet;
-  return `<div style="${s({ display: 'flex', gap: '4px', padding: '4px', height: P.segmentHit + 'px', borderRadius: radius.md + 'px', background: C.trackBg, flex: '1', minWidth: '0' })}">${opts.map((o) => {
+  return `<div style="${s({ display: 'flex', gap: px(space[1]), padding: px(space[1]), height: P.segmentHit + 'px', borderRadius: radius.md + 'px', background: C.trackBg, flex: '1', minWidth: '0' })}">${opts.map((o) => {
     const on = o === sel;
-    return `<span style="${s({ flex: '1', minWidth: '0', height: P.segmentPainted + 'px', borderRadius: radius.sm + 'px', display: 'flex', alignItems: 'center', justifyContent: 'center', whiteSpace: 'nowrap', background: on ? C.selectedBg : 'transparent', border: `1px solid ${on ? C.selectedBorder : 'transparent'}`, color: on ? C.selectedText : C.optionText, ...TYPE[on ? 'controlSelected' : 'control'] })}">${o}</span>`;
+    return `<span style="${s({ flex: '1', minWidth: '0', height: P.segmentPainted + 'px', borderRadius: radius.sm + 'px', display: 'flex', alignItems: 'center', justifyContent: 'center', whiteSpace: 'nowrap', background: on ? C.selectedBg : 'transparent', border: `${HAIR}px solid ${on ? C.selectedBorder : 'transparent'}`, color: on ? C.selectedText : C.optionText, ...TYPE[on ? 'controlSelected' : 'control'] })}">${o}</span>`;
   }).join('')}</div>`;
 }
 
-const STEP_W = FF.nutritionButtonWidth * 2 + space[1] * 2 + 86;
 function customSlot(c, { label, basis, amount, labelFocused = false, error = null }) {
   return `<div style="${s({ display: 'flex', flexDirection: 'column', gap: space[4] + 'px' })}">
     ${field(c, 'Label', label, { placeholder: '1 scoop', focused: labelFocused, error })}
-    <div style="${s({ display: 'flex', gap: space[4] + 'px', alignItems: 'flex-end' })}">
+    <div style="${s({ display: 'flex', gap: px(FF.nutritionGap), alignItems: 'flex-end' })}">
       <div style="${s({ flex: '1', minWidth: '0', display: 'flex', flexDirection: 'column', gap: space[2] + 'px' })}">${fieldLabel(c, 'Measured by')}${segmented(c, ['Weight', 'Volume'], basis === 'weight' ? 'Weight' : 'Volume')}</div>
-      <div style="${s({ display: 'flex', flexDirection: 'column', gap: space[2] + 'px', flex: 'none' })}">${fieldLabel(c, 'Amount', unitOf(basis))}${stepper(c, amount, { width: STEP_W })}</div>
+      <div style="${s({ flex: '1', minWidth: '0', display: 'flex', flexDirection: 'column', gap: space[2] + 'px' })}">${fieldLabel(c, 'Amount', unitOf(basis))}${stepper(c, amount)}</div>
     </div>
   </div>`;
 }
@@ -169,16 +175,16 @@ function preview(c, { label, basis, amount, kcal100, prot100 }) {
   return `<div style="${s({ height: FF.previewHeight + 'px', borderRadius: radius.md + 'px', background: F.previewBg, display: 'flex', alignItems: 'center', gap: space[2] + 'px', padding: `0 ${space[5]}px` })}">
     <span style="${t('body', { color: F.previewServingText, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', minWidth: '0', flex: '0 1 auto' })}">${servingPhrase(label, basis, amount)}</span>
     <span style="${t('body', { color: F.previewUnitText, flex: 'none' })}">=</span>
-    <span style="${s({ display: 'flex', alignItems: 'baseline', gap: '4px', flex: 'none', whiteSpace: 'nowrap' })}"><span style="${t('numericMd', { color: F.previewKcalText })}">${kcalFmt(k)}</span><span style="${t('caption', { color: F.previewUnitText })}">kcal</span><span style="${t('caption', { color: F.previewUnitText, padding: '0 2px' })}">·</span><span style="${t('numericMd', { color: F.previewProteinText })}">${protFmt(p)}</span><span style="${t('caption', { color: F.previewUnitText })}">g protein</span></span>
+    <span style="${s({ display: 'flex', alignItems: 'baseline', gap: px(space[1]), flex: 'none', whiteSpace: 'nowrap' })}"><span style="${t('numericMd', { color: F.previewKcalText })}">${kcalFmt(k)}</span><span style="${t('caption', { color: F.previewUnitText })}">kcal</span><span style="${t('caption', { color: F.previewUnitText })}">·</span><span style="${t('numericMd', { color: F.previewProteinText })}">${protFmt(p)}</span><span style="${t('caption', { color: F.previewUnitText })}">g protein</span></span>
   </div>`;
 }
 
-function footer(c, pv, primary, { note = null, divider = false, home = true } = {}) {
+function footer(c, pv, primary, { note = null, divider = false, home = true, screen = false } = {}) {
   const F = c.foodForm, B = c.button;
-  return `<div style="${s({ flex: 'none', background: F.footerBg, borderTop: `1px solid ${divider ? F.footerDivider : 'transparent'}`, padding: `${space[4]}px ${G}px ${home ? HOME + space[1] : space[4]}px`, display: 'flex', flexDirection: 'column', gap: space[4] + 'px' })}">
+  return `<div style="${s({ flex: 'none', background: screen ? F.footerBgScreen : F.footerBg, borderTop: `${HAIR}px solid ${divider ? F.footerDivider : 'transparent'}`, padding: `${space[4]}px ${G}px ${home ? HOME + space[1] : space[4]}px`, display: 'flex', flexDirection: 'column', gap: space[4] + 'px' })}">
     ${preview(c, pv)}
     <div style="${s({ display: 'flex', gap: space[4] + 'px' })}">
-      <span style="${s({ flex: '1', height: size.button.primaryHit + 'px', borderRadius: radius.md + 'px', border: `1px solid ${B.secondaryBorder}`, color: B.secondaryText, display: 'flex', alignItems: 'center', justifyContent: 'center', ...TYPE.button })}">Cancel</span>
+      <span style="${s({ flex: '1', height: size.button.primaryHit + 'px', borderRadius: radius.md + 'px', border: `${HAIR}px solid ${B.secondaryBorder}`, color: B.secondaryText, display: 'flex', alignItems: 'center', justifyContent: 'center', ...TYPE.button })}">Cancel</span>
       <span style="${s({ flex: '2', height: size.button.primaryHit + 'px', borderRadius: radius.md + 'px', background: B.kcalBg, color: B.kcalText, display: 'flex', alignItems: 'center', justifyContent: 'center', ...TYPE.button })}">${primary}</span>
     </div>
     ${note ? `<span style="${t('label', { color: F.historyNoteText, textAlign: 'center' })}">${note}</span>` : ''}
@@ -214,9 +220,9 @@ function backdrop(c) {
 function sheetScreen(th, st, { keyboard = false, scrollTo = 0 } = {}) {
   const c = th.color;
   const saveLabel = `Save &amp; log ${st.key === 'custom' ? (st.label || '1 serving') : CHIPS.find((x) => x.key === st.key).label}`;
-  const head = `<div style="${s({ flex: 'none', height: '52px', display: 'flex', alignItems: 'center', padding: `0 ${G}px` })}"><span style="${t('title', { color: c.portionSheet.titleText })}">New food</span></div>`;
-  const sheet = `<div style="${s({ position: 'absolute', left: '0', right: '0', top: STATUS + size.searchSheet.topInset + 'px', bottom: '0', background: c.searchSheet.bg, borderRadius: `${radius.xl}px ${radius.xl}px 0 0`, boxShadow: th.shadow.sheet, display: 'flex', flexDirection: 'column', overflow: 'hidden', paddingTop: '8px' })}">
-    <div style="${s({ flex: 'none', width: size.searchSheet.grabberWidth + 'px', height: size.searchSheet.grabberHeight + 'px', borderRadius: '999px', background: c.searchSheet.grabber, margin: '0 auto' })}"></div>
+  const head = `<div style="${s({ flex: 'none', padding: `0 ${G}px` })}"><span style="${t('title', { color: c.portionSheet.titleText })}">New food</span></div>`;
+  const sheet = `<div style="${s({ position: 'absolute', left: '0', right: '0', top: STATUS + size.searchSheet.topInset + 'px', bottom: '0', background: c.searchSheet.bg, borderRadius: `${radius.xl}px ${radius.xl}px 0 0`, boxShadow: th.shadow.sheet, display: 'flex', flexDirection: 'column', gap: px(space[4]), overflow: 'hidden', paddingTop: px(space[3]) })}">
+    <div style="${s({ flex: 'none', width: size.searchSheet.grabberWidth + 'px', height: size.searchSheet.grabberHeight + 'px', borderRadius: px(radius.pill), background: c.searchSheet.grabber, margin: '0 auto' })}"></div>
     ${head}
     <div style="${s({ flex: '1', minHeight: '0', overflow: 'hidden', position: 'relative' })}"><div style="${s({ position: 'absolute', left: '0', right: '0', top: -scrollTo + 'px' })}">${formBody(c, st)}</div></div>
     ${footer(c, pv(st), saveLabel, { divider: keyboard || scrollTo > 0, home: !keyboard })}
@@ -228,15 +234,16 @@ function sheetScreen(th, st, { keyboard = false, scrollTo = 0 } = {}) {
 /* app/foods/[id] — a pushed stack screen on the canvas, no tab bar. */
 function editScreen(th, st) {
   const c = th.color;
-  const head = `<div style="${s({ flex: 'none', height: '52px', display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative', padding: `0 ${G}px` })}">
-    <span style="${s({ position: 'absolute', left: '8px', height: size.button.headerHit + 'px', display: 'flex', alignItems: 'center', gap: '2px', color: c.text.primary, ...TYPE.button })}">${ico(I.back, { sz: 24, w: 2.1 })}Foods</span>
+  // The expo-router stack header: drawn by the OS, so only its colours and type are ours.
+  const head = `<div style="${s({ flex: 'none', height: px(size.button.headerHit + space[3]), display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative', padding: `0 ${G}px` })}">
+    <span style="${s({ position: 'absolute', left: px(space[3]), height: px(size.button.headerHit), display: 'flex', alignItems: 'center', color: c.text.primary, ...TYPE.button })}">${ico(I.back, { sz: size.icon.lg })}Foods</span>
     <span style="${t('headline', { color: c.text.primary })}">${st.name}</span>
   </div>`;
   return `<div style="${s({ position: 'relative', width: W + 'px', height: H + 'px', overflow: 'hidden', fontFamily: FONT, background: c.bg.canvas, display: 'flex', flexDirection: 'column' })}">
     <div style="${s({ height: STATUS + 'px', flex: 'none' })}"></div>
     ${head}
     <div style="${s({ flex: '1', minHeight: '0', overflow: 'hidden' })}">${formBody(c, st)}</div>
-    ${footer({ ...c, foodForm: { ...c.foodForm, footerBg: c.bg.canvas } }, pv(st), 'Save changes', { note: 'Changes apply from now on. Past logs keep their numbers.' })}
+    ${footer(c, pv(st), 'Save changes', { screen: true, note: 'Changes apply from now on. Past logs keep their numbers.' })}
   </div>`;
 }
 
@@ -301,6 +308,7 @@ const PAIRS = [
   ['foodForm.kcalValueText', ['stepper.valueBg']], ['foodForm.proteinValueText', ['stepper.valueBg']],
   ['foodForm.previewServingText', ['foodForm.footerBg', 'foodForm.previewBg']], ['foodForm.previewUnitText', ['foodForm.footerBg', 'foodForm.previewBg']],
   ['foodForm.previewKcalText', ['foodForm.footerBg', 'foodForm.previewBg']], ['foodForm.previewProteinText', ['foodForm.footerBg', 'foodForm.previewBg']],
+  ['foodForm.previewServingText', ['foodForm.footerBgScreen', 'foodForm.previewBg']], ['foodForm.previewKcalText', ['foodForm.footerBgScreen', 'foodForm.previewBg']],
   ['foodForm.historyNoteText', ['bg.canvas']],
 ];
 
@@ -360,12 +368,17 @@ function specBoard() {
         ${preview(D.color, { label: '100 g', basis: 'weight', amount: 100, kcal100: 97, prot100: 9 })}
         ${preview(D.color, { label: '1 large slice of sourdough', basis: 'weight', amount: 60, kcal100: 250, prot100: 9 })}
       </div>
+      <div style="${s({ width: '375px', background: D.color.bg.surface, borderRadius: '16px', padding: `14px ${G}px`, display: 'flex', flexDirection: 'column', gap: '8px' })}">
+        <span style="${t('microSm', { color: B3 })}">Fit check · 375 pt phone · the limits</span>
+        <div style="${s({ display: 'flex', gap: px(FF.nutritionGap) })}">${stepper(D.color, '5,000', { color: D.color.foodForm.kcalValueText })}${stepper(D.color, '499.9', { color: D.color.foodForm.proteinValueText })}</div>
+      </div>
     </div>
     ${stack([
-      callout(`${hl('Steppers')}: −/+ ${FF.nutritionButtonWidth} pt wide, ${FF.nutritionHit} pt tall, gap ${FF.nutritionGap} pt between the pair. The value well is the tap-to-type target (#87); the unit moves up to the label (“Calories kcal”) so the well holds 4 digits. Calories in ${code('foodForm.kcalValueText')}, protein in ${code('foodForm.proteinValueText')}.`, D.color.data.protein),
+      callout(`${hl('Steps and limits')} (client ruling on #87): −/+ moves ${hl('1 kcal')}, ${hl('0.1 g protein')} and ${hl('1 g / 1 ml')} of Custom amount. Limits stay as today: kcal 0–5,000, protein 0–500, amount 1–2,000. Tap the value to type it; hold −/+ to repeat after ${code(`interaction.stepperRepeatDelayMs`)} (${interaction.stepperRepeatDelayMs} ms) and speed up. Typed values clamp on blur.`, D.color.data.protein),
+      callout(`${hl('Steppers')}: −/+ ${FF.nutritionButtonWidth} pt wide, ${FF.nutritionHit} pt tall, ${FF.stepperGap} pt (${code('size.foodForm.stepperGap')}) between −, well and +, ${FF.nutritionGap} pt between the pair. The glyphs are text in ${code('type.numericLg')}, as ${code('Stepper.tsx')} draws them. While typing, the well gets a ${FF.fieldBorderWidthFocus} pt ${code('foodForm.fieldBorderFocus')} ring. The value well is the tap-to-type target (#87); the unit moves up to the label (“Calories kcal”) so the well holds 4 digits. Calories in ${code('foodForm.kcalValueText')}, protein in ${code('foodForm.proteinValueText')}.`, D.color.data.protein),
       callout(`${hl('Preview')}: “${hl('1 scoop (33 g) = 132 kcal · 25 g protein')}”, recalculated on every keystroke. ${FF.previewHeight} pt strip, ${code('foodForm.previewBg')}. When the label already is the amount (100 g), the bracket is dropped: “100 g = 97 kcal · 9 g protein”.`, D.color.data.protein),
-      callout(`${hl('Numbers never truncate')}; a long label does, with an ellipsis. kcal rounds to a whole number; protein to one decimal under 10 g, whole above. Amounts render through ${code('formatGrams')} / ${code('formatMl')}.`, D.color.data.protein),
-      callout(`${hl('Where it lives')}: in the sticky footer with Save, so it is always in view — and rides above the keyboard while you type (artboard “Typing”). The footer gains a ${code('foodForm.footerDivider')} hairline once content scrolls under it.`, D.color.data.protein),
+      callout(`${hl('Numbers never truncate')}; a long label does, with an ellipsis. kcal rounds to a whole number; protein to one decimal under 10 g, whole above, and a trailing .0 is dropped (“9 g”, never “9.0 g”). That rule belongs in one formatter beside ${code('formatGrams')} in ${code('src/components/format/food.ts')}, not inline in the form. Amounts render through ${code('formatGrams')} / ${code('formatMl')}.`, D.color.data.protein),
+      callout(`${hl('Where it lives')}: in the sticky footer with Save, so it is always in view — and rides above the keyboard while you type (artboard “Typing”). The footer is painted ${code('foodForm.footerBg')} in the Create sheet and ${code('foodForm.footerBgScreen')} on ${code('/foods/new')} and ${code('/foods/[id]')}, the ground each one floats over. It gains a ${code('foodForm.footerDivider')} hairline once content scrolls under it.`, D.color.data.protein),
     ])}
   </div>`)}
 
@@ -384,8 +397,9 @@ function specBoard() {
 
   ${panel('6 · Contract for ui-engineer (#89)', 'Names the build must use. No colour, size or duration outside these.', `<div style="${s({ display: 'flex', gap: '28px' })}">
     ${stack([
-      callout(`${hl('Colour')}: ${code('themes[name].color.foodForm.*')} for fields, eyebrows, chips, the locked read-out, nutrition values, the footer and preview. The Weight | Volume toggle keeps ${code('segmented.*')}; the steppers keep ${code('stepper.*')}; buttons keep ${code('button.*')}. The form no longer borrows ${code('searchSheet.*')}.`),
-      callout(`${hl('Size')}: ${code('size.foodForm.*')} (chips, fields, locked row, nutrition steppers, preview). Buttons ${code('size.button.primaryHit')}.`),
+      callout(`${hl('Colour')}: ${code('themes[name].color.foodForm.*')} for fields, eyebrows, chips, the locked read-out, nutrition values, the footer (${code('footerBg')} in the sheet, ${code('footerBgScreen')} on a screen) and preview. The Weight | Volume toggle keeps ${code('segmented.*')}; the steppers keep ${code('stepper.*')}; buttons keep ${code('button.*')}. The form no longer borrows ${code('searchSheet.*')}.`),
+      callout(`${hl('Size')}: ${code('size.foodForm.*')} (chips, fields and their ${code('fieldBorderWidth')} / ${code('fieldBorderWidthFocus')}, locked row and ${code('lockIcon')}, stepper gap, nutrition steppers, preview). Buttons ${code('size.button.primaryHit')}. Spacing only from ${code('space')}.`),
+      callout(`${hl('Not tokens, on purpose')}: the text caret, the keyboard, the status bar and the stack header are drawn by the OS; the canvas only illustrates them.`),
       callout(`${hl('Motion / haptics')}: ${code('motion.events.customReveal')}, ${code('haptics.servingPicked')}.`),
       callout(`${hl('Steps')}: ${code('interaction.servingSteps[key]')}, keys ${code(servingPresetKeys.join(' · ') + ' · custom')}. Recommended to db-engineer: give each ${code('SERVING_PRESETS')} row the same ${code('key')}, so the UI never matches on a display label.`),
     ])}
@@ -438,7 +452,7 @@ for (const [key, , file] of BOARDS) {
 files['Spec.dc.html'] = dc(specBoard(), BOARD);
 for (const [name, html] of Object.entries(files)) writeFileSync(join(OUT, name), html);
 
-const GAP = 110, ROW = H + 260, SPEC_H = 3480;
+const GAP = 110, ROW = H + 260, SPEC_H = 3730;
 const canvas = {
   pages: [
     { id: 'page-1', name: 'Food form — dark + spec' },
