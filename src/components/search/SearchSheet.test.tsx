@@ -673,6 +673,105 @@ describe('SearchSheet — iPhone presentation (issue #79)', () => {
   });
 });
 
+describe('SearchSheet — refocus after closing an overlay (issue #110)', () => {
+  it('closing the portion sheet without logging (tap the scrim) restores focus to the search field', async () => {
+    mockRecent.mockReturnValue([eggs]);
+    const focus = jest.spyOn(TextInput.prototype, 'focus');
+    await renderSheet();
+    await fireEvent.press(screen.getByTestId('search-sheet-bar'));
+    await fireEvent(screen.getByTestId('search-sheet-modal'), 'show');
+    await fireEvent(screen.getByTestId('search-sheet-row-food-food-2'), 'longPress');
+    focus.mockClear();
+
+    await fireEvent.press(screen.getByTestId('search-sheet-portion-sheet-scrim'));
+
+    expect(screen.queryByTestId('search-sheet-portion-sheet-title')).toBeNull();
+    expect(screen.getByTestId('search-sheet-input')).toBeTruthy();
+    expect(focus).toHaveBeenCalledTimes(1);
+  });
+
+  it('closing the create form without saving restores focus to the search field', async () => {
+    const focus = jest.spyOn(TextInput.prototype, 'focus');
+    await renderSheet({ renderCreate: ({ onClose }) => <Pressable testID="create-cancel" onPress={onClose} /> });
+    await fireEvent.press(screen.getByTestId('search-sheet-bar'));
+    await fireEvent(screen.getByTestId('search-sheet-modal'), 'show');
+    await fireEvent.changeText(screen.getByTestId('search-sheet-input'), 'Protein bar');
+    await fireEvent.press(screen.getByTestId('search-sheet-create'));
+    focus.mockClear();
+
+    await fireEvent.press(screen.getByTestId('create-cancel'));
+
+    expect(screen.queryByTestId('create-cancel')).toBeNull();
+    expect(screen.getByTestId('search-sheet-input')).toBeTruthy();
+    expect(focus).toHaveBeenCalledTimes(1);
+  });
+
+  it('Android back closing the portion sheet also restores focus', async () => {
+    mockRecent.mockReturnValue([eggs]);
+    const focus = jest.spyOn(TextInput.prototype, 'focus');
+    await renderSheet();
+    await fireEvent.press(screen.getByTestId('search-sheet-bar'));
+    await fireEvent(screen.getByTestId('search-sheet-modal'), 'show');
+    await fireEvent(screen.getByTestId('search-sheet-row-food-food-2'), 'longPress');
+    focus.mockClear();
+
+    await fireEvent(screen.getByTestId('search-sheet-modal'), 'requestClose');
+
+    expect(screen.queryByTestId('search-sheet-portion-sheet-title')).toBeNull();
+    expect(focus).toHaveBeenCalledTimes(1);
+  });
+
+  it('Android back closing the create form also restores focus', async () => {
+    const focus = jest.spyOn(TextInput.prototype, 'focus');
+    await renderSheet({ renderCreate: () => <Text testID="create-query">shown</Text> });
+    await fireEvent.press(screen.getByTestId('search-sheet-bar'));
+    await fireEvent(screen.getByTestId('search-sheet-modal'), 'show');
+    await fireEvent.changeText(screen.getByTestId('search-sheet-input'), 'Protein bar');
+    await fireEvent.press(screen.getByTestId('search-sheet-create'));
+    focus.mockClear();
+
+    await fireEvent(screen.getByTestId('search-sheet-modal'), 'requestClose');
+
+    expect(screen.queryByTestId('create-query')).toBeNull();
+    expect(focus).toHaveBeenCalledTimes(1);
+  });
+
+  it('logging from the portion sheet closes search entirely and never fires a stray refocus', async () => {
+    mockRecent.mockReturnValue([eggs]);
+    const receipt = receiptFor(eggs);
+    mockLogFood.mockReturnValue(receipt);
+    const focus = jest.spyOn(TextInput.prototype, 'focus');
+    await renderSheet();
+    await fireEvent.press(screen.getByTestId('search-sheet-bar'));
+    await fireEvent(screen.getByTestId('search-sheet-modal'), 'show');
+    await fireEvent(screen.getByTestId('search-sheet-row-food-food-2'), 'longPress');
+    focus.mockClear();
+
+    await fireEvent.press(screen.getByTestId('search-sheet-portion-sheet-step-2'));
+
+    expect(screen.queryByTestId('search-sheet-modal')).toBeNull();
+    expect(focus).not.toHaveBeenCalled();
+  });
+
+  it('logging from the create form closes search entirely and never fires a stray refocus', async () => {
+    const receipt = receiptFor(eggs);
+    const focus = jest.spyOn(TextInput.prototype, 'focus');
+    await renderSheet({
+      renderCreate: ({ onLogged: logged }) => <Pressable testID="create-save" onPress={() => logged(receipt)} />,
+    });
+    await fireEvent.press(screen.getByTestId('search-sheet-bar'));
+    await fireEvent(screen.getByTestId('search-sheet-modal'), 'show');
+    await fireEvent.changeText(screen.getByTestId('search-sheet-input'), 'Protein bar');
+    await fireEvent.press(screen.getByTestId('search-sheet-create'));
+    focus.mockClear();
+
+    await fireEvent.press(screen.getByTestId('create-save'));
+
+    expect(screen.queryByTestId('search-sheet-modal')).toBeNull();
+    expect(focus).not.toHaveBeenCalled();
+  });
+});
+
 describe('SearchSheet — accessibility', () => {
   it('every row and the Create row carry an accessibility label and role', async () => {
     mockSearch.mockReturnValue([eggs]);
