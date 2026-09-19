@@ -687,8 +687,12 @@ function withComponents(c: BaseColors) {
       /** The protein figure inside the protein-per-100 stepper's value well. */
       proteinValueText: c.data.protein,
 
-      /** The sticky footer holding the live preview and Save. Matches the form ground it floats over. */
+      /** The sticky footer holding the live preview and Save, in the create sheet (`CreateFoodSheet`).
+       * Matches the sheet ground (`searchSheet.bg`), so the footer is one surface with the form. */
       footerBg: c.bg.surface,
+      /** The same footer on a pushed screen (`/foods/new`, `/foods/[id]`), which sits on the canvas.
+       * Never paint `footerBg` there: it would lay a lighter band across the bottom of the screen. */
+      footerBgScreen: c.bg.canvas,
       /** The 1 pt line on the footer's top edge, shown once content scrolls beneath it. */
       footerDivider: c.line.hairline,
       /** The live preview strip: "1 scoop (33 g) = 132 kcal · 25 g protein". */
@@ -924,6 +928,7 @@ export const contrastPairs: readonly ContrastPair[] = [
   ...measure(
     ['foodForm.previewServingText', 'foodForm.previewUnitText', 'foodForm.previewKcalText', 'foodForm.previewProteinText'],
     ['foodForm.footerBg', 'foodForm.previewBg'],
+    ['foodForm.footerBgScreen', 'foodForm.previewBg'],
   ),
 
   // buttons
@@ -1318,8 +1323,8 @@ export const size = {
     /** The locked preset read-out ("250 ml · per 1 cup · volume") — the same slot the Custom fields
      * open into, so picking Custom grows the form downward instead of moving the chips. */
     lockedRowHeight: 48,
-    /** The padlock glyph in that read-out. */
-    lockIcon: 13,
+    /** The padlock glyph in that read-out — the inline-glyph size (`icon.sm`), drawn at `icon.stroke`. */
+    lockIcon: 15,
     /** The −/+ width on the side-by-side kcal and protein steppers (the Workout stepper's 56 would
      * leave no room for the value). The whole value well between them is the tap-to-type target (#87). */
     nutritionButtonWidth: 44,

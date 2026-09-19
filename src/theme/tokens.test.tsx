@@ -306,6 +306,11 @@ describe('food form (issue #88)', () => {
     }
   });
 
+  it('names the form hairlines and the focus ring, the focus ring heavier so focus is shape as well as colour', () => {
+    expect(f.fieldBorderWidthFocus).toBeGreaterThan(f.fieldBorderWidth);
+    expect(Object.values(space)).toContain(f.stepperGap);
+  });
+
   it('draws the padlock at the inline-glyph size, so the mock and the build are the same glyph', () => {
     expect(f.lockIcon).toBe(size.icon.sm);
   });
@@ -326,7 +331,7 @@ describe('food form (issue #88)', () => {
 
   it('fits a kcal stepper and a protein stepper side by side, each button a full tap target', () => {
     const half = (375 - 2 * layout.gutter - f.nutritionGap) / 2;
-    const value = half - 2 * f.nutritionButtonWidth - 2 * space[1];
+    const value = half - 2 * f.nutritionButtonWidth - 2 * f.stepperGap;
     expect(f.nutritionButtonWidth).toBeGreaterThanOrEqual(size.tapTargetMin);
     expect(f.nutritionHit).toBeGreaterThanOrEqual(size.tapTargetMin);
     // Room for "1,250" at the stepper value size.
