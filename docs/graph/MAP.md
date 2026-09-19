@@ -1307,7 +1307,7 @@ _no exports_
 
 ## `src/theme/`
 
-### `src/theme/tokens.ts`  <sub>1417 lines</sub>
+### `src/theme/tokens.ts`  <sub>1588 lines</sub>
 
 - `const MIN_TEXT_CONTRAST: 4.5`
 - `const contrastPairs: readonly ContrastPair[]`
@@ -1318,6 +1318,7 @@ _no exports_
 - `const layout: { readonly gutterToday: 20; readonly gutter: 16; readonly cardPadding: 16; readonly cardGap: 12; readonly tileGap: 10; readonly groupGap: 24; readonly floatAboveTabBar: 12; }`
 - `const motion: { readonly ceilingMs: 260; readonly easing: { readonly standard: readonly [0.2, 0, 0, 1]; readonly out: readonly [0, 0, 0.58, 1]; readonly inOut: readonly [0.42, 0, 0.58, 1]; readonly linear: readonly [0, 0, 1, 1]; }; readonly spring: { readonly sheet: { readonly dampingRatio: 0.82; readonly duration: 200; }; }; readonly events: { readonly tilePressIn: { readonly duration: 90; rea...`
 - `const radius: { readonly xs: 8; readonly sm: 10; readonly md: 14; readonly lg: 18; readonly xl: 22; readonly card: 24; readonly pill: 999; }`
+- `const servingPresetKeys: readonly ["100g", "100ml", "cup", "tbsp", "tsp"]`
 - `const size: { readonly tapTargetMin: 44; readonly icon: { readonly tab: 23; readonly deleteAction: 22; readonly lg: 21; readonly md: 19; readonly sm: 15; readonly stroke: 1.75; readonly strokeActive: 2; }; readonly tabBar: { readonly height: 58; readonly itemHit: 58; }; readonly tile: { readonly height: 80; readonly heightHit: 80; readonly nameLines: 2; readonly borderLogged: 1.5; readonly pres...`
 - `const space: { readonly 1: 4; readonly 2: 6; readonly 3: 8; readonly 4: 10; readonly 5: 12; readonly 6: 16; readonly 7: 20; readonly 8: 24; readonly 9: 32; }`
 - `const themeNames: readonly ["dark", "light"]`
@@ -1346,6 +1347,14 @@ _no exports_
 }`
 - `type MotionEventName = keyof typeof motion.events`
 - `type ReducedKind = 'instant' | 'fade' | 'same'`
+- `type ServingPresetKey = (typeof servingPresetKeys)[number]`
+- `type ServingStep = {
+  /** The gap between two steps, in servings. Only ¼ and ½ exist, so every label is ¼ ½ ¾ 1 1¼ … */
+  readonly increment: 0.25 | 0.5;
+  /** The last step, in servings. Also the Exact slider's initial range (issue #92). */
+  readonly max: number;
+}`
+- `type ServingStepKey = ServingPresetKey | 'custom'`
 - `type ShadowTokens = {
   /** Card lift over the canvas. React Native `boxShadow` syntax. */
   readonly card: string;
