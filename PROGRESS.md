@@ -99,3 +99,7 @@ For the sprint-by-sprint plan see [`README.md`](README.md); for open work see th
 - 2026-09-18  docs: record that the Settings meal list manages meals, not logs them (issue #101)  (PR #169 closes #101)
 - 2026-09-18  feat: re-export mealsContainingFood and MealRef from src/db barrel (#164)  (PR #170 closes #164)
 - 2026-09-18  fix: rank PR title by commit type instead of just oldest survivor (issue #168)  (PR #171 closes #168)
+- 2026-09-18  refactor: switch FoodList to the src/db barrel for mealsContainingFood/MealRef (issue #167)  (PR #172 closes #167)
+- 2026-09-18  fix: draw the shipped square trash button in day-log evidence, not a Delete label  (PR #174)
+- 2026-09-19  feat: record column-level check(...) constraints in parseCreateTable (issue #162)  (PR #173 closes #160 #162)
+- 2026-09-19  fix: remove unused logRow.deleteText token (issue #146)  (PR #176 closes #146)
