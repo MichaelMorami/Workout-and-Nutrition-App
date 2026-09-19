@@ -1,0 +1,151 @@
+{
+  "pages": [
+    {
+      "id": "page-1",
+      "name": "Food form — dark + spec"
+    },
+    {
+      "id": "page-2",
+      "name": "Food form — light"
+    }
+  ],
+  "artboards": [
+    {
+      "file": "Preset.dc.html",
+      "title": "Preset — 1 cup, new food from Create",
+      "x": 0,
+      "y": 0,
+      "w": 390,
+      "h": 844,
+      "page": "page-1"
+    },
+    {
+      "file": "CustomWeight.dc.html",
+      "title": "Custom — weight (1 scoop, 33 g)",
+      "x": 500,
+      "y": 0,
+      "w": 390,
+      "h": 844,
+      "page": "page-1"
+    },
+    {
+      "file": "CustomVolume.dc.html",
+      "title": "Custom — volume (1 glass, 200 ml)",
+      "x": 1000,
+      "y": 0,
+      "w": 390,
+      "h": 844,
+      "page": "page-1"
+    },
+    {
+      "file": "Edit.dc.html",
+      "title": "Edit existing — preset pre-selected",
+      "x": 1500,
+      "y": 0,
+      "w": 390,
+      "h": 844,
+      "page": "page-1"
+    },
+    {
+      "file": "Typing.dc.html",
+      "title": "Typing — preview rides the keyboard",
+      "x": 2000,
+      "y": 0,
+      "w": 390,
+      "h": 844,
+      "page": "page-1"
+    },
+    {
+      "file": "Spec.dc.html",
+      "title": "Spec — picker, locked vs custom, preview, taps, steps, contrast",
+      "x": 0,
+      "y": 1104,
+      "w": 1240,
+      "h": 3480,
+      "page": "page-1"
+    },
+    {
+      "file": "PresetLight.dc.html",
+      "title": "Preset — 1 cup, new food from Create — light",
+      "x": 0,
+      "y": 0,
+      "w": 390,
+      "h": 844,
+      "page": "page-2"
+    },
+    {
+      "file": "CustomWeightLight.dc.html",
+      "title": "Custom — weight (1 scoop, 33 g) — light",
+      "x": 500,
+      "y": 0,
+      "w": 390,
+      "h": 844,
+      "page": "page-2"
+    },
+    {
+      "file": "CustomVolumeLight.dc.html",
+      "title": "Custom — volume (1 glass, 200 ml) — light",
+      "x": 1000,
+      "y": 0,
+      "w": 390,
+      "h": 844,
+      "page": "page-2"
+    },
+    {
+      "file": "EditLight.dc.html",
+      "title": "Edit existing — preset pre-selected — light",
+      "x": 1500,
+      "y": 0,
+      "w": 390,
+      "h": 844,
+      "page": "page-2"
+    },
+    {
+      "file": "TypingLight.dc.html",
+      "title": "Typing — preview rides the keyboard — light",
+      "x": 2000,
+      "y": 0,
+      "w": 390,
+      "h": 844,
+      "page": "page-2"
+    }
+  ],
+  "annotations": [
+    {
+      "id": "brief",
+      "page": "page-1",
+      "x": 0,
+      "y": -300,
+      "w": 1380,
+      "text": "ISSUE #88 — THE FOOD FORM\n\nPick a serving from six chips: 100 g · 100 ml · 1 cup · 1 tbsp · 1 tsp · Custom…. A preset fills the amount and locks it; Custom asks for a label, weight or volume, and the amount. Nutrition goes underneath, per 100 g or per 100 ml — as printed on the pack — and the line above Save shows what one serving comes to, as you type.\n\nMetric: 1 cup = 250 ml, 1 tbsp = 15 ml, 1 tsp = 5 ml. kcal and protein only."
+    },
+    {
+      "id": "taps",
+      "page": "page-1",
+      "x": 1500,
+      "y": -300,
+      "w": 880,
+      "text": "TAPS\n\nA new food from search is still 3 fixed taps (bar, Create, Save). Inside the form: 100 g is pre-selected, so a typical pack is kcal + protein and Save. Another preset adds one chip tap. Custom adds the chip plus its amount; volume one more."
+    },
+    {
+      "id": "steps",
+      "page": "page-1",
+      "x": 0,
+      "y": 904,
+      "w": 1240,
+      "text": "The spec below is the contract for ui-engineer (#89) and holds the serving-step table for #93 (section 5)."
+    },
+    {
+      "id": "light-note",
+      "page": "page-2",
+      "x": 0,
+      "y": -220,
+      "w": 1380,
+      "text": "The light theme — same markup, same tokens. Every text pair on these boards is measured at 4.5 : 1 or better in both themes (spec section 7)."
+    }
+  ],
+  "launch": {
+    "view": "canvas",
+    "page": "page-1"
+  }
+}
