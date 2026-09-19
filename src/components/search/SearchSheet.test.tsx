@@ -757,7 +757,19 @@ describe('SearchSheet — refocus after closing an overlay (issue #110)', () => 
     const receipt = receiptFor(eggs);
     const focus = jest.spyOn(TextInput.prototype, 'focus');
     await renderSheet({
-      renderCreate: ({ onLogged: logged }) => <Pressable testID="create-save" onPress={() => logged(receipt)} />,
+      // Mirrors `CreateFoodSheet.handleSave`'s own contract (`src/components/search/CreateFoodSheet.tsx`):
+      // `onLogged?.(receipt); onClose();`, synchronously, both — not `onLogged` alone. Without the
+      // second call this mock can never exercise the same-tick double-close `sheetOpenRef` guards
+      // against (see `handlePortionSheetLog`'s own `onLog`-then-`onClose` sibling on `PortionSheet`).
+      renderCreate: ({ onLogged: logged, onClose }) => (
+        <Pressable
+          testID="create-save"
+          onPress={() => {
+            logged(receipt);
+            onClose();
+          }}
+        />
+      ),
     });
     await fireEvent.press(screen.getByTestId('search-sheet-bar'));
     await fireEvent(screen.getByTestId('search-sheet-modal'), 'show');
