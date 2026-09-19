@@ -1049,8 +1049,10 @@ describe('a column-level check is recorded (#162)', () => {
  * has a default. Before #173 this spelling was never read correctly either way; #173 changed which
  * silent failure it produced, and this closes that gap the same way #173 closed the type scanner's.
  *
- * The fix allows (not requires) whitespace between `default` and the value, so `default (0)` and
- * `default 0` keep reading exactly as before.
+ * The fix allows whitespace between `default` and the value to be omitted only when the value is
+ * glued straight to an opening parenthesis, so `default (0)` and `default 0` keep reading exactly
+ * as before — a space is never required *there*, but a bare `default` with no parenthesis still
+ * needs it, exactly as it always did (#178).
  */
 describe('a default glued to its parenthesis is recorded (#175)', () => {
   const column = (body: string, name: string) =>
@@ -1114,6 +1116,74 @@ describe('a default glued to its parenthesis is recorded (#175)', () => {
       type: 'uuid',
       default: null,
     });
+  });
+});
+
+/**
+ * #178, from opus review of #177: two edge cases `\bdefault(?:\s+|(?=\())` still gets wrong.
+ *
+ * First, a bare `default` keyword with genuinely no value — nothing after it at all, or immediately
+ * followed by another column modifier such as `not null` — fails to match the capturing regex and
+ * silently falls back to `default: null`, exactly as if the column had never said `default`. That is
+ * the fail-open direction this whole reader exists to rule out (see the file header): a `default`
+ * this reader cannot read must be reported, never dropped.
+ *
+ * Second, a string literal that merely *contains* the word `default` followed by a space — inside a
+ * `check (…)`, for example — was already misread as the keyword before #177, and #177's fix did not
+ * change that: `\s+` is satisfied just as well by the literal space inside `'default value'` as by a
+ * real one outside any quotes. Keyword matching has to skip quoted literals and quoted identifiers
+ * entirely, not just the zero-width case #177 closed.
+ */
+describe('a default this reader cannot read is reported, not dropped (#178)', () => {
+  const column = (body: string, name: string) =>
+    parseSql(`create table public.t (${body});`).tables.get('t')?.column(name);
+
+  it('throws on a bare default with nothing after it at all', () => {
+    expect(() => parseSql('create table public.t (qty integer default);')).toThrow(SqlSyntaxError);
+  });
+
+  it('throws on a bare default immediately followed by not null', () => {
+    expect(() => parseSql('create table public.t (qty integer default not null);')).toThrow(
+      SqlSyntaxError,
+    );
+  });
+
+  it('throws on a bare default immediately followed by references', () => {
+    expect(() =>
+      parseSql('create table public.t (a uuid default references public.other (id));'),
+    ).toThrow(SqlSyntaxError);
+  });
+
+  it('throws on a bare default immediately followed by a table-level check', () => {
+    expect(() =>
+      parseSql('create table public.t (qty integer default check (qty > 0));'),
+    ).toThrow(SqlSyntaxError);
+  });
+
+  it('throws on a bare default immediately followed by unique', () => {
+    expect(() => parseSql('create table public.t (a uuid default unique);')).toThrow(SqlSyntaxError);
+  });
+
+  it('throws on a bare default immediately followed by collate', () => {
+    expect(() => parseSql('create table public.t (a text default collate "C");')).toThrow(
+      SqlSyntaxError,
+    );
+  });
+
+  it('still reads an explicit default null as the literal, not as bare default', () => {
+    expect(column('a text default null', 'a')).toMatchObject({ type: 'text', default: 'null' });
+  });
+
+  it('does not read the word "default" followed by a space inside a quoted check value', () => {
+    expect(
+      column("x text check (x in ('default value'))", 'x'),
+    ).toMatchObject({ type: 'text', default: null });
+  });
+
+  it('still reads a real default that sits next to a check with a quoted literal', () => {
+    expect(
+      column("x text default 'pending' check (x in ('default value'))", 'x'),
+    ).toMatchObject({ type: 'text', default: "'pending'" });
   });
 });
 
