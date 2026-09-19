@@ -1660,6 +1660,7 @@
         "const layout: { readonly gutterToday: 20; readonly gutter: 16; readonly cardPadding: 16; readonly cardGap: 12; readonly tileGap: 10; readonly groupGap: 24; readonly floatAboveTabBar: 12; }",
         "const motion: { readonly ceilingMs: 260; readonly easing: { readonly standard: readonly [0.2, 0, 0, 1]; readonly out: readonly [0, 0, 0.58, 1]; readonly inOut: readonly [0.42, 0, 0.58, 1]; readonly linear: readonly [0, 0, 1, 1]; }; readonly spring: { readonly sheet: { readonly dampingRatio: 0.82; readonly duration: 200; }; }; readonly events: { readonly tilePressIn: { readonly duration: 90; rea...",
         "const radius: { readonly xs: 8; readonly sm: 10; readonly md: 14; readonly lg: 18; readonly xl: 22; readonly card: 24; readonly pill: 999; }",
+        "const servingPresetKeys: readonly [\"100g\", \"100ml\", \"cup\", \"tbsp\", \"tsp\"]",
         "const size: { readonly tapTargetMin: 44; readonly icon: { readonly tab: 23; readonly deleteAction: 22; readonly lg: 21; readonly md: 19; readonly sm: 15; readonly stroke: 1.75; readonly strokeActive: 2; }; readonly tabBar: { readonly height: 58; readonly itemHit: 58; }; readonly tile: { readonly height: 80; readonly heightHit: 80; readonly nameLines: 2; readonly borderLogged: 1.5; readonly pres...",
         "const space: { readonly 1: 4; readonly 2: 6; readonly 3: 8; readonly 4: 10; readonly 5: 12; readonly 6: 16; readonly 7: 20; readonly 8: 24; readonly 9: 32; }",
         "const themeNames: readonly [\"dark\", \"light\"]",
@@ -1678,6 +1679,9 @@
         "type MotionEvent = {\n  readonly duration: number;\n  readonly easing: keyof typeof easing | 'spring';\n  readonly reduced: { readonly kind: ReducedKind; readonly duration: number };\n  readonly staggerMs?: number;\n}",
         "type MotionEventName = keyof typeof motion.events",
         "type ReducedKind = 'instant' | 'fade' | 'same'",
+        "type ServingPresetKey = (typeof servingPresetKeys)[number]",
+        "type ServingStep = {\n  /** The gap between two steps, in servings. Only ¼ and ½ exist, so every label is ¼ ½ ¾ 1 1¼ … */\n  readonly increment: 0.25 | 0.5;\n  /** The last step, in servings. Also the Exact slider's initial range (issue #92). */\n  readonly max: number;\n}",
+        "type ServingStepKey = ServingPresetKey | 'custom'",
         "type ShadowTokens = {\n  /** Card lift over the canvas. React Native `boxShadow` syntax. */\n  readonly card: string;\n  /** The 1 pt top highlight that makes a tile read as pressable. */\n  readonly tile: string;\n  /** A bottom sheet over the scrim. */\n  readonly sheet: string;\n  /** The undo toast and rest bar. */\n  readonly floating: string;\n  /** The soft bloom under a large calorie-coloured ca...",
         "type SpaceStep = keyof typeof space",
         "type Theme = {\n  readonly name: ThemeName;\n  readonly color: ColorTokens;\n  readonly shadow: ShadowTokens;\n  readonly glow: GlowTokens;\n}",
@@ -1687,7 +1691,7 @@
         "type TypeStyle = {\n  readonly fontFamily: FontFamily;\n  readonly fontSize: number;\n  readonly lineHeight: number;\n  readonly letterSpacing: number;\n  readonly textTransform?: 'uppercase';\n  readonly fontVariant?: readonly ['tabular-nums'];\n}"
       ],
       "imports": [],
-      "loc": 1417,
+      "loc": 1602,
       "importedBy": [
         "app/(tabs)/_layout.tsx",
         "app/(tabs)/index.tsx",
