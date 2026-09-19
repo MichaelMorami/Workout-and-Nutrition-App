@@ -1585,7 +1585,7 @@
         "type PrivilegeState = 'granted' | 'revoked' | 'unstated'"
       ],
       "imports": [],
-      "loc": 1231
+      "loc": 1240
     },
     "src/sync/errors.ts": {
       "exports": [

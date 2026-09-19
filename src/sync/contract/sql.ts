@@ -574,7 +574,16 @@ function parseColumn(item: string): ParsedColumn {
   }
   const rest = afterName.slice(typeTokens.join(' ').length);
 
-  const defaultMatch = /\bdefault\s+(.+?)(?=\s+(?:not null|null|references|check|primary key|unique|collate)\b|$)/i.exec(
+  // `\bdefault(?:\s+|(?=\())` (not `\bdefault\s+`, and not the too-loose `\bdefault\b\s*` that PR
+  // #177's review caught) so a value glued to its parenthesis with no space — `default(0)`, the
+  // spelling PR #173's re-review found (#175) — is still read as the keyword, while a bare `default`
+  // still needs the whitespace it always did. `\b\s*` matched *zero* characters after any occurrence
+  // of the word, including one that is not the keyword at all: `'default'` inside a `check (…)`
+  // value, `collate "default"`, or `references public."default"(id)` all contain the word `default`
+  // followed immediately by a quote, and `\s*` matched that with zero width, reading the quote and
+  // everything after it as a bogus default. Requiring the next character to actually be whitespace
+  // or `(` rules all three out, because a quote is neither.
+  const defaultMatch = /\bdefault(?:\s+|(?=\())(.+?)(?=\s+(?:not null|null|references|check|primary key|unique|collate)\b|$)/i.exec(
     rest,
   );
   const referencesMatch = /\breferences\s+(.+?)(?=\s+on\s+(?:delete|update)\b|$)/i.exec(rest);

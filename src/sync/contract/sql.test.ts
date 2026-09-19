@@ -1040,6 +1040,84 @@ describe('a column-level check is recorded (#162)', () => {
 });
 
 /**
+ * #175, a re-review of #173: the type scanner now ends a column's type at a modifier glued to its
+ * own parenthesis, so `qty integer default(0)` correctly stops the type at `default` instead of
+ * swallowing the rest of the line the way it did before #173. But the *default* regex itself still
+ * required whitespace between the keyword and the value it captures (`\bdefault\s+`), so once the
+ * type scanner stopped absorbing `default(0)`, the default regex ran against `default(0)`, found no
+ * space after the keyword, and matched nothing — silently reading `default: null` on a column that
+ * has a default. Before #173 this spelling was never read correctly either way; #173 changed which
+ * silent failure it produced, and this closes that gap the same way #173 closed the type scanner's.
+ *
+ * The fix allows (not requires) whitespace between `default` and the value, so `default (0)` and
+ * `default 0` keep reading exactly as before.
+ */
+describe('a default glued to its parenthesis is recorded (#175)', () => {
+  const column = (body: string, name: string) =>
+    parseSql(`create table public.t (${body});`).tables.get('t')?.column(name);
+
+  it('records a default with no space before its parenthesis', () => {
+    expect(column('qty integer default(0)', 'qty')).toMatchObject({
+      type: 'integer',
+      default: '(0)',
+    });
+  });
+
+  it('records a default with a space before its parenthesis, unchanged from before', () => {
+    expect(column('qty integer default (0)', 'qty')).toMatchObject({
+      type: 'integer',
+      default: '(0)',
+    });
+  });
+
+  it('still reads a plain space-separated default, unchanged from before', () => {
+    expect(column('qty integer default 0', 'qty')).toMatchObject({ type: 'integer', default: '0' });
+  });
+
+  it('records a negative numeric default glued to its parenthesis', () => {
+    expect(column('qty integer default(-1)', 'qty')).toMatchObject({
+      type: 'integer',
+      default: '(-1)',
+    });
+  });
+
+  it('still stops the default at a following clause, e.g. not null, with no space before the paren', () => {
+    expect(column('qty integer default(0) not null', 'qty')).toMatchObject({
+      type: 'integer',
+      notNull: true,
+      default: '(0)',
+    });
+  });
+
+  /**
+   * Blocking review of PR #177: `\bdefault\b\s*` fixed the glued-parenthesis case above, but `\s*`
+   * also matches *zero* characters after any other occurrence of the word `default` — including one
+   * that is not the keyword at all, just data or an identifier that happens to spell it. A quoted
+   * `'default'` inside a `check (…)`, a `collate "default"` (a real, if unusual, collation name) and
+   * a table literally named `"default"` in a `references` clause all contain the bare word `default`
+   * immediately followed by a non-whitespace character (`'`, `"`), which `\s*` happily matched with
+   * zero width — turning "no default clause here" into a bogus captured default. None of these three
+   * columns has a default at all; the fix must keep reading them as `default: null`.
+   */
+  it('does not read the word "default" inside a quoted check value as the keyword', () => {
+    expect(
+      column("status text not null check (status in ('default','custom'))", 'status'),
+    ).toMatchObject({ type: 'text', default: null });
+  });
+
+  it('does not read a collation literally named "default" as the keyword', () => {
+    expect(column('x text collate "default"', 'x')).toMatchObject({ type: 'text', default: null });
+  });
+
+  it('does not read a referenced table literally named "default" as the keyword', () => {
+    expect(column('a uuid references public."default"(id)', 'a')).toMatchObject({
+      type: 'uuid',
+      default: null,
+    });
+  });
+});
+
+/**
  * #148: `create table` had two more ways to be read as something it is not. `(like other)` has no
  * column definitions at all, and the reader took `like` for a column name and `other` for its type,
  * producing a table with a column nobody wrote. Anything after the closing parenthesis —
