@@ -5,11 +5,12 @@
  * divided by its own `qty` — history is immutable (`CLAUDE.md`), so this reads only what was
  * actually logged, never the food's current catalogue values, which may have since changed.
  *
- * A meal's `itemCount` is display-only (`servingUnitLabel` in `PortionSheet.tsx`) and isn't a
+ * A meal's `itemCount` is display-only — required by `MealCandidate`'s shape but, since issue #90,
+ * not read by `PortionSheet`'s own subtitle (a meal there just reads "per meal") — and isn't a
  * column on `food_log`, so the caller passes the live `MealDetail` when it has one (a cheap,
  * on-demand `getMeal` at edit-open time, not a join `dayLog` carries for every row). `null` — the
  * meal itself was later deleted — falls back to a single item; it changes nothing about the
- * actual edit math, only that decorative label.
+ * actual edit math, only that unused-for-now field.
  *
  * `basis` isn't a `food_log` column (issue #86) — it's implied by which of the row's own `grams`/
  * `ml` is set, the same mutual-exclusion invariant `resolveAmount` writes by. A row with neither

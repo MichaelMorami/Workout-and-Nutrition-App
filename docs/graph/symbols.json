@@ -351,7 +351,7 @@
       "imports": [
         "src/db/index.ts"
       ],
-      "loc": 68,
+      "loc": 69,
       "importedBy": [
         "src/components/day-log/DayLogList.tsx"
       ]
@@ -580,7 +580,7 @@
         "src/hooks/useHapticFeedback.ts",
         "src/theme/tokens.ts"
       ],
-      "loc": 687,
+      "loc": 696,
       "importedBy": [
         "src/components/day-log/DayLogList.tsx",
         "src/components/quick-add/QuickAddGrid.tsx",

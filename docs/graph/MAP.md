@@ -303,7 +303,7 @@ jq -r '.modules["src/db/queries/nutrition.ts"].exports[]' docs/graph/symbols.jso
 
 <sub>used by: `src/components/day-log/DayLogList.tsx`</sub>
 
-### `src/components/day-log/entry-candidate.ts`  <sub>68 lines</sub>
+### `src/components/day-log/entry-candidate.ts`  <sub>69 lines</sub>
 
 - `function candidateForEntry(entry: DayLogEntry, meal: MealDetail | null): Candidate`
 
@@ -545,7 +545,7 @@ jq -r '.modules["src/db/queries/nutrition.ts"].exports[]' docs/graph/symbols.jso
 
 ## `src/components/quick-add/`
 
-### `src/components/quick-add/PortionSheet.tsx`  <sub>687 lines</sub>
+### `src/components/quick-add/PortionSheet.tsx`  <sub>696 lines</sub>
 
 - `function PortionSheet({
   candidate,

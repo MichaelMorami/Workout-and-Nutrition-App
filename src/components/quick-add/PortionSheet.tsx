@@ -115,10 +115,17 @@ function textStyle(token: TypeStyle, color: string): TextStyle {
   };
 }
 
-/** The food's serving unit ("1 pot", "100 g") or, for a meal, its item count — same wording `QuickAddTile` uses. */
+/**
+ * The subtitle's serving phrase (issue #90) — "1 pot serving", "100 g serving" for a food; "meal"
+ * for a meal, since the figures above it are already the meal's one-portion totals and an item
+ * count (`QuickAddTile`'s own label) has nothing to do with "per what". Guards against a doubled
+ * "serving serving" when the label already ends in the word — `entry-candidate.ts`'s `'1 serving'`
+ * fallback for a pre-#86 log row with no stored label is exactly that case.
+ */
 function servingUnitLabel(candidate: Candidate): string {
-  if (candidate.kind === 'food') return candidate.servingLabel;
-  return `${candidate.itemCount} item${candidate.itemCount === 1 ? '' : 's'}`;
+  if (candidate.kind === 'meal') return 'meal';
+  const label = candidate.servingLabel;
+  return /\bserving$/i.test(label.trim()) ? label : `${label} serving`;
 }
 
 /** Nearest 0.5-serving multiple to `portions`, for the Exact grams slider's detents. */
@@ -577,7 +584,9 @@ export function PortionSheet({
         <Text testID={`${testID}-title`} style={textStyle(type.title, portionSheet.titleText)}>
           {candidate.name}
         </Text>
-        <Text style={textStyle(type.label, portionSheet.metaText)}>{`${kcalText} kcal · ${proteinText} protein per ${unit}`}</Text>
+        <Text testID={`${testID}-subtitle`} style={textStyle(type.label, portionSheet.metaText)}>
+          {`${kcalText} kcal · ${proteinText} protein per ${unit}`}
+        </Text>
 
         <Segmented theme={theme} mode={mode} onChange={setMode} testID={`${testID}-mode`} />
 
