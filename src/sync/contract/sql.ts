@@ -553,6 +553,74 @@ function columnChecks(rest: string): ParsedCheck[] {
 }
 
 /**
+ * Quoted regions of `text` replaced with spaces of the same length, so a scan for a bare keyword
+ * cannot match a word that only *appears* inside a string literal or a quoted identifier. Used to
+ * locate the real `default` keyword (#178); the value itself is always read back out of the original
+ * text underneath, so a legitimately quoted default (`default 'pending'`) still reads whole.
+ */
+const blankQuoted = (text: string): string =>
+  text.replace(/'(?:[^']|'')*'|"(?:[^"]|"")*"/g, (m) => ' '.repeat(m.length));
+
+/**
+ * Every column modifier keyword except `null`: a bare `default` immediately followed by one of these
+ * (`default not null`, `default references …`, `default check (…)`, `default unique`, `default
+ * collate …`) has no expression at all, since none of them can start one. `null` is the one
+ * exception — it is itself a valid expression, the SQL literal NULL, not a sign the value is
+ * missing, so `default null` is a real default and must not throw (#178).
+ */
+const defaultStartsWithModifier = (word: string): boolean =>
+  word.toLowerCase() !== 'null' && COLUMN_MODIFIERS.has(word.toLowerCase());
+
+/** The message a `default` this reader cannot read fails with — never silently `default: null`. */
+const noDefaultValue = (rest: string): SqlSyntaxError =>
+  new SqlSyntaxError(`column default with no value: "${squash(rest).slice(0, 80)}"`, 0);
+
+/**
+ * The `default` clause on a column, or `null` when the column has none at all. Two failure shapes
+ * opus's review of #177 found this reader still gets wrong (#178):
+ *
+ * A bare `default` with genuinely no value — nothing after it, or immediately followed by another
+ * column modifier — is not valid SQL; `default` always takes an expression. The old regex,
+ * `\bdefault(?:\s+|(?=\())(.+?)(?=…)`, simply failed to match this shape and the column silently
+ * read as having no default at all, the same fail-open outcome the file header rules out for every
+ * other construct here. Worse, its lazy capture could swallow part of the *next* modifier as if it
+ * were the value: against `default not null`, `.+?` happily matched just `not`, leaving `null` to
+ * satisfy the lookahead, and the column read as `default: "not"` — a value nobody wrote.
+ *
+ * A quoted string or identifier that merely *contains* the word `default` — `check (x in ('default
+ * value'))`, say — is not the keyword either. #177 stopped a bare *quote character* right after
+ * `default` from satisfying the required whitespace, but it did not stop a literal *space* inside the
+ * quotes from doing exactly the same job: `'default value'` satisfies `\bdefault\s+` just as well
+ * from outside the string as from inside it. The keyword search below runs over a copy with every
+ * quoted region blanked out, so a hit inside one is never seen; the real text underneath is still
+ * what the value is read from.
+ */
+function columnDefault(rest: string): string | null {
+  const keyword = /\bdefault\b/i.exec(blankQuoted(rest));
+  if (!keyword) return null;
+
+  const afterKeyword = rest.slice(keyword.index + keyword[0].length);
+  // Same requirement #177 settled on: real whitespace, or the value glued straight to `(`.
+  const separator = /^(?:\s+|(?=\())/.exec(afterKeyword);
+  if (!separator) throw noDefaultValue(rest);
+
+  const afterSeparator = afterKeyword.slice(separator[0].length);
+  const firstWord = /^[A-Za-z_][A-Za-z0-9_]*/.exec(afterSeparator);
+  if (afterSeparator.length === 0 || (firstWord && defaultStartsWithModifier(firstWord[0]))) {
+    throw noDefaultValue(rest);
+  }
+
+  const value = /^(.+?)(?=\s+(?:not null|null|references|check|primary key|unique|collate)\b|$)/i.exec(
+    afterSeparator,
+  );
+  // `afterSeparator` is non-empty and does not start with a modifier keyword, so `.+?` always has at
+  // least one character to capture, down to `$` at worst — but `noUncheckedIndexedAccess` wants that
+  // proven, not assumed.
+  if (!value) throw noDefaultValue(rest);
+  return value[1].trim();
+}
+
+/**
  * One column definition. The name is read as an identifier and resolved through {@link identifier}
  * (#135), so `Note` keys as `note` and `"my col"` stays one name: splitting on spaces and stripping
  * quotes made `"my col" text` a column called `my` of type `col"`, and a mixed-case column landed
@@ -574,18 +642,6 @@ function parseColumn(item: string): ParsedColumn {
   }
   const rest = afterName.slice(typeTokens.join(' ').length);
 
-  // `\bdefault(?:\s+|(?=\())` (not `\bdefault\s+`, and not the too-loose `\bdefault\b\s*` that PR
-  // #177's review caught) so a value glued to its parenthesis with no space — `default(0)`, the
-  // spelling PR #173's re-review found (#175) — is still read as the keyword, while a bare `default`
-  // still needs the whitespace it always did. `\b\s*` matched *zero* characters after any occurrence
-  // of the word, including one that is not the keyword at all: `'default'` inside a `check (…)`
-  // value, `collate "default"`, or `references public."default"(id)` all contain the word `default`
-  // followed immediately by a quote, and `\s*` matched that with zero width, reading the quote and
-  // everything after it as a bogus default. Requiring the next character to actually be whitespace
-  // or `(` rules all three out, because a quote is neither.
-  const defaultMatch = /\bdefault(?:\s+|(?=\())(.+?)(?=\s+(?:not null|null|references|check|primary key|unique|collate)\b|$)/i.exec(
-    rest,
-  );
   const referencesMatch = /\breferences\s+(.+?)(?=\s+on\s+(?:delete|update)\b|$)/i.exec(rest);
 
   return {
@@ -594,7 +650,7 @@ function parseColumn(item: string): ParsedColumn {
     // A PRIMARY KEY column is NOT NULL in Postgres whether or not it says so, and reporting it as
     // nullable would make the contract test pass on a schema that is not the one it checked.
     notNull: /\bnot\s+null\b/i.test(rest) || /\bprimary\s+key\b/i.test(rest),
-    default: defaultMatch?.[1]?.trim() ?? null,
+    default: columnDefault(rest),
     references: referencesMatch?.[1]?.trim() ?? null,
     // Read the same way `primary key` is, and blind in the same one way: a literal `default 'unique'`
     // would trip it. That is the existing limitation of scanning `rest`, not a new one (#148 review).
