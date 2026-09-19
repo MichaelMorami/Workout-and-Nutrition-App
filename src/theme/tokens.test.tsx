@@ -20,12 +20,15 @@ import {
   contrastPairs,
   fontInstances,
   glyph,
+  interaction,
+  layout,
   MIN_TEXT_CONTRAST,
   motion,
   resolveThemeName,
   size,
   space,
   themeNames,
+  servingPresetKeys,
   themes,
   type,
   type ColorPath,
@@ -272,5 +275,76 @@ describe('motion', () => {
       .filter(([, e]) => e.duration > motion.ceilingMs)
       .map(([name]) => name);
     expect(slow).toEqual(['chartDraw']);
+  });
+});
+
+describe('food form (issue #88)', () => {
+  const f = size.foodForm;
+
+  it('lays the six serving chips out as a 3 × 2 grid whose every chip clears the tap floor on the narrowest phone', () => {
+    // 100 g · 100 ml · 1 cup / 1 tbsp · 1 tsp · Custom… — a single line of six does not fit 375 pt.
+    expect(f.chipColumns).toBe(3);
+    expect(f.chipHit).toBeGreaterThanOrEqual(size.tapTargetMin);
+    const narrowest = 375 - 2 * layout.gutter;
+    const chipWidth = (narrowest - (f.chipColumns - 1) * f.chipGap) / f.chipColumns;
+    expect(chipWidth).toBeGreaterThanOrEqual(2 * size.tapTargetMin);
+    expect(Object.values(space)).toContain(f.chipGap);
+  });
+
+  it('marks the selected chip with shape as well as colour: a heavier border and a bolder label', () => {
+    expect(f.chipBorderSelected).toBeGreaterThan(f.chipBorder);
+    expect(type.controlSelected.fontFamily).not.toBe(type.control.fontFamily);
+  });
+
+  it('shows a preset serving as a locked read-out, not a disabled stepper: its own row, glyph and colours', () => {
+    expect(f.lockedRowHeight).toBeGreaterThanOrEqual(size.tapTargetMin);
+    for (const name of themeNames) {
+      const c = themes[name].color.foodForm;
+      // No well: the read-out sits on the form ground, so it cannot be mistaken for an input.
+      expect({ name, keys: ['lockedAmountText', 'lockedMetaText', 'lockIcon'].every((k) => k in c) }).toEqual({ name, keys: true });
+      expect(Object.keys(c)).not.toContain('lockedBg');
+    }
+  });
+
+  it('fits a kcal stepper and a protein stepper side by side, each button a full tap target', () => {
+    const half = (375 - 2 * layout.gutter - f.nutritionGap) / 2;
+    const value = half - 2 * f.nutritionButtonWidth - 2 * space[1];
+    expect(f.nutritionButtonWidth).toBeGreaterThanOrEqual(size.tapTargetMin);
+    expect(f.nutritionHit).toBeGreaterThanOrEqual(size.tapTargetMin);
+    // Room for "1,250" at the stepper value size.
+    expect(value).toBeGreaterThanOrEqual(type.stepperValue.fontSize * 3);
+  });
+
+  it('animates the Custom fields in and out as feedback, and snaps them under reduce motion', () => {
+    const e = motion.events.customReveal;
+    expect(e.duration).toBeGreaterThanOrEqual(150);
+    expect(e.duration).toBeLessThanOrEqual(250);
+    expect(e.reduced.kind).toBe('instant');
+  });
+});
+
+describe('serving steps (issue #93, decided in #88)', () => {
+  const steps = interaction.servingSteps;
+
+  it('names one step rule per serving preset, plus Custom', () => {
+    expect([...servingPresetKeys]).toEqual(['100g', '100ml', 'cup', 'tbsp', 'tsp']);
+    expect(Object.keys(steps).sort()).toEqual([...servingPresetKeys, 'custom'].sort());
+  });
+
+  it('keeps Custom at the client ruling: ½ steps up to 8 servings', () => {
+    expect(steps.custom).toEqual({ increment: 0.5, max: 8 });
+  });
+
+  it('steps cup, tbsp and tsp in quarters, the way recipes measure them', () => {
+    for (const key of ['cup', 'tbsp', 'tsp'] as const) expect({ key, increment: steps[key].increment }).toEqual({ key, increment: 0.25 });
+  });
+
+  it('lands every max on a whole step and keeps each strip short enough to scan', () => {
+    for (const [key, { increment, max }] of Object.entries(steps)) {
+      const count = max / increment;
+      expect({ key, whole: Number.isInteger(count), scannable: count <= 16 }).toEqual({ key, whole: true, scannable: true });
+      // Fractions render as ¼ ½ ¾ — no other increments exist.
+      expect({ key, known: [0.25, 0.5].includes(increment) }).toEqual({ key, known: true });
+    }
   });
 });
