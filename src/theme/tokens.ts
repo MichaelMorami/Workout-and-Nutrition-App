@@ -402,7 +402,8 @@ function withComponents(c: BaseColors) {
       grabber: c.line.strong,
       /** The food name heading the sheet. */
       titleText: c.text.primary,
-      /** "120 kcal · 20 g protein per pot". */
+      /** The subtitle under the food name: "120 kcal · 20 g protein per 1 pot serving" (a saved meal:
+       * "… per meal"). Wording from issue #90. */
       metaText: c.text.tertiary,
       /** A preset step (½ 1 1½ 2 3) at rest. */
       stepBg: c.bg.tile,
@@ -511,7 +512,7 @@ function withComponents(c: BaseColors) {
     },
 
     stepper: {
-      /** The − / + buttons on Workout. */
+      /** The − / + buttons on Workout, and on the food form's amount and nutrition steppers. */
       buttonBg: c.bg.tile,
       /** Those buttons while pressed. */
       buttonBgPress: c.bg.press,
@@ -627,6 +628,85 @@ function withComponents(c: BaseColors) {
       syncOffIcon: c.data.kcal,
       /** The dot beside "All caught up". */
       syncOkDot: c.state.success,
+    },
+
+    foodForm: {
+      /*
+       * The create / edit food form (issue #88): `app/foods/new`, `app/foods/[id]` and the search
+       * sheet's `CreateFoodSheet`. The form sits on `bg.canvas` as a screen and on `bg.surface` inside
+       * the sheet; every pair below is measured on both. Spec: design/food-form/canvas.
+       */
+      /** "Name", "Brand", "Label", "Amount" above a field. */
+      fieldLabelText: c.text.secondary,
+      /** A text field's well: Name, Brand, and a Custom serving's label. */
+      fieldBg: c.bg.raised,
+      /** Its 1 pt border at rest. */
+      fieldBorder: c.line.hairline,
+      /** Its 1.5 pt border while focused. */
+      fieldBorderFocus: c.data.kcal,
+      /** Its 1.5 pt border after a Save that this field blocked (a Custom serving with no label). */
+      fieldBorderError: c.state.danger,
+      /** The text caret. */
+      caret: c.data.kcal,
+      /** What the user typed. */
+      inputText: c.text.primary,
+      /** "Greek yoghurt", "Optional", "1 scoop" while a field is empty. */
+      placeholderText: c.text.tertiary,
+      /** The inline reason under a field that blocked Save ("Name the serving, e.g. 1 scoop"). */
+      errorText: c.state.danger,
+
+      /** The eyebrows "SERVING" and "PER 100 G" / "PER 100 ML". */
+      sectionText: c.text.secondary,
+      /** The right-hand hint on the SERVING eyebrow ("Nutrition is per 100 g"). */
+      sectionMetaText: c.text.tertiary,
+
+      /** A serving chip at rest (100 g · 100 ml · 1 cup · 1 tbsp · 1 tsp · Custom…). */
+      chipBg: c.bg.tile,
+      /** A chip while pressed. */
+      chipBgPress: c.bg.press,
+      /** A chip's 1 pt border at rest. */
+      chipBorder: c.line.hairline,
+      /** A chip's label at rest. */
+      chipText: c.text.primary,
+      /** The selected chip's fill: a calorie tint laid over the form ground. */
+      chipSelectedBg: c.wash.kcal,
+      /** The selected chip's heavier border (`size.foodForm.chipBorderSelected`). */
+      chipSelectedBorder: c.data.kcal,
+      /** The selected chip's label, in the bold cut (`type.controlSelected`). */
+      chipSelectedText: c.text.primary,
+
+      /** A preset's locked amount, e.g. "250 ml". Read-only: no well, no border, no −/+. */
+      lockedAmountText: c.text.primary,
+      /** "per 1 cup · volume" beside the locked amount. */
+      lockedMetaText: c.text.tertiary,
+      /** The small padlock glyph that leads the locked read-out. */
+      lockIcon: c.text.tertiary,
+
+      /** The calorie figure inside the kcal-per-100 stepper's value well. */
+      kcalValueText: c.data.kcal,
+      /** The protein figure inside the protein-per-100 stepper's value well. */
+      proteinValueText: c.data.protein,
+
+      /** The sticky footer holding the live preview and Save, in the create sheet (`CreateFoodSheet`).
+       * Matches the sheet ground (`searchSheet.bg`), so the footer is one surface with the form. */
+      footerBg: c.bg.surface,
+      /** The same footer on a pushed screen (`/foods/new`, `/foods/[id]`), which sits on the canvas.
+       * Never paint `footerBg` there: it would lay a lighter band across the bottom of the screen. */
+      footerBgScreen: c.bg.canvas,
+      /** The 1 pt line on the footer's top edge, shown once content scrolls beneath it. */
+      footerDivider: c.line.hairline,
+      /** The live preview strip: "1 scoop (33 g) = 132 kcal · 25 g protein". */
+      previewBg: c.bg.raised,
+      /** Its serving half: "1 scoop (33 g)". Truncates first; the numbers never do. */
+      previewServingText: c.text.secondary,
+      /** Its "=", "kcal" and "g protein". */
+      previewUnitText: c.text.tertiary,
+      /** Its calorie figure. */
+      previewKcalText: c.data.kcal,
+      /** Its protein figure. */
+      previewProteinText: c.data.protein,
+      /** "Past logs keep their numbers." under Save when editing an existing food. */
+      historyNoteText: c.text.tertiary,
     },
 
     button: {
@@ -834,6 +914,22 @@ export const contrastPairs: readonly ContrastPair[] = [
   ...measure(['settings.labelText', 'settings.valueText', 'settings.chevronIcon'], ['settings.groupBg'], ['settings.rowBgPress']),
   ...measure(['settings.avatarIcon'], ['settings.groupBg', 'settings.avatarBg']),
   ...measure(['settings.syncOffIcon'], ['settings.groupBg', 'settings.syncOffBg']),
+
+  // food form (issue #88) — a screen on the canvas, or the create sheet on the surface
+  ...measure(
+    ['foodForm.fieldLabelText', 'foodForm.errorText', 'foodForm.sectionText', 'foodForm.sectionMetaText', 'foodForm.lockedAmountText', 'foodForm.lockedMetaText', 'foodForm.lockIcon', 'foodForm.historyNoteText'],
+    ['bg.canvas'],
+    ['bg.surface'],
+  ),
+  ...measure(['foodForm.inputText', 'foodForm.placeholderText'], ['foodForm.fieldBg']),
+  ...measure(['foodForm.chipText'], ['foodForm.chipBg'], ['foodForm.chipBgPress']),
+  ...measure(['foodForm.chipSelectedText'], ['bg.canvas', 'foodForm.chipSelectedBg'], ['bg.surface', 'foodForm.chipSelectedBg']),
+  ...measure(['foodForm.kcalValueText', 'foodForm.proteinValueText'], ['stepper.valueBg']),
+  ...measure(
+    ['foodForm.previewServingText', 'foodForm.previewUnitText', 'foodForm.previewKcalText', 'foodForm.previewProteinText'],
+    ['foodForm.footerBg', 'foodForm.previewBg'],
+    ['foodForm.footerBgScreen', 'foodForm.previewBg'],
+  ),
 
   // buttons
   ...measure(['button.kcalText'], ['button.kcalBg'], ['button.kcalBgPress']),
@@ -1210,6 +1306,45 @@ export const size = {
     buttonHit: 44,
   },
 
+  foodForm: {
+    /** Serving chips per row. Six chips (five presets + Custom…) do not fit one line at 375 pt, so
+     * they wrap to a fixed 3 × 2 grid — every chip visible at once, none behind a scroll. */
+    chipColumns: 3,
+    /** A chip's painted height and its touch area — the whole chip. */
+    chipHit: 44,
+    /** The gap between chips, both ways. */
+    chipGap: space[3],
+    /** A chip's border at rest. */
+    chipBorder: 1,
+    /** The selected chip's border — heavier, so selection is shape as well as colour. */
+    chipBorderSelected: 1.5,
+    /** A text field's height (Name, Brand, Custom label). Also its touch area. */
+    fieldHit: 48,
+    /** Every hairline on the form at rest: text fields, the Cancel button, the selected Weight | Volume
+     * segment. `StyleSheet.hairlineWidth` on device; 1 pt on the canvas. */
+    fieldBorderWidth: 1,
+    /** The focus ring on a text field or a stepper's value well while it is being typed into, and the
+     * error outline — heavier than rest, so focus reads as shape as well as colour. */
+    fieldBorderWidthFocus: 1.5,
+    /** The locked preset read-out ("250 ml · per 1 cup · volume") — the same slot the Custom fields
+     * open into, so picking Custom grows the form downward instead of moving the chips. */
+    lockedRowHeight: 48,
+    /** The padlock glyph in that read-out — the inline-glyph size (`icon.sm`), drawn at `icon.stroke`. */
+    lockIcon: 15,
+    /** The −/+ width on the side-by-side kcal and protein steppers (the Workout stepper's 56 would
+     * leave no room for the value). The whole value well between them is the tap-to-type target (#87). */
+    nutritionButtonWidth: 44,
+    /** Their touch height, and the value well's. */
+    nutritionHit: 48,
+    /** The gap between a food-form stepper's −, value well and + — tighter than the Workout stepper's
+     * `space[3]`, so two steppers fit side by side on a 375 pt phone. */
+    stepperGap: space[1],
+    /** The gap between the kcal and protein steppers. */
+    nutritionGap: space[4],
+    /** The live preview strip's height above Save. */
+    previewHeight: 44,
+  },
+
   button: {
     /** Standard primary button height. */
     primaryHit: 52,
@@ -1316,6 +1451,10 @@ export const motion = {
     searchLift: { duration: 220, easing: 'standard', reduced: { kind: 'fade', duration: 120 } },
     /** Presets ↔ Exact: the preset steps and the slider cross-fade in place; sheet height animates. */
     portionModeSwap: { duration: 160, easing: 'standard', reduced: { kind: 'instant', duration: 0 } },
+    /** Food form: picking Custom… opens the label / basis / amount fields in place of the locked
+     * read-out (height + fade); picking a preset closes them. Interruptible: a second chip tap
+     * mid-animation reverses it from where it is. */
+    customReveal: { duration: 200, easing: 'standard', reduced: { kind: 'instant', duration: 0 } },
     /** The slider thumb settling onto a detent it was released near. */
     sliderSnap: { duration: 120, easing: 'out', reduced: { kind: 'instant', duration: 0 } },
     /** A row or chip background changing to its pressed colour. */
@@ -1348,6 +1487,44 @@ export const motion = {
 export type MotionEventName = keyof typeof motion.events;
 
 /* ============================================================= interaction */
+
+/**
+ * The serving presets, by stable key (issue #88), in chip order. The conversion table itself — label,
+ * basis, amount (1 cup = 250 ml) — is data and lives once in `src/db/servings.ts` (`SERVING_PRESETS`,
+ * client ruling 5). These keys exist so that UI rules such as `interaction.servingSteps` never key off
+ * a display label. Same values as the `serving_preset` key proposed in issue #93.
+ */
+export const servingPresetKeys = ['100g', '100ml', 'cup', 'tbsp', 'tsp'] as const;
+export type ServingPresetKey = (typeof servingPresetKeys)[number];
+/** A preset, or a food's own Custom serving. */
+export type ServingStepKey = ServingPresetKey | 'custom';
+/** How the portion sheet's servings strip steps for one kind of serving. */
+export type ServingStep = {
+  /** The gap between two steps, in servings. Only ¼ and ½ exist, so every label is ¼ ½ ¾ 1 1¼ … */
+  readonly increment: 0.25 | 0.5;
+  /** The last step, in servings. Also the Exact slider's initial range (issue #92). */
+  readonly max: number;
+};
+
+/**
+ * Issue #93: each preset's step and max, from how the unit is actually measured. The strip is the
+ * fast path, not the only one — Exact and a Custom serving cover everything else — so each rule
+ * covers the common portions and stops, keeping every strip to 16 steps or fewer.
+ */
+const servingSteps = {
+  /** Weighed food in 50 g hops to 500 g: 50 g of oats, 150 g of rice, 250 g of chicken. Finer is Exact. */
+  '100g': { increment: 0.5, max: 5 },
+  /** Drinks in 50 ml hops to 500 ml: a splash of milk, a 200 ml glass, a 500 ml bottle. */
+  '100ml': { increment: 0.5, max: 5 },
+  /** Recipes measure cups in quarters (¼ cup of oats, ¾ cup of milk). Four cups is a litre. */
+  cup: { increment: 0.25, max: 4 },
+  /** ¼ to 4 tbsp: a drizzle of oil to ¼ cup; past that, the cup is the natural unit. */
+  tbsp: { increment: 0.25, max: 4 },
+  /** ¼ to 3 tsp: a pinch of spice to one tablespoon; past that, the tablespoon is. */
+  tsp: { increment: 0.25, max: 3 },
+  /** Client ruling (2026-09-15): a Custom serving keeps ½ steps up to 8. */
+  custom: { increment: 0.5, max: 8 },
+} as const satisfies { readonly [K in ServingStepKey]: ServingStep };
 
 /** Timings and quantities that shape a gesture. Not animation — reduce motion never changes these. */
 export const interaction = {
@@ -1391,6 +1568,12 @@ export const interaction = {
   sliderMaxServings: 4,
   /** Search's Recent list: foods and meals logged within this many days that are not in the six. */
   recentDays: 14,
+  /**
+   * The portion sheet's servings strip, per serving kind (issue #93, table decided in #88). A food's
+   * key is its preset, or `custom`. `max` also opens the Exact slider's range, and replaces
+   * `sliderMaxServings` for that job once #92/#93 land.
+   */
+  servingSteps,
 } as const;
 
 /* ================================================================= haptics */
@@ -1411,6 +1594,8 @@ export const haptics = {
   restFinished: { ios: 'notificationSuccess', android: 'EFFECT_DOUBLE_CLICK' },
   /** A ring reaching its target — once per ring per day. */
   ringCompleted: { ios: 'notificationSuccess', android: 'EFFECT_DOUBLE_CLICK' },
+  /** Picking a serving chip in the food form: a selection change, like a picker detent. */
+  servingPicked: { ios: 'selection', android: 'EFFECT_TICK' },
   /** Confirming something destructive. */
   destructiveConfirm: { ios: 'notificationWarning', android: 'EFFECT_HEAVY_CLICK' },
 } as const satisfies Record<string, Haptic>;
