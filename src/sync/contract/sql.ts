@@ -574,7 +574,12 @@ function parseColumn(item: string): ParsedColumn {
   }
   const rest = afterName.slice(typeTokens.join(' ').length);
 
-  const defaultMatch = /\bdefault\s+(.+?)(?=\s+(?:not null|null|references|check|primary key|unique|collate)\b|$)/i.exec(
+  // `\bdefault\b` (not `\bdefault\s+`) so a value glued to its parenthesis with no space —
+  // `default(0)`, the spelling PR #173's re-review found (#175) — is still read as the keyword.
+  // `\s*` then makes the whitespace optional rather than required, while `\b` after the literal
+  // keeps a column merely *named* like `defaultish` from ever matching: `\b` needs a transition
+  // between a word character and a non-word one, and "t" into "i" is not one.
+  const defaultMatch = /\bdefault\b\s*(.+?)(?=\s+(?:not null|null|references|check|primary key|unique|collate)\b|$)/i.exec(
     rest,
   );
   const referencesMatch = /\breferences\s+(.+?)(?=\s+on\s+(?:delete|update)\b|$)/i.exec(rest);
