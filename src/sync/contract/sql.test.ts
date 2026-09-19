@@ -963,6 +963,83 @@ describe('a column-level unique is recorded (#148 review)', () => {
 });
 
 /**
+ * #162, a follow-up from #148 / PR #161. `parseCreateTable` records a **table-level** `check (…)` on
+ * `ParsedTable.checks`, but a `check` written directly on the column — `qty integer check (qty >
+ * 0)`, the form every migration in this repo could legally choose instead of `constraint … check` —
+ * was read past and recorded nowhere. `ParsedColumn` had no field for it, exactly the gap #148's
+ * review found for a column-level `unique`. An unrecorded constraint is a silent drop: any future
+ * assertion of the form "no synced table constrains column X" would pass whether or not the
+ * migration actually says so.
+ *
+ * The expression is captured whole, the same way a table-level check's is — not parsed, just read
+ * with balanced parentheses so a nested-paren expression comes back intact. A `check` this reader
+ * cannot read as `check (…)` — the keyword present but not followed by an opening parenthesis, the
+ * shape a real migration should never produce — throws rather than being silently skipped, the same
+ * fail-closed rule every other construct in this file follows (#148 review).
+ */
+describe('a column-level check is recorded (#162)', () => {
+  const column = (body: string, name: string) =>
+    parseSql(`create table public.t (${body});`).tables.get('t')?.column(name);
+
+  it('records an unnamed inline check with its expression', () => {
+    expect(column('qty integer check (qty > 0)', 'qty')?.checks).toEqual([
+      { name: null, expression: 'qty > 0' },
+    ]);
+  });
+
+  it('records a named inline check, and keeps a nested-paren expression intact', () => {
+    expect(
+      column('qty integer constraint t_qty_check check ((qty > 0) and (qty < 1000))', 'qty')?.checks,
+    ).toEqual([{ name: 't_qty_check', expression: '(qty > 0) and (qty < 1000)' }]);
+  });
+
+  it('reads a check that follows other column clauses', () => {
+    expect(
+      column("note text default '' not null check (length(note) > 0)", 'note')?.checks,
+    ).toEqual([{ name: null, expression: 'length(note) > 0' }]);
+  });
+
+  it('leaves a plain column with no checks', () => {
+    expect(column('note text not null', 'note')?.checks).toEqual([]);
+  });
+
+  it('throws on a check keyword this reader cannot read as check (…), rather than dropping it', () => {
+    expect(() => parseSql('create table public.t (qty integer check qty > 0);')).toThrow(
+      SqlSyntaxError,
+    );
+  });
+
+  /**
+   * Review of PR #173: real SQL freely omits the space before `check`'s parenthesis, and the type
+   * scanner only broke out of the type on a *whole* token equal to `check` — so `check(qty > 0)`,
+   * glued with no space, was never recognised as the modifier at all. It was read as part of the
+   * *type* instead (`type: "integer check(qty > 0)"`), and everything after it — the check itself,
+   * any `not null` or `default` that followed — vanished into a type string nothing else on this
+   * reader ever looks at. That is #162's own spelling under-reported by #162's own fix.
+   */
+  it('records a check with no space before its parenthesis, the spelling the type scanner used to swallow', () => {
+    expect(column('qty integer check(qty > 0)', 'qty')).toMatchObject({
+      type: 'integer',
+      checks: [{ name: null, expression: 'qty > 0' }],
+    });
+  });
+
+  it('records a named check with no space before its parenthesis', () => {
+    expect(column('qty integer constraint t_qty_check check(qty > 0)', 'qty')).toMatchObject({
+      type: 'integer',
+      checks: [{ name: 't_qty_check', expression: 'qty > 0' }],
+    });
+  });
+
+  it('still reads a type glued to its own parenthesis, e.g. numeric(10,2), ahead of a glued check', () => {
+    expect(column('amount numeric(10,2) check(amount > 0)', 'amount')).toMatchObject({
+      type: 'numeric(10,2)',
+      checks: [{ name: null, expression: 'amount > 0' }],
+    });
+  });
+});
+
+/**
  * #148: `create table` had two more ways to be read as something it is not. `(like other)` has no
  * column definitions at all, and the reader took `like` for a column name and `other` for its type,
  * producing a table with a column nobody wrote. Anything after the closing parenthesis —
