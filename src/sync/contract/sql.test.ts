@@ -1088,6 +1088,33 @@ describe('a default glued to its parenthesis is recorded (#175)', () => {
       default: '(0)',
     });
   });
+
+  /**
+   * Blocking review of PR #177: `\bdefault\b\s*` fixed the glued-parenthesis case above, but `\s*`
+   * also matches *zero* characters after any other occurrence of the word `default` — including one
+   * that is not the keyword at all, just data or an identifier that happens to spell it. A quoted
+   * `'default'` inside a `check (…)`, a `collate "default"` (a real, if unusual, collation name) and
+   * a table literally named `"default"` in a `references` clause all contain the bare word `default`
+   * immediately followed by a non-whitespace character (`'`, `"`), which `\s*` happily matched with
+   * zero width — turning "no default clause here" into a bogus captured default. None of these three
+   * columns has a default at all; the fix must keep reading them as `default: null`.
+   */
+  it('does not read the word "default" inside a quoted check value as the keyword', () => {
+    expect(
+      column("status text not null check (status in ('default','custom'))", 'status'),
+    ).toMatchObject({ type: 'text', default: null });
+  });
+
+  it('does not read a collation literally named "default" as the keyword', () => {
+    expect(column('x text collate "default"', 'x')).toMatchObject({ type: 'text', default: null });
+  });
+
+  it('does not read a referenced table literally named "default" as the keyword', () => {
+    expect(column('a uuid references public."default"(id)', 'a')).toMatchObject({
+      type: 'uuid',
+      default: null,
+    });
+  });
 });
 
 /**
