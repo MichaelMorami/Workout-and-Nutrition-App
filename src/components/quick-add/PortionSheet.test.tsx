@@ -63,6 +63,22 @@ describe('PortionSheet', () => {
     expect(screen.getByTestId('sheet-title')).toHaveTextContent('Greek yoghurt');
   });
 
+  it('issue #90: the subtitle names the serving, "120 kcal · 20 g protein per 1 pot serving"', async () => {
+    await renderSheet();
+    expect(screen.getByTestId('sheet-subtitle')).toHaveTextContent('120 kcal · 20 g protein per 1 pot serving');
+  });
+
+  it('issue #90: a meal reads "per meal", not an item count', async () => {
+    await renderSheet({ candidate: meal });
+    expect(screen.getByTestId('sheet-subtitle')).toHaveTextContent('410 kcal · 38 g protein per meal');
+  });
+
+  it('issue #90: a serving label that already ends in "serving" is not doubled', async () => {
+    await renderSheet({ candidate: { ...food, servingLabel: '1 serving' } });
+    expect(screen.getByTestId('sheet-subtitle')).toHaveTextContent('120 kcal · 20 g protein per 1 serving');
+    expect(screen.getByTestId('sheet-subtitle')).not.toHaveTextContent('serving serving');
+  });
+
   it('issue #91: the section is labelled "Servings", not "Presets"', async () => {
     await renderSheet();
     const option = screen.getByTestId('sheet-mode-presets');

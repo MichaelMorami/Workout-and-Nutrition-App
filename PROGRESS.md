@@ -103,3 +103,4 @@ For the sprint-by-sprint plan see [`README.md`](README.md); for open work see th
 - 2026-09-18  fix: draw the shipped square trash button in day-log evidence, not a Delete label  (PR #174)
 - 2026-09-19  feat: record column-level check(...) constraints in parseCreateTable (issue #162)  (PR #173 closes #160 #162)
 - 2026-09-19  fix: remove unused logRow.deleteText token (issue #146)  (PR #176 closes #146)
+- 2026-09-19  fix: allow \s* between default and its value in parseCreateTable (issue #175)  (PR #177 closes #175)
