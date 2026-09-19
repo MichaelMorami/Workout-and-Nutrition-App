@@ -306,6 +306,24 @@ describe('food form (issue #88)', () => {
     }
   });
 
+  it('draws the padlock at the inline-glyph size, so the mock and the build are the same glyph', () => {
+    expect(f.lockIcon).toBe(size.icon.sm);
+  });
+
+  it('paints the sticky footer the ground it floats over — the sheet, or a pushed screen — and measures the preview on both', () => {
+    for (const name of themeNames) {
+      const c = themes[name].color;
+      expect({ name, sheet: c.foodForm.footerBg }).toEqual({ name, sheet: c.searchSheet.bg });
+      expect({ name, screen: c.foodForm.footerBgScreen }).toEqual({ name, screen: c.bg.canvas });
+    }
+    for (const fg of ['foodForm.previewServingText', 'foodForm.previewUnitText', 'foodForm.previewKcalText', 'foodForm.previewProteinText']) {
+      for (const footer of ['foodForm.footerBg', 'foodForm.footerBgScreen']) {
+        const measured = contrastPairs.some((p) => p.fg === fg && p.on.length === 2 && p.on[0] === footer && p.on[1] === 'foodForm.previewBg');
+        expect({ fg, footer, measured }).toEqual({ fg, footer, measured: true });
+      }
+    }
+  });
+
   it('fits a kcal stepper and a protein stepper side by side, each button a full tap target', () => {
     const half = (375 - 2 * layout.gutter - f.nutritionGap) / 2;
     const value = half - 2 * f.nutritionButtonWidth - 2 * space[1];
