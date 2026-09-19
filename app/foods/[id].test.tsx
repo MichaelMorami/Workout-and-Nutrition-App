@@ -82,7 +82,7 @@ describe('EditFoodScreen', () => {
     await fireEvent.press(screen.getByTestId('food-form-save'));
 
     const updated = db.select().from(schema.foods).where(eq(schema.foods.id, food.id)).get();
-    expect(updated?.kcalPer100).toBe(105);
+    expect(updated?.kcalPer100).toBe(101);
     expect(mockBack).toHaveBeenCalledTimes(1);
   });
 

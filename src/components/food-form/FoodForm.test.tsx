@@ -106,9 +106,25 @@ describe('FoodForm', () => {
       servingLabel: '2 eggs',
       basis: 'weight',
       servingAmount: 100,
-      kcalPer100: 5,
-      proteinPer100: 1,
+      kcalPer100: 1,
+      proteinPer100: 0.1,
     } satisfies FoodInput);
+  });
+
+  // Issue #87: the label's exact kcal figure no longer needs dozens of +5 taps — tapping the value
+  // well opens a decimal-pad keyboard with the current figure selected, so typing replaces it.
+  it('tapping a stepper value and typing an exact number sets that field exactly, no 5-unit grid', async () => {
+    const onSave = jest.fn();
+    await render(<FoodForm theme={theme} onSave={onSave} onCancel={jest.fn()} testID="food-form" />);
+
+    await fireEvent.changeText(screen.getByTestId('food-form-name'), 'Mixed nuts');
+    await fireEvent.changeText(screen.getByTestId('food-form-serving-label'), '30 g');
+    await fireEvent.press(screen.getByTestId('food-form-kcal-value-well'));
+    await fireEvent.changeText(screen.getByTestId('food-form-kcal-input'), '612');
+    await fireEvent(screen.getByTestId('food-form-kcal-input'), 'blur');
+    await fireEvent.press(screen.getByTestId('food-form-save'));
+
+    expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ kcalPer100: 612 }));
   });
 
   it('switching the basis toggle to volume sets basis and relabels the steppers', async () => {
@@ -122,7 +138,7 @@ describe('FoodForm', () => {
     await fireEvent.press(screen.getByTestId('food-form-save'));
 
     expect(onSave).toHaveBeenCalledWith(
-      expect.objectContaining({ name: 'Whole milk', servingLabel: '1 glass', basis: 'volume', servingAmount: 105 }),
+      expect.objectContaining({ name: 'Whole milk', servingLabel: '1 glass', basis: 'volume', servingAmount: 101 }),
     );
   });
 
@@ -165,9 +181,11 @@ describe('FoodForm', () => {
 
     await fireEvent.changeText(screen.getByTestId('food-form-name'), 'Boiled eggs');
     await fireEvent.changeText(screen.getByTestId('food-form-serving-label'), '2 eggs');
-    for (let i = 0; i < 20; i += 1) {
-      await fireEvent.press(screen.getByTestId('food-form-serving-amount-decrease'));
-    }
+    // The stepper's own value well types an exact 0 in one commit — issue #87's fast path, and
+    // now the only sane way to reach zero from a default of 100 with a step of 1.
+    await fireEvent.press(screen.getByTestId('food-form-serving-amount-value-well'));
+    await fireEvent.changeText(screen.getByTestId('food-form-serving-amount-input'), '0');
+    await fireEvent(screen.getByTestId('food-form-serving-amount-input'), 'blur');
     await fireEvent.press(screen.getByTestId('food-form-save'));
 
     expect(onSave).not.toHaveBeenCalled();

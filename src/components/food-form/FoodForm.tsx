@@ -2,9 +2,14 @@
  * `<FoodForm>` — issue #43's add/edit food, adapted (issue #86) to the per-100 shape: `basis`,
  * `servingAmount`, `kcalPer100`, `proteinPer100` replace the old per-serving fields. `name`, `brand`,
  * `servingLabel` are free text (there is no stepper that could set a name); serving amount, kcal per
- * 100 and protein per 100 are each a `<Stepper>`, never a keyboard number field, per the module's own
- * tap doctrine; `basis` is a two-option toggle (Weight/Volume), the minimal control a required enum
- * field needs.
+ * 100 and protein per 100 are each a `<Stepper>`; `basis` is a two-option toggle (Weight/Volume), the
+ * minimal control a required enum field needs.
+ *
+ * ISSUE #87 — STEPS ARE NOW 1 (SERVING/KCAL) AND 0.1 (PROTEIN), NOT 5. The old 5-unit grid is what
+ * made a label-exact value like "612 kcal per 100 g" unreachable without dozens of taps; `<Stepper>`
+ * itself now also accepts a tapped, typed exact value (never rounded to this grid) and an
+ * accelerating hold for a fast large change, so these three steppers only need to cover *small*
+ * corrections — the doctrine `<Stepper>`'s own header describes, not "never a keyboard number field".
  *
  * SCOPE NOTE: a one-tap serving-preset picker (100 g / 100 ml / 1 cup / 1 tbsp / 1 tsp + Custom) is
  * issue #89, blocked on #88's design. This form is deliberately the plain #86 data-shape adaptation
@@ -211,7 +216,7 @@ export function FoodForm({ initial = null, onSave, onCancel, theme, testID = 'fo
       <Stepper
         label="Serving amount"
         value={servingAmount}
-        step={5}
+        step={1}
         max={2000}
         unit={unit}
         onChange={setServingAmount}
@@ -222,7 +227,7 @@ export function FoodForm({ initial = null, onSave, onCancel, theme, testID = 'fo
       <Stepper
         label={`Kcal per ${per100Label(basis)}`}
         value={kcalPer100}
-        step={5}
+        step={1}
         max={5000}
         unit="kcal"
         onChange={setKcalPer100}
@@ -232,7 +237,7 @@ export function FoodForm({ initial = null, onSave, onCancel, theme, testID = 'fo
       <Stepper
         label={`Protein per ${per100Label(basis)}`}
         value={proteinPer100}
-        step={1}
+        step={0.1}
         max={500}
         unit={UNIT_OF_BASIS.weight}
         onChange={setProteinPer100}
