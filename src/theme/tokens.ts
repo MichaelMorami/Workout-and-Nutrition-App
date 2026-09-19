@@ -508,8 +508,6 @@ function withComponents(c: BaseColors) {
       kcalText: c.data.kcal,
       /** The protein figure. */
       proteinText: c.data.protein,
-      /** The swipe-revealed Delete label. */
-      deleteText: c.state.danger,
     },
 
     stepper: {
@@ -783,7 +781,7 @@ export const contrastPairs: readonly ContrastPair[] = [
   ...measure(['chip.labelText', 'chip.valueText', 'chip.weightAccentText', 'chip.workoutAccentText'], ['chip.bg'], ['chip.bgPress']),
   ...measure(['chip.workoutCtaIcon'], ['chip.workoutCtaBg']),
   ...measure(['searchBar.searchIcon', 'searchBar.labelText', 'searchBar.emphasisIcon', 'searchBar.emphasisLabelText'], ['searchBar.bg'], ['searchBar.bgPress']),
-  ...measure(['logRow.timeText', 'logRow.nameText', 'logRow.kcalText', 'logRow.proteinText', 'logRow.deleteText'], ['bg.canvas'], ['logRow.bgPress']),
+  ...measure(['logRow.timeText', 'logRow.nameText', 'logRow.kcalText', 'logRow.proteinText'], ['bg.canvas'], ['logRow.bgPress']),
   ...measure(['toast.checkIcon', 'toast.titleText', 'toast.metaText'], ['toast.bg']),
   ...measure(['toast.undoText'], ['toast.undoBg'], ['toast.undoBgPress']),
 
