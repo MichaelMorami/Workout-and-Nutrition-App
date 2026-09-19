@@ -616,7 +616,7 @@ function columnDefault(rest: string): string | null {
   // `afterSeparator` is non-empty and does not start with a modifier keyword, so `.+?` always has at
   // least one character to capture, down to `$` at worst — but `noUncheckedIndexedAccess` wants that
   // proven, not assumed.
-  if (!value) throw noDefaultValue(rest);
+  if (!value?.[1]) throw noDefaultValue(rest);
   return value[1].trim();
 }
 
