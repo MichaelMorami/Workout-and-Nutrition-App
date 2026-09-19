@@ -371,6 +371,14 @@ export function SearchSheet({ db, onLogged, onPortionAdded, onCreate, renderCrea
   // The row currently showing its "Logged" beat (`logTrackerKey`-shaped), or `null` at rest.
   const [loggedKey, setLoggedKey] = useState<string | null>(null);
   const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Mirrors `visible` but updates synchronously (a `ref`, not `setState`) — issue #110's refocus
+  // needs to know *within the same tick* whether `closeSheet` already ran. `PortionSheet`'s own
+  // `handlePick` calls `onLog` (here, `handlePortionSheetLog`, which can call `closeSheet` itself
+  // for a fresh log) and then always calls `onClose` (`handlePortionSheetClose`) right after, in the
+  // same synchronous call — by the time that second call runs, `setVisible(false)` has been queued
+  // but not yet applied, so reading `visible` there would still see the stale `true` from this
+  // render. `sheetOpenRef` has no such lag, so it is the one `refocusSearch` below trusts.
+  const sheetOpenRef = useRef(false);
 
   useEffect(
     () => () => {
@@ -395,6 +403,7 @@ export function SearchSheet({ db, onLogged, onPortionAdded, onCreate, renderCrea
     setLibraryFallback(freshLibraryFallback);
     setLibraryEmpty(freshRecent.length === 0 && freshLibraryFallback.length === 0);
     setQuery('');
+    sheetOpenRef.current = true;
     setVisible(true);
   };
 
@@ -403,17 +412,37 @@ export function SearchSheet({ db, onLogged, onPortionAdded, onCreate, renderCrea
       clearTimeout(closeTimer.current);
       closeTimer.current = null;
     }
+    sheetOpenRef.current = false;
     setLoggedKey(null);
     setSheetCandidate(null);
     setCreateQuery(null);
     setVisible(false);
   };
 
+  // Issue #110: an overlay (the portion sheet or the create form) closing on its own — Cancel, its
+  // scrim, or Android back — must hand the keyboard straight back, or continuing to type costs an
+  // extra tap on the field. Guarded by `sheetOpenRef`, not `visible`: `PortionSheet`'s own
+  // `handlePick` (and, per `CreateSlotArgs`'s contract, a real create form's own Save) call their
+  // "log" callback and then their "close" callback in the same synchronous handler, so a fresh log
+  // that closes the *whole* sheet via `closeSheet` must stop this from firing right after — the
+  // `visible` state itself would not have updated yet within that same tick. Never fights the
+  // open-time focus in `handleShow` below either: that one only ever fires once, from `onShow`,
+  // before either overlay can exist.
+  const refocusSearch = (): void => {
+    if (sheetOpenRef.current) inputRef.current?.focus();
+  };
+
   // Android's back button closes whatever is on top: an overlay first, then the sheet itself.
   const handleRequestClose = (): void => {
-    if (sheetCandidate) setSheetCandidate(null);
-    else if (createQuery !== null) setCreateQuery(null);
-    else closeSheet();
+    if (sheetCandidate) {
+      setSheetCandidate(null);
+      refocusSearch();
+    } else if (createQuery !== null) {
+      setCreateQuery(null);
+      refocusSearch();
+    } else {
+      closeSheet();
+    }
   };
 
   // Focus only once the Modal has finished presenting (issue #79) — see the module note.
@@ -431,6 +460,11 @@ export function SearchSheet({ db, onLogged, onPortionAdded, onCreate, renderCrea
   const handleCreateLogged = (receipt: LogReceipt): void => {
     onLogged?.(receipt);
     closeSheet();
+  };
+
+  const handleCreateClose = (): void => {
+    setCreateQuery(null);
+    refocusSearch();
   };
 
   const logFreshCandidate = (candidate: Candidate, at: { at: number; timeZone: string }, portions?: number): LogReceipt =>
@@ -502,7 +536,10 @@ export function SearchSheet({ db, onLogged, onPortionAdded, onCreate, renderCrea
     setSheetCandidate(candidate);
   };
 
-  const handlePortionSheetClose = (): void => setSheetCandidate(null);
+  const handlePortionSheetClose = (): void => {
+    setSheetCandidate(null);
+    refocusSearch();
+  };
 
   const handlePortionSheetLog = (candidate: Candidate, portions: number): void => {
     const now = deviceWhen();
@@ -683,7 +720,7 @@ export function SearchSheet({ db, onLogged, onPortionAdded, onCreate, renderCrea
           </View>
 
           {createQuery !== null && renderCreate ? (
-            <CreateSlot render={renderCreate} query={createQuery} onLogged={handleCreateLogged} onClose={() => setCreateQuery(null)} />
+            <CreateSlot render={renderCreate} query={createQuery} onLogged={handleCreateLogged} onClose={handleCreateClose} />
           ) : null}
           <PortionSheet
             presentation="overlay"
