@@ -19,6 +19,7 @@ step "lint"       npx eslint . --max-warnings 0
 step "typecheck"  npx tsc --noEmit
 step "boundaries" ./scripts/boundaries.sh
 step "pr title rule" ./scripts/pr-title.test.sh
+step "pr.sh PROGRESS.md / --no-close behaviour" ./scripts/pr.test.sh
 step "worktree node_modules protection" ./scripts/worktree.test.sh
 step "review-graph PR checkout handling" ./scripts/review-graph.test.sh
 step "metro blockList excludes test files" ./scripts/metro-blocklist.test.sh
