@@ -2,6 +2,7 @@ import { useFonts } from 'expo-font';
 import { Stack } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import { Text, View } from 'react-native';
+import { initialWindowMetrics, SafeAreaProvider } from 'react-native-safe-area-context';
 import { DbProvider } from '../src/components/db/DbProvider';
 import { fontAssetMap } from '../src/components/theme/font-assets';
 import { ThemeProvider } from '../src/components/theme/ThemeProvider';
@@ -33,9 +34,14 @@ function StartupError({ message }: { message: string }): React.JSX.Element {
 /**
  * The app shell: loads the Archivo `fontInstances` with `expo-font`, runs
  * `await migrateVitalsDb(openVitalsDb())` once, and renders `children` only once both are ready —
- * wrapped in `ThemeProvider` and `DbProvider` so every screen resolves a theme and a ready
- * connection. Exported separately from the default `RootLayout` so a test can exercise the gating
- * without expo-router's `Stack`.
+ * wrapped in `SafeAreaProvider`, `ThemeProvider` and `DbProvider` so every screen resolves safe-area
+ * insets, a theme and a ready connection. `initialWindowMetrics` is the standard no-flicker startup
+ * value — the frame the native side already measured before JS ever ran, so the very first paint
+ * (including `StartupError` below) has real insets rather than a `{0,0,0,0}` guess. Issue #207's
+ * pinned form footer (`FormFrame`, `src/components/form/FormFrame.tsx`) is the first consumer of
+ * `useSafeAreaInsets()`; every later screen that needs an inset reads from this same provider.
+ * Exported separately from the default `RootLayout` so a test can exercise the gating without
+ * expo-router's `Stack`.
  */
 export function AppShell({ children }: { children: React.ReactNode }): React.JSX.Element {
   const [fontsLoaded] = useFonts(fontAssetMap);
@@ -58,13 +64,15 @@ export function AppShell({ children }: { children: React.ReactNode }): React.JSX
   }, []);
 
   return (
-    <ThemeProvider>
-      {error ? (
-        <StartupError message={error.message} />
-      ) : fontsLoaded && connection ? (
-        <DbProvider db={connection.db}>{children}</DbProvider>
-      ) : null}
-    </ThemeProvider>
+    <SafeAreaProvider initialMetrics={initialWindowMetrics}>
+      <ThemeProvider>
+        {error ? (
+          <StartupError message={error.message} />
+        ) : fontsLoaded && connection ? (
+          <DbProvider db={connection.db}>{children}</DbProvider>
+        ) : null}
+      </ThemeProvider>
+    </SafeAreaProvider>
   );
 }
 

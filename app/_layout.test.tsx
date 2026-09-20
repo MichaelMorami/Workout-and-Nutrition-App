@@ -18,6 +18,16 @@ jest.mock('../src/db/client');
 // The real font-assets module `require()`s `assets/fonts/*.ttf`, which don't exist yet (blocked —
 // see the comment on that file). Mocking it here means this test never touches those paths.
 jest.mock('../src/components/theme/font-assets', () => ({ fontAssetMap: {} }));
+// `initialWindowMetrics` is populated by a synchronous native call at real app startup — under
+// jest there is no native side to call, so it resolves to `null`, and `SafeAreaProvider` without a
+// usable `initialMetrics` waits forever for an `onInsetsChange` event this environment never fires
+// (every render then shows nothing, `AppShell`'s own gating notwithstanding). This overrides only
+// that one constant with a fixed frame; `SafeAreaProvider` and `useSafeAreaInsets` stay the real
+// implementation, per the design spec's own instruction not to mock the module wholesale.
+jest.mock('react-native-safe-area-context', () => ({
+  ...jest.requireActual('react-native-safe-area-context'),
+  initialWindowMetrics: { insets: { top: 0, left: 0, right: 0, bottom: 0 }, frame: { x: 0, y: 0, width: 390, height: 844 } },
+}));
 
 const mockUseFonts = jest.mocked(useFonts);
 const mockOpenVitalsDb = jest.mocked(openVitalsDb);
