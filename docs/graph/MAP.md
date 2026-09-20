@@ -602,16 +602,15 @@ jq -r '.modules["src/db/queries/nutrition.ts"].exports[]' docs/graph/symbols.jso
 
 <sub>used by: `src/components/quick-add/QuickAddGrid.tsx`</sub>
 
-### `src/components/quick-add/UndoToast.tsx`  <sub>228 lines</sub>
+### `src/components/quick-add/UndoToast.tsx`  <sub>229 lines</sub>
 
 - `function UndoToast({ onUndo, testID = 'undo-toast' }: UndoToastProps): import("react").JSX.Element | null`
 - `type UndoToastProps = {
   /** Called after a successful undo with the delta the reversed write had added — the caller's cue
    * to subtract it from a running total (Today's rings). Never called if the write had already
-   * failed (there is nothing to subtract) or if the toast has already faded past its ceiling. */
-  readonly onUndo?: (delta: LogDelta) => void;
-  readonly testID?: string;
-}`
+   * failed (there is nothing to subtract) or if the toast has already auto-dismissed
+   * (`interaction.undoAutoDismissMs` ran out). */
+  readonly onUndo?: (delta: LogDelta) =>...`
 
 ### `src/components/quick-add/index.ts`  <sub>5 lines</sub>
 
@@ -653,10 +652,9 @@ jq -r '.modules["src/db/queries/nutrition.ts"].exports[]' docs/graph/symbols.jso
 - `type UndoToastProps = {
   /** Called after a successful undo with the delta the reversed write had added — the caller's cue
    * to subtract it from a running total (Today's rings). Never called if the write had already
-   * failed (there is nothing to subtract) or if the toast has already faded past its ceiling. */
-  readonly onUndo?: (delta: LogDelta) => void;
-  readonly testID?: string;
-}`
+   * failed (there is nothing to subtract) or if the toast has already auto-dismissed
+   * (`interaction.undoAutoDismissMs` ran out). */
+  readonly onUndo?: (delta: LogDelta) =>...`
 
 <sub>used by: `app/(tabs)/index.tsx`, `app/foods/index.tsx`, `app/meals/index.tsx`</sub>
 

@@ -43,7 +43,8 @@ import { haptics, layout, motion, radius, size, space, type, type TypeStyle } fr
 export type UndoToastProps = {
   /** Called after a successful undo with the delta the reversed write had added — the caller's cue
    * to subtract it from a running total (Today's rings). Never called if the write had already
-   * failed (there is nothing to subtract) or if the toast has already faded past its ceiling. */
+   * failed (there is nothing to subtract) or if the toast has already auto-dismissed
+   * (`interaction.undoAutoDismissMs` ran out). */
   readonly onUndo?: (delta: LogDelta) => void;
   readonly testID?: string;
 };
@@ -118,7 +119,7 @@ export function UndoToast({ onUndo, testID = 'undo-toast' }: UndoToastProps) {
   if (!rendered) return null;
 
   const handleUndo = (): void => {
-    // Mid fade-out (the ceiling, another log, a sheet opening) the store has already moved on —
+    // Mid fade-out (auto-dismiss firing, another log, a sheet opening) the store has already moved on —
     // a tap landing during that beat must not resurrect or double-reverse a log.
     if (!shown) return;
     const payload = rendered;
