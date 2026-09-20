@@ -2,9 +2,24 @@
  * `<FoodForm>` — issue #43's add/edit food, adapted (issue #86) to the per-100 shape: `basis`,
  * `servingAmount`, `kcalPer100`, `proteinPer100` replace the old per-serving fields. `name`, `brand`,
  * `servingLabel` are free text (there is no stepper that could set a name); serving amount, kcal per
- * 100 and protein per 100 are each a `<Stepper>`, never a keyboard number field, per the module's own
- * tap doctrine; `basis` is a two-option toggle (Weight/Volume), the minimal control a required enum
- * field needs.
+ * 100 and protein per 100 are each a `<Stepper>`; `basis` is a two-option toggle (Weight/Volume), the
+ * minimal control a required enum field needs.
+ *
+ * ISSUE #87 — STEPS ARE NOW 1 (SERVING/KCAL) AND 0.1 (PROTEIN), NOT 5. The old 5-unit grid is what
+ * made a label-exact value like "612 kcal per 100 g" unreachable without dozens of taps; `<Stepper>`
+ * itself now also accepts a tapped, typed exact value (never rounded to this grid) and an
+ * accelerating hold for a fast large change, so these three steppers only need to cover *small*
+ * corrections — the doctrine `<Stepper>`'s own header describes, not "never a keyboard number field".
+ * SCOPE RULING (client, PR #184 review): this smaller-step grid is food-form only. `TargetsGroup`'s
+ * (50 kcal / 5 g) and `MealForm`'s (0.5 servings) steppers keep their existing step sizes — they get
+ * tap-to-type and hold-to-accelerate too (that lives in `<Stepper>` itself, not gated per caller),
+ * just not this step-size change.
+ *
+ * The protein stepper's `formatValue` below is not decoration: without it, `<Stepper>`'s default
+ * display (`Math.round(value)`) throws away the 0.1 a step of that size exists to show — a typed
+ * `12.4` would commit correctly but *display* as "12" (issue #184 review). `formatValue` is how a
+ * caller with a sub-1 step already opts into decimal display — `MealForm`'s own `×1½`-style override
+ * is the existing precedent this follows, not a new pattern.
  *
  * SCOPE NOTE: a one-tap serving-preset picker (100 g / 100 ml / 1 cup / 1 tbsp / 1 tsp + Custom) is
  * issue #89, blocked on #88's design. This form is deliberately the plain #86 data-shape adaptation
@@ -211,7 +226,7 @@ export function FoodForm({ initial = null, onSave, onCancel, theme, testID = 'fo
       <Stepper
         label="Serving amount"
         value={servingAmount}
-        step={5}
+        step={1}
         max={2000}
         unit={unit}
         onChange={setServingAmount}
@@ -222,7 +237,7 @@ export function FoodForm({ initial = null, onSave, onCancel, theme, testID = 'fo
       <Stepper
         label={`Kcal per ${per100Label(basis)}`}
         value={kcalPer100}
-        step={5}
+        step={1}
         max={5000}
         unit="kcal"
         onChange={setKcalPer100}
@@ -232,10 +247,25 @@ export function FoodForm({ initial = null, onSave, onCancel, theme, testID = 'fo
       <Stepper
         label={`Protein per ${per100Label(basis)}`}
         value={proteinPer100}
-        step={1}
+        step={0.1}
         max={500}
         unit={UNIT_OF_BASIS.weight}
         onChange={setProteinPer100}
+        // Up to one decimal place, matching the 0.1 step's own granularity — the default
+        // `Math.round` display would otherwise show "0" for a fresh 0.1 tap (issue #184 review).
+        // A trailing .0 is dropped ("9 g", never "9.0 g") per the #88 spec board
+        // (design/food-form/canvas/Spec.dc.html); only `maximumFractionDigits` is set, not
+        // `minimumFractionDigits` — a whole-number value well already reads fine unpadded, and
+        // padding it here would just be pixels the spec explicitly draws without. This governs the
+        // value well only: the preview strip's "whole numbers above 10 g" half of the spec is not
+        // implemented here, deliberately — that would re-create the original bug (a typed 12.4
+        // would display back as "12").
+        // The explicit `undefined` here is the platform-default locale, same as the other two
+        // steppers on this form get implicitly via `Stepper`'s own unset `locale` prop — neither is
+        // wired to a real device locale yet (`FoodForm` doesn't accept one), so this isn't a special
+        // case being carved out, just `toLocaleString`'s required-positional-argument syntax for
+        // "no locale override, but yes to these options" (review, #184 round 3).
+        formatValue={(v) => v.toLocaleString(undefined, { maximumFractionDigits: 1 })}
         theme={theme}
         testID={`${testID}-protein`}
       />
