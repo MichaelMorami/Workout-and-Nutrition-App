@@ -913,11 +913,12 @@ jq -r '.modules["src/db/queries/nutrition.ts"].exports[]' docs/graph/symbols.jso
 
 <sub>used by: `src/db/queries/catalog.ts`, `src/db/queries/nutrition.ts`, `src/db/queries/search.ts`</sub>
 
-### `src/db/index.ts`  <sub>98 lines</sub>
+### `src/db/index.ts`  <sub>99 lines</sub>
 
 - `class VitalsDbError`
 - `const DEFAULT_SETTINGS: SettingsInput`
-- `const SERVING_PRESETS: readonly ServingPreset[]`
+- `const SERVING_PRESETS: readonly [{ readonly key: "100g"; readonly label: "100 g"; readonly basis: "weight"; readonly amount: 100; }, { readonly key: "100ml"; readonly label: "100 ml"; readonly basis: "volume"; readonly amount: 100; }, { readonly key: "cup"; readonly label: "1 cup"; readonly basis: "volume"; readonly amount: 250; }, { readonly key: "tbsp"; readonly label: "1 tbsp"; readonly basi...`
+- `const SERVING_PRESET_KEYS: readonly ServingPresetKey[]`
 - `const SETTINGS_ID: "00000000-0000-4000-8000-736574740000"`
 - `const UNIT_OF_BASIS: Readonly<Record<FoodBasis, "g" | "ml">>`
 - `const bodyMetrics: import("drizzle-orm/sqlite-core").SQLiteTableWithColumns<{ name: "body_metrics"; schema: undefined; columns: { measuredAt: import("drizzle-orm/sqlite-core").SQLiteColumn<{ name: "measured_at"; tableName: "body_metrics"; dataType: "number"; columnType: "SQLiteInteger"; data: number; driverParam: number; notNull: true; hasDefault: false; isPrimaryKey: false; isAutoincrement: fa...`
@@ -951,6 +952,8 @@ jq -r '.modules["src/db/queries/nutrition.ts"].exports[]' docs/graph/symbols.jso
 - `function searchFoods(db: VitalsDb, opts: When & { query: string; limit?: number }): Candidate[]`
 - `function searchFoodsOnly(db: VitalsDb, opts: When & { query: string; limit?: number }): FoodCandidate[]`
 - `function servingOf(food: ServingSource): FoodServing`
+- `function servingPresetByKey(key: string): ServingPreset | undefined`
+- `function servingPresetIn(table: readonly ServingPreset[], key: string): ServingPreset | undefined`
 - `function setFoodArchived(db: VitalsDb, opts: Stamp & { id: string; archived: boolean }): FoodRow`
 - `function softDeleteLogEntries(db: VitalsDb, opts: Stamp & { ids: readonly string[] }): { undo: UndoToken }`
 - `function todayTotals(db: VitalsDb, localDate: LocalDate): DayTotals`
@@ -1001,6 +1004,7 @@ jq -r '.modules["src/db/queries/nutrition.ts"].exports[]' docs/graph/symbols.jso
 - `type NewMealItemRow = typeof mealItems.$inferInsert`
 - `type NewMealRow = typeof meals.$inferInsert`
 - `type NewSettingsRow = typeof settings.$inferInsert`
+- `type ServingPresetKey = '100g' | '100ml' | 'cup' | 'tbsp' | 'tsp'`
 - `type ServingSource = Pick<FoodTableRow, 'basis' | 'servingAmount' | 'kcalPer100' | 'proteinPer100'>`
 - `type SettingsRow = typeof settings.$inferSelect`
 - `type UndoToken = | { kind: 'unlog'; logIds: readonly string[] } // undoes logFood / logMeal / createFoodAndLog
@@ -1141,15 +1145,19 @@ _no exports_
 
 <sub>used by: `src/db/queries/search.ts`</sub>
 
-### `src/db/servings.ts`  <sub>87 lines</sub>
+### `src/db/servings.ts`  <sub>139 lines</sub>
 
-- `const SERVING_PRESETS: readonly ServingPreset[]`
+- `const SERVING_PRESETS: readonly [{ readonly key: "100g"; readonly label: "100 g"; readonly basis: "weight"; readonly amount: 100; }, { readonly key: "100ml"; readonly label: "100 ml"; readonly basis: "volume"; readonly amount: 100; }, { readonly key: "cup"; readonly label: "1 cup"; readonly basis: "volume"; readonly amount: 250; }, { readonly key: "tbsp"; readonly label: "1 tbsp"; readonly basi...`
+- `const SERVING_PRESET_KEYS: readonly ServingPresetKey[]`
 - `const UNIT_OF_BASIS: Readonly<Record<FoodBasis, "g" | "ml">>`
 - `function amountOf(food: Pick<ServingSource, 'basis' | 'servingAmount'>, qty: number): { grams: number | null; ml: number | null }`
 - `function servingOf(food: ServingSource): FoodServing`
+- `function servingPresetByKey(key: string): ServingPreset | undefined`
+- `function servingPresetIn(table: readonly ServingPreset[], key: string): ServingPreset | undefined`
 - `function withServing(food: T): T & FoodServing`
 - `interface FoodServing`
 - `interface ServingPreset`
+- `type ServingPresetKey = '100g' | '100ml' | 'cup' | 'tbsp' | 'tsp'`
 - `type ServingSource = Pick<FoodTableRow, 'basis' | 'servingAmount' | 'kcalPer100' | 'proteinPer100'>`
 
 <sub>used by: `src/db/queries/catalog.ts`, `src/db/queries/nutrition.ts`, `src/db/queries/search.ts`, `src/db/types.ts`</sub>
