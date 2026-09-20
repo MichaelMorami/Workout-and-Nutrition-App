@@ -1091,7 +1091,47 @@ export const layout = {
   groupGap: space[8],
   /** How far the undo toast and rest bar float above the tab bar. */
   floatAboveTabBar: space[5],
+
+  /* ------------------------------------------------------------- the form frame (issue #207)
+   * One pattern for every form in Vitals — a scrolling body and an action footer that never
+   * scrolls and rides the keyboard. FoodForm is the first adopter; the second and third form
+   * reuse these four distances unchanged. Ruling and boards: design/keyboard-footer/canvas. */
+
+  /** The pinned footer's top padding: between its divider hairline and its first row. */
+  formFooterPadTop: space[4],
+  /**
+   * The pinned footer's bottom padding, and the floor under the safe-area inset when the keyboard
+   * is down. Never read it directly for a bottom padding — call `formFooterPaddingBottom()`, which
+   * holds the one rule: with the keyboard up this pad and nothing else (the keyboard already
+   * covers the home indicator, so adding the inset again leaves a dead band under the button);
+   * with the keyboard down, whichever is larger of this pad and the inset.
+   */
+  formFooterPadBottom: space[4],
+  /** The gap between the footer's own rows: preview strip ↔ action row ↔ the keyboard-down note. */
+  formFooterRowGap: space[4],
+  /**
+   * Bottom padding on the form body's scroll content. The footer is outside the scroll view, so
+   * this is not clearance for it — it is the breath that lets the last control come to rest clear
+   * of the divider instead of flush against it.
+   */
+  formBodyPadBottom: space[6],
 } as const;
+
+/**
+ * The pinned form footer's bottom padding, in points — the single rule behind
+ * `layout.formFooterPadBottom`, written once so no form can get it half right.
+ *
+ * `safeAreaBottom` is `useSafeAreaInsets().bottom`: 34 on a gesture-bar iPhone, 0 on a
+ * home-button one and on most Androids.
+ *
+ *   keyboard up   → the pad alone. The keyboard is already sitting on the home indicator; adding
+ *                   the inset on top of it pushes the button up off a band of dead keyboard.
+ *   keyboard down → `max(inset, pad)`. The inset clears the gesture bar where there is one, and
+ *                   the pad keeps the button off the screen edge where there is not.
+ */
+export function formFooterPaddingBottom(keyboardVisible: boolean, safeAreaBottom: number): number {
+  return keyboardVisible ? layout.formFooterPadBottom : Math.max(safeAreaBottom, layout.formFooterPadBottom);
+}
 
 /* ================================================================== radius */
 
@@ -1459,6 +1499,14 @@ export const motion = {
     sliderSnap: { duration: 120, easing: 'out', reduced: { kind: 'instant', duration: 0 } },
     /** A row or chip background changing to its pressed colour. */
     rowPress: { duration: 90, easing: 'out', reduced: { kind: 'same', duration: 90 } },
+    /**
+     * Form frame (issue #207): the pinned footer's divider hairline fading in while body content
+     * runs underneath the footer, and out again when the body is scrolled to its end. Opacity only,
+     * on a 1 pt line — nothing vestibular — so reduce motion keeps it (`same`). The footer's own
+     * travel when the keyboard opens is NOT here on purpose: it rides the keyboard's own curve, and
+     * a Vitals duration laid over it would only desync the two.
+     */
+    footerDividerFade: { duration: 120, easing: 'out', reduced: { kind: 'same', duration: 120 } },
     /** The active set collapsing 102 → 44 pt as the next set expands. */
     setCollapse: { duration: 220, easing: 'inOut', reduced: { kind: 'instant', duration: 0 } },
     /** The rest ring's last-three-seconds pulse. */

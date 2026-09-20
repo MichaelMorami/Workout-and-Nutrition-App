@@ -19,6 +19,7 @@
 import {
   contrastPairs,
   fontInstances,
+  formFooterPaddingBottom,
   glyph,
   interaction,
   layout,
@@ -343,6 +344,34 @@ describe('food form (issue #88)', () => {
     expect(e.duration).toBeGreaterThanOrEqual(150);
     expect(e.duration).toBeLessThanOrEqual(250);
     expect(e.reduced.kind).toBe('instant');
+  });
+});
+
+describe('form frame (issue #207)', () => {
+  it('names every distance the pinned footer pattern needs, each one a step on the space scale', () => {
+    for (const key of ['formFooterPadTop', 'formFooterPadBottom', 'formFooterRowGap', 'formBodyPadBottom'] as const) {
+      expect({ key, onScale: Object.values(space).includes(layout[key]) }).toEqual({ key, onScale: true });
+    }
+  });
+
+  it('adds the safe-area inset only with the keyboard down — the keyboard already covers the home indicator', () => {
+    const pad = layout.formFooterPadBottom;
+    // Gesture-bar iPhone: 34 pt of inset below the button at rest, none of it once the keyboard is up.
+    expect(formFooterPaddingBottom(false, 34)).toBe(34);
+    expect(formFooterPaddingBottom(true, 34)).toBe(pad);
+    // Home-button iPhone and most Androids report no inset: the pad is the floor, both ways.
+    expect(formFooterPaddingBottom(false, 0)).toBe(pad);
+    expect(formFooterPaddingBottom(true, 0)).toBe(pad);
+    // An inset smaller than the pad never shrinks the footer below it.
+    expect(formFooterPaddingBottom(false, pad - 2)).toBe(pad);
+  });
+
+  it('keeps the footer divider a fade that survives reduce motion, and owns no duration for the keyboard lift', () => {
+    const e = motion.events.footerDividerFade;
+    expect(e.duration).toBeLessThan(150);
+    expect(e.reduced.kind).toBe('same');
+    // The footer rides the keyboard's own curve. A Vitals token for that lift would desync them.
+    expect(Object.keys(motion.events).filter((k) => /keyboard|footerLift/i.test(k))).toEqual([]);
   });
 });
 
