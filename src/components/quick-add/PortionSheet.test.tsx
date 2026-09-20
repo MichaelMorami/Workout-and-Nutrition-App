@@ -306,6 +306,14 @@ describe('PortionSheet', () => {
     expect(expected).toBeGreaterThan(initialRange);
     // `formatGrams` groups thousands (issue #124) — the preset's own max pushes this well past 1,000.
     expect(screen.getByTestId('sheet-exact-readout')).toHaveTextContent(`${expected.toLocaleString()} g`);
+
+    // Pins `baseRange` itself, not just the readout: `growRangeTo` grows the range in whole
+    // `baseRange`-sized chunks, so a wrong `baseRange` (e.g. the old flat `sliderMaxServings`, 4)
+    // would land the track's max on a different figure than this one derived from the preset's own
+    // max (`custom.max`, 8) — 680-sized chunks instead of 1360-sized ones.
+    const track = screen.getByTestId('sheet-exact-track');
+    const grownRange = Math.ceil(expected / initialRange) * initialRange;
+    expect(track.props.accessibilityValue.max).toBe(grownRange);
   });
 
   it('issue #92: once the value has grown past the initial range, dragging to the far end of the track reaches the grown range, not the old max', async () => {
@@ -317,6 +325,11 @@ describe('PortionSheet', () => {
     for (let i = 0; i < pressesPastInitialRange; i += 1) {
       await fireEvent.press(screen.getByTestId('sheet-exact-nudge-up'));
     }
+    const grownBeforeDrag = 170 + pressesPastInitialRange * interaction.sliderNudgeG;
+    // `growRangeTo` grows in whole `baseRange`-sized chunks, so this pins the exact figure a correct
+    // `baseRange` (170 × `custom.max`, 8) lands on, not just "greater than the initial range" — the
+    // old flat `sliderMaxServings` (4, i.e. 680 g chunks) would land on a different one.
+    const grownRange = Math.ceil(grownBeforeDrag / initialRange) * initialRange;
 
     const track = screen.getByTestId('sheet-exact-track');
     await fireEvent(track, 'layout', { nativeEvent: { layout: { width: 300, height: 44, x: 0, y: 0 } } });
@@ -327,6 +340,8 @@ describe('PortionSheet', () => {
     const readoutText = screen.getByTestId('sheet-exact-readout-value').props.children as string;
     const grownValue = Number(readoutText.replace(/\D/g, ''));
     expect(grownValue).toBeGreaterThan(initialRange);
+    expect(track.props.accessibilityValue.max).toBe(grownRange);
+    expect(grownValue).toBe(grownRange);
   });
 
   it('issue #92: a move sequence produces monotonically increasing values as the finger moves right, with no backward jump', async () => {

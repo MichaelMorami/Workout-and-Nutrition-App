@@ -118,3 +118,4 @@ For the sprint-by-sprint plan see [`README.md`](README.md); for open work see th
 - 2026-09-20  feat: stable key on every serving preset, with a lookup (issue #185)  (PR #200 closes #185)
 - 2026-09-20  chore: retire the unreachable undo-toast ceiling (issue #201)  (PR #202)
 - 2026-09-20  feat: consume the db serving-preset key, retire matchingPresetKey (issue #198)  (PR #203)
+- 2026-09-20  docs: retire ceiling wording in UndoToast comments (issue #201)  (PR #206 closes #201)
