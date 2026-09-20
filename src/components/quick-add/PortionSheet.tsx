@@ -489,10 +489,28 @@ function ExactControl({
   // (`docs/decisions.md` ruling 11 keeps the 0.5 step — typing is not a way around it). `applyAbsolute`
   // is reused for the commit itself, so a typed value grows `rangeMax` exactly as a drag or nudge
   // already does (issue #92) — never clamped back down to the slider's starting range.
+  //
+  // ZERO/NEGATIVE IS INVALID INPUT, NOT A CLAMP TARGET (PR #193 review, B1). `min: 0` on the hook
+  // clamps a negative *up* to zero and still commits it — correct for `<Stepper>`, where a 0 kcal or
+  // 0 g protein value is a real, loggable number (#87/#89's food form), so that clamp semantic is
+  // left untouched here; this file does not change `useEditableNumber` at all. But issue #94's own
+  // acceptance line is explicit — "Empty, zero or invalid input reverts to the previous value" — so
+  // Exact mode needs a stricter rule than the hook's generic clamp: a *zero* result is not a smaller
+  // valid amount, it is the same "nothing was really typed" case empty/NaN already cover. That rule
+  // is enforced here, after this control's own rounding (not before it): `0.3` rounds to `0 g` just
+  // as surely as typing `0` does, so the check has to run on the rounded value or that case would
+  // still slip a zero-portion log through. When the rounded result is `<= 0`, `onCommit` simply
+  // returns without calling `applyAbsolute` — `amount` is left completely untouched, so the readout
+  // reverts to what it already showed the instant `editing` closes below, exactly like the existing
+  // empty/invalid revert.
   const { editing, draft, startEditing, setDraft, commit } = useEditableNumber({
     value: amount,
     min: 0,
-    onCommit: (parsed) => applyAbsolute(isGrams ? Math.round(parsed) : nearestHalfServing(parsed)),
+    onCommit: (parsed) => {
+      const rounded = isGrams ? Math.round(parsed) : nearestHalfServing(parsed);
+      if (rounded <= 0) return;
+      applyAbsolute(rounded);
+    },
   });
 
   const portions = amount / unitSize;

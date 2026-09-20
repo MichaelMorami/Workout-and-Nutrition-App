@@ -409,8 +409,9 @@ describe('PortionSheet', () => {
       expect(screen.getByTestId('sheet-exact-readout')).toHaveTextContent('170 g');
     });
 
-    it('a typed food amount is rounded to the nearest whole gram', async () => {
-      await renderSheet();
+    it('a typed food amount is rounded to the nearest whole gram — the rounded value is what gets logged, not just displayed', async () => {
+      const onLog = jest.fn();
+      await renderSheet({ onLog });
       await fireEvent.press(screen.getByTestId('sheet-mode-exact'));
       await fireEvent.press(screen.getByTestId('sheet-exact-readout'));
 
@@ -418,6 +419,53 @@ describe('PortionSheet', () => {
       await fireEvent(screen.getByTestId('sheet-exact-readout-input'), 'blur');
 
       expect(screen.getByTestId('sheet-exact-readout')).toHaveTextContent('134 g');
+
+      await fireEvent.press(screen.getByTestId('sheet-exact-log'));
+      // `formatGrams` itself rounds for display, so the readout-text assertion above cannot tell
+      // "the committed amount was rounded" from "only the display rounds" — this closes that gap.
+      expect(onLog).toHaveBeenCalledWith(food, 134 / 170);
+    });
+
+    it('typing 0 reverts to the previous value, not a zero-portion log — zero is invalid input, not a clamp target', async () => {
+      const onLog = jest.fn();
+      await renderSheet({ onLog });
+      await fireEvent.press(screen.getByTestId('sheet-mode-exact'));
+      await fireEvent.press(screen.getByTestId('sheet-exact-readout'));
+
+      await fireEvent.changeText(screen.getByTestId('sheet-exact-readout-input'), '0');
+      await fireEvent(screen.getByTestId('sheet-exact-readout-input'), 'blur');
+
+      expect(screen.getByTestId('sheet-exact-readout')).toHaveTextContent('170 g');
+      await fireEvent.press(screen.getByTestId('sheet-exact-log'));
+      expect(onLog).toHaveBeenCalledWith(food, 1);
+    });
+
+    it('typing a negative amount reverts to the previous value, not a zero-clamped log', async () => {
+      const onLog = jest.fn();
+      await renderSheet({ onLog });
+      await fireEvent.press(screen.getByTestId('sheet-mode-exact'));
+      await fireEvent.press(screen.getByTestId('sheet-exact-readout'));
+
+      await fireEvent.changeText(screen.getByTestId('sheet-exact-readout-input'), '-5');
+      await fireEvent(screen.getByTestId('sheet-exact-readout-input'), 'blur');
+
+      expect(screen.getByTestId('sheet-exact-readout')).toHaveTextContent('170 g');
+      await fireEvent.press(screen.getByTestId('sheet-exact-log'));
+      expect(onLog).toHaveBeenCalledWith(food, 1);
+    });
+
+    it("typing 0 for a meal's servings also reverts, not a ×0 log", async () => {
+      const onLog = jest.fn();
+      await renderSheet({ candidate: meal, onLog });
+      await fireEvent.press(screen.getByTestId('sheet-mode-exact'));
+      await fireEvent.press(screen.getByTestId('sheet-exact-readout'));
+
+      await fireEvent.changeText(screen.getByTestId('sheet-exact-readout-input'), '0');
+      await fireEvent(screen.getByTestId('sheet-exact-readout-input'), 'blur');
+
+      expect(screen.getByTestId('sheet-exact-readout')).toHaveTextContent('×1');
+      await fireEvent.press(screen.getByTestId('sheet-exact-log'));
+      expect(onLog).toHaveBeenCalledWith(meal, 1);
     });
 
     it('submitting from the keyboard commits, same as blur', async () => {
