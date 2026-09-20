@@ -38,16 +38,28 @@
  * `<CustomReveal>` below through `react-native-reanimated`, the same `useReducedMotion` +
  * `useSharedValue` + `useEffect`-keyed-`withTiming` shape `QuickAddTile`'s `tilePressIn`/`tilePressOut`
  * and `UndoToast`'s `toastIn`/`toastOut` already use for every other `motion.events.*` token in this
- * codebase. Two things this shape cannot give it, both disclosed rather than guessed around:
- *  - Reanimated has no "auto height" primitive — the reveal's target height comes from `onLayout`
- *    measuring the fields' own natural size once they have rendered at least once. React Native
- *    Testing Library's renderer never fires `onLayout` (no real layout pass), so the height tween
- *    itself is only exercised on device; the fade (`opacity`, driven by the same effect) is what
- *    `FoodForm.test.tsx` actually asserts against the mock's own call log.
+ * codebase.
+ *  - Reanimated has no "auto height" primitive, so the reveal's own `onLayout` (`handleLayout`)
+ *    drives the height tween directly rather than a `useEffect` keyed only to `visible` — an effect
+ *    fires before the native layout pass has produced a measurement, so keying the open tween to it
+ *    alone left the very first open fade-only (review #209, S1). Driving it from `onLayout` instead
+ *    also means the box tracks the fields' own height if it changes while still open (Dynamic Type,
+ *    rotation), rather than staying pinned at whatever was first measured. `hasToggledRef` keeps this
+ *    passive on the very first paint when a form lands straight on Custom (an edit with no matching
+ *    preset) — nothing tweens in on mount, only on an actual open/close after that. RNTL's renderer
+ *    does not fire `onLayout` on its own, but a test can invoke the `View`'s `onLayout` prop by hand
+ *    with a synthetic event to exercise this path directly (review #209 traced the open → grow →
+ *    close → reopen cycle exactly this way) — the existing `FoodForm.test.tsx` suite does not do
+ *    this yet and instead asserts the fade (`opacity`, driven by the shared visibility effect)
+ *    against the mock's own `__timingCalls` log.
  *  - The fields stay mounted through their own close tween (`UndoToast`'s held-payload shape) so a
- *    chip tap back to Custom mid-close reverses it from wherever it is, rather than a hard cut. No
- *    existing test happens to assert the fields are *gone* immediately after leaving Custom, so this
- *    is a behavioural addition, not a risk to anything already covered.
+ *    chip tap back to Custom mid-close reverses it from wherever it is, rather than a hard cut.
+ *    `FoodForm.test.tsx`'s "removes the Custom fields once the close tween has run" test (review
+ *    #209, B1) guards the end of that hold — the fields are gone once the token's own duration has
+ *    elapsed. For the hold itself, the `Animated.View` also drops `pointerEvents` to `'none'` and
+ *    hides itself from the accessibility tree (`accessibilityElementsHidden` /
+ *    `importantForAccessibility="no-hide-descendants"`) the instant `visible` goes false, so a screen
+ *    reader never announces a field that is already fading out underneath the locked read-out.
  *
  * DISCLOSED GAPS (see this issue's PR body):
  *  - The locked read-out's padlock glyph has a colour token (`foodForm.lockIcon`) but no icon *name*
@@ -295,9 +307,18 @@ function CustomReveal({
   const removalTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const measuredHeight = useRef<number | null>(null);
   const mountedRef = useRef(false);
+  // True once this reveal has undergone at least one visible transition since mount. Landing
+  // straight on Custom at mount (an edit with no matching preset) is not a transition — nothing
+  // tweens in, per the "renders unclipped and un-tweened" doc note above — so `handleLayout` below
+  // only starts actively tweening height once the user has actually opened or closed it once.
+  const hasToggledRef = useRef(false);
   const height = useSharedValue(0);
   const heightKnown = useSharedValue(false);
   const opacity = useSharedValue(visible ? 1 : 0);
+
+  const revealEvent = motion.events.customReveal;
+  const duration = reducedMotion ? revealEvent.reduced.duration : revealEvent.duration;
+  const curve = motion.easing[revealEvent.easing];
 
   // Adopted the instant `visible` turns true — the same derived-state escape hatch `UndoToast` uses
   // for its own payload, rather than a `setState` tucked inside an effect body.
@@ -312,13 +333,11 @@ function CustomReveal({
       return;
     }
     if (!rendered) return;
-    const event = motion.events.customReveal;
-    const duration = reducedMotion ? event.reduced.duration : event.duration;
     removalTimer.current = setTimeout(() => setRendered(false), duration);
     return () => {
       if (removalTimer.current) clearTimeout(removalTimer.current);
     };
-  }, [visible, rendered, reducedMotion]);
+  }, [visible, rendered, duration]);
 
   useEffect(() => {
     // First run ever (component mount): whatever `visible` starts as is simply how the form opens.
@@ -328,23 +347,37 @@ function CustomReveal({
       opacity.value = visible ? 1 : 0;
       return;
     }
-    const event = motion.events.customReveal;
-    const duration = reducedMotion ? event.reduced.duration : event.duration;
-    const curve = motion.easing[event.easing];
+    hasToggledRef.current = true;
     opacity.value = withTiming(visible ? 1 : 0, { duration, easing: Easing.bezier(...curve) });
-    if (measuredHeight.current !== null) {
+    // Closing always has a known height to retreat from — Custom cannot be closed before it has
+    // been opened, so `measuredHeight.current` is always set by the time this branch runs.
+    // Opening's height tween lives entirely in `handleLayout` below instead of here: on the very
+    // first open in this component's lifetime `onLayout` has not fired yet when this effect runs
+    // (it needs a real native layout pass), so this effect used to have nothing to tween from and
+    // fell back to fade-only — the common case for anyone who picks Custom just once (review #209,
+    // S1). Driving the open tween from the layout event itself fixes that, and also means a later
+    // growth in the fields' own height while still open (Dynamic Type, rotation) gets picked up too,
+    // instead of staying pinned at whatever height was first measured (review #209, S1).
+    if (!visible && measuredHeight.current !== null) {
       if (!heightKnown.value) {
-        // First real transition since a height became known — snap to it before tweening so
-        // switching from unclipped to explicit never jumps.
         height.value = measuredHeight.current;
         heightKnown.value = true;
       }
-      height.value = withTiming(visible ? measuredHeight.current : 0, { duration, easing: Easing.bezier(...curve) });
+      height.value = withTiming(0, { duration, easing: Easing.bezier(...curve) });
     }
-  }, [visible, reducedMotion, height, heightKnown, opacity]);
+  }, [visible, duration, curve, height, heightKnown, opacity]);
 
   const handleLayout = (event: LayoutChangeEvent): void => {
-    measuredHeight.current = event.nativeEvent.layout.height;
+    const measured = event.nativeEvent.layout.height;
+    measuredHeight.current = measured;
+    if (!hasToggledRef.current || !visible || measured === height.value) return;
+    if (!heightKnown.value) {
+      // First measurement since a real open/close transition: snap the shared value to 0 first so
+      // this tween has somewhere to grow from, rather than "jumping" from an assumed-known value.
+      height.value = 0;
+      heightKnown.value = true;
+    }
+    height.value = withTiming(measured, { duration, easing: Easing.bezier(...curve) });
   };
 
   const animatedStyle = useAnimatedStyle(() => ({
@@ -355,7 +388,13 @@ function CustomReveal({
   if (!rendered) return null;
 
   return (
-    <Animated.View testID={testID} style={[styles.reveal, animatedStyle]}>
+    <Animated.View
+      testID={testID}
+      style={[styles.reveal, animatedStyle]}
+      pointerEvents={visible ? 'auto' : 'none'}
+      importantForAccessibility={visible ? 'auto' : 'no-hide-descendants'}
+      accessibilityElementsHidden={!visible}
+    >
       <View onLayout={handleLayout} style={styles.revealContent}>
         {children}
       </View>

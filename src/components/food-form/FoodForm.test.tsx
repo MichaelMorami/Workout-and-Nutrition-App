@@ -11,7 +11,7 @@
  * has not landed a stable `key` field on `SERVING_PRESETS` yet (issue #185), so this is a documented
  * fallback, not a re-implementation of the preset table itself.
  */
-import { fireEvent, render, screen } from '@testing-library/react-native';
+import { act, fireEvent, render, screen } from '@testing-library/react-native';
 import { TextInput } from 'react-native';
 import type { FoodInput } from '../../db';
 import { motion, themes } from '../../theme/tokens';
@@ -393,6 +393,9 @@ describe('FoodForm — the Custom reveal is driven by motion.events.customReveal
     const call = __timingCalls.find((c) => c.toValue === 1);
     expect(call).toBeDefined();
     expect(call?.config?.duration).toBe(motion.events.customReveal.duration);
+    // Review #209, B2: the duration alone doesn't prove the curve came from the token — assert the
+    // easing points too, so swapping `motion.easing[event.easing]` for any other curve goes red.
+    expect(call?.config?.easing?.points).toEqual(motion.easing[motion.events.customReveal.easing]);
   });
 
   it('closing Custom fades it out on the same token', async () => {
@@ -405,6 +408,7 @@ describe('FoodForm — the Custom reveal is driven by motion.events.customReveal
     const call = __timingCalls.find((c) => c.toValue === 0);
     expect(call).toBeDefined();
     expect(call?.config?.duration).toBe(motion.events.customReveal.duration);
+    expect(call?.config?.easing?.points).toEqual(motion.easing[motion.events.customReveal.easing]);
   });
 
   it('honours reduce motion — the reveal collapses to its instant duration', async () => {
@@ -418,12 +422,35 @@ describe('FoodForm — the Custom reveal is driven by motion.events.customReveal
     expect(call?.config?.duration).toBe(motion.events.customReveal.reduced.duration);
   });
 
-  it('still opens the fields at once regardless of reduce motion — only the timing changes', async () => {
-    __setReducedMotion(true);
+  // Review #209, B1: the fields are held mounted through their own close tween (so a chip tap back
+  // to Custom mid-close reverses smoothly), and nothing previously asserted that hold actually ends.
+  // Without this test, mutating the release to never unmount (`setRendered(true)` instead of
+  // `setRendered(false)`) leaves every other test in this file, and every neighbour suite, green —
+  // see the PR body for that mutation's output. Left un-collapsed, the Label field, both
+  // `BasisToggle` buttons and the Amount stepper would sit at `height: 0, opacity: 0` forever,
+  // reachable by a screen reader reading over the locked read-out it's supposedly replaced.
+  it('removes the Custom fields once the close tween has run', async () => {
+    jest.useFakeTimers();
     await render(<FoodForm theme={theme} onSave={jest.fn()} onCancel={jest.fn()} testID="food-form" />);
 
-    await fireEvent.press(screen.getByTestId('food-form-serving-custom'));
+    await act(async () => {
+      fireEvent.press(screen.getByTestId('food-form-serving-custom'));
+    });
+    await act(async () => {
+      fireEvent.press(screen.getByTestId('food-form-serving-cup'));
+    });
+    await act(async () => {
+      jest.advanceTimersByTime(motion.events.customReveal.duration + 1);
+    });
 
-    expect(screen.getByTestId('food-form-serving-label')).toBeTruthy();
+    // `{ includeHiddenElements: true }`: the wrapping `Animated.View` also drops itself from the
+    // accessibility tree (`accessibilityElementsHidden`/`no-hide-descendants`) the instant `visible`
+    // goes false — RNTL's default queries hide that subtree too, so a plain `queryByTestId` here
+    // would read null the moment the close *starts*, not when the hold actually ends, and this test
+    // would no longer catch the mutation it exists for. Piercing that with `includeHiddenElements`
+    // asserts what actually left the tree, not what merely stopped being announced.
+    expect(screen.queryByTestId('food-form-serving-label', { includeHiddenElements: true })).toBeNull();
+    expect(screen.queryByTestId('food-form-basis-weight', { includeHiddenElements: true })).toBeNull();
+    jest.useRealTimers();
   });
 });
