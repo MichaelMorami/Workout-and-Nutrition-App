@@ -48,18 +48,28 @@
  *    passive on the very first paint when a form lands straight on Custom (an edit with no matching
  *    preset) — nothing tweens in on mount, only on an actual open/close after that. RNTL's renderer
  *    does not fire `onLayout` on its own, but a test can invoke the `View`'s `onLayout` prop by hand
- *    with a synthetic event to exercise this path directly (review #209 traced the open → grow →
- *    close → reopen cycle exactly this way) — the existing `FoodForm.test.tsx` suite does not do
- *    this yet and instead asserts the fade (`opacity`, driven by the shared visibility effect)
- *    against the mock's own `__timingCalls` log.
- *  - The fields stay mounted through their own close tween (`UndoToast`'s held-payload shape) so a
- *    chip tap back to Custom mid-close reverses it from wherever it is, rather than a hard cut.
- *    `FoodForm.test.tsx`'s "removes the Custom fields once the close tween has run" test (review
- *    #209, B1) guards the end of that hold — the fields are gone once the token's own duration has
- *    elapsed. For the hold itself, the `Animated.View` also drops `pointerEvents` to `'none'` and
- *    hides itself from the accessibility tree (`accessibilityElementsHidden` /
- *    `importantForAccessibility="no-hide-descendants"`) the instant `visible` goes false, so a screen
- *    reader never announces a field that is already fading out underneath the locked read-out.
+ *    with a synthetic event, `act()`-wrapped so the mock's re-render lands before the next assertion
+ *    reads it — `FoodForm.test.tsx`'s "reopening Custom mid-close returns the fields to their
+ *    measured height" test (review #209 round 2, B4) exercises this path directly, open → grow →
+ *    close → reopen. Whether `handleLayout` is ever *called* on a given path is a property of the
+ *    tree (does the measured frame actually change, does the subtree unmount), not of the harness —
+ *    on device, `useAnimatedStyle` itself needs no React re-render at all, so nothing here depends on
+ *    RNTL's rendering model beyond that one caveat.
+ *  - The fields stay mounted through their own close tween (`UndoToast`'s held-payload shape), per
+ *    `motion.events.customReveal`'s own doc (`tokens.ts`, "interruptible: a second chip tap
+ *    mid-animation reverses it from where it is") and this reveal's promise that a chip tap back to
+ *    Custom mid-close reverses it from wherever it is, rather than a hard cut. Reopening *during* the
+ *    close hold never gets a new `onLayout` — `revealContent`'s own frame never changes across the
+ *    cycle, so RN never re-fires the layout event, and the subtree never unmounts either — so the
+ *    visibility effect below carries an explicit `visible` branch that retargets `height` for exactly
+ *    that case (review #209 round 2, B4; guarded by `heightKnown.value` so `handleLayout` still owns
+ *    a genuine first open). `FoodForm.test.tsx`'s "removes the Custom fields once the close tween has
+ *    run" test (review #209, B1) guards the end of an uninterrupted hold — the fields are gone once
+ *    the token's own duration has elapsed. For the hold itself, the `Animated.View` also drops
+ *    `pointerEvents` to `'none'` and hides itself from the accessibility tree
+ *    (`accessibilityElementsHidden` / `importantForAccessibility="no-hide-descendants"`) the instant
+ *    `visible` goes false, so a screen reader never announces a field that is already fading out
+ *    underneath the locked read-out.
  *
  * DISCLOSED GAPS (see this issue's PR body):
  *  - The locked read-out's padlock glyph has a colour token (`foodForm.lockIcon`) but no icon *name*
@@ -379,7 +389,26 @@ function CustomReveal({
     // S1). Driving the open tween from the layout event itself fixes that, and also means a later
     // growth in the fields' own height while still open (Dynamic Type, rotation) gets picked up too,
     // instead of staying pinned at whatever height was first measured (review #209, S1).
-    if (!visible && measuredHeight.current !== null) {
+    //
+    // The `visible` branch below exists for one reason only: `tokens.ts`'s own doc on this event
+    // ("interruptible: a second chip tap mid-animation reverses it from where it is") and this
+    // reveal's own doc above both promise that a chip tap back to Custom mid-close reverses smoothly
+    // — but a reopen *during* the 200ms close hold never fires `handleLayout` to make that happen.
+    // The fields stay mounted (`rendered` doesn't flip) and `revealContent`'s own frame never
+    // changes across the whole cycle (`overflow: 'hidden'` is paint-only, not layout, and RN's
+    // default `flexShrink: 0` means the parent's explicit height never constrains the child's
+    // measured size) — so RN never re-fires the layout event, and nothing else was retargeting
+    // `height` on that path. Without this branch the reveal got stranded at `height: 0, opacity: 1`:
+    // mounted, fully opaque, `pointerEvents: 'auto'`, un-hidden from the accessibility tree, and
+    // clipped to nothing by `overflow: 'hidden'` — an empty gap that eats taps and that VoiceOver
+    // announces as a real field (review #209, B4). `heightKnown.value` gates it to only the reopen
+    // case: a genuine first-ever open still has no known height yet, so `handleLayout` keeps owning
+    // that measurement untouched.
+    if (visible) {
+      if (heightKnown.value && measuredHeight.current !== null) {
+        height.value = withTiming(measuredHeight.current, { duration, easing: Easing.bezier(...curve) });
+      }
+    } else if (measuredHeight.current !== null) {
       if (!heightKnown.value) {
         height.value = measuredHeight.current;
         heightKnown.value = true;

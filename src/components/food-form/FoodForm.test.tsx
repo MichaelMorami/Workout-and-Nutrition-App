@@ -12,7 +12,7 @@
  * fallback, not a re-implementation of the preset table itself.
  */
 import { act, fireEvent, render, screen } from '@testing-library/react-native';
-import { TextInput } from 'react-native';
+import { StyleSheet, TextInput } from 'react-native';
 import type { FoodInput } from '../../db';
 import { motion, themes } from '../../theme/tokens';
 import { FoodForm } from './FoodForm';
@@ -453,5 +453,49 @@ describe('FoodForm — the Custom reveal is driven by motion.events.customReveal
     // asserts what actually left the tree, not what merely stopped being announced.
     expect(screen.queryByTestId('food-form-serving-label', { includeHiddenElements: true })).toBeNull();
     expect(screen.queryByTestId('food-form-basis-weight', { includeHiddenElements: true })).toBeNull();
+  });
+
+  // Review #209, round 2, B4: since `fcf4277` moved the open-side height tween out of the visibility
+  // effect and into `handleLayout`, a reopen *during* the close hold never gets a new `onLayout` —
+  // `revealContent`'s own frame never changes across the whole cycle, so RN never re-fires the
+  // layout event — and nothing else was retargeting `height`. Without the visibility effect's own
+  // `visible` branch, this test lands on `{height: 0, opacity: 1}`: mounted, fully opaque, clipped to
+  // nothing by `overflow: 'hidden'` — the fields never recover until the user closes and waits out
+  // the full hold. `content.props.onLayout(...)` invokes the same prop RN itself would call, wrapped
+  // in `act()` so the mock's `forceRender` flushes before the next assertion reads it — this path is
+  // testable without a device, contrary to this file's earlier disclosure.
+  it('reopening Custom mid-close returns the fields to their measured height', async () => {
+    await render(<FoodForm theme={theme} onSave={jest.fn()} onCancel={jest.fn()} testID="food-form" />);
+    await act(async () => {
+      fireEvent.press(screen.getByTestId('food-form-serving-custom'));
+    });
+
+    const content = screen.getByTestId('food-form-custom-reveal').children[0] as {
+      props: { onLayout: (e: unknown) => void };
+    };
+    await act(async () => {
+      content.props.onLayout({ nativeEvent: { layout: { height: 240, width: 300, x: 0, y: 0 } } });
+    });
+
+    await act(async () => {
+      fireEvent.press(screen.getByTestId('food-form-serving-cup'));
+    });
+    await act(async () => {
+      jest.advanceTimersByTime(motion.events.customReveal.duration / 2);
+    });
+    // Back to Custom before the hold releases: still mounted, so no new layout event arrives.
+    await act(async () => {
+      fireEvent.press(screen.getByTestId('food-form-serving-custom'));
+    });
+    await act(async () => {
+      jest.advanceTimersByTime(motion.events.customReveal.duration * 2);
+    });
+
+    const style = StyleSheet.flatten(screen.getByTestId('food-form-custom-reveal').props.style) as {
+      opacity?: number;
+      height?: number;
+    };
+    expect(style.opacity).toBe(1);
+    expect(style.height).toBe(240);
   });
 });
