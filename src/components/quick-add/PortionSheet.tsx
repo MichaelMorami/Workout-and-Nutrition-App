@@ -46,19 +46,19 @@ import type { Candidate } from '../../db';
 import { formatGrams } from '../format/food';
 import { useEditableNumber } from '../../hooks/useEditableNumber';
 import { useHapticFeedback } from '../../hooks/useHapticFeedback';
-import { matchingPresetKey } from '../serving-preset';
+import { resolvePresetKey } from '../serving-preset';
 import { haptics, interaction, radius, size, space, type, type ServingStepKey, type Theme, type TypeStyle } from '../../theme/tokens';
 
 /**
  * Which per-preset step strip (`interaction.servingSteps`, issue #93) a candidate gets. A food
- * matches its own serving to a preset key via `matchingPresetKey` — the same helper `<FoodForm>`
+ * matches its own serving to a preset key via `resolvePresetKey` — the same helper `<FoodForm>`
  * uses to pre-select an edited food's chip, shared from `../serving-preset` so the label/basis/
  * amount matching rule lives in exactly one place. A meal candidate carries no serving fields at
  * all (`MealCandidate` in `src/db/types.ts` has none), so it always falls to `custom`.
  */
 function presetKeyOf(candidate: Candidate): ServingStepKey {
   if (candidate.kind !== 'food') return 'custom';
-  return matchingPresetKey(candidate.servingLabel, candidate.basis, candidate.servingAmount) ?? 'custom';
+  return resolvePresetKey(candidate.servingLabel, candidate.basis, candidate.servingAmount) ?? 'custom';
 }
 
 /**

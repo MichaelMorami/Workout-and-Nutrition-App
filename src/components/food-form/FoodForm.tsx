@@ -7,11 +7,11 @@
  * and it grows the form downward into the same slot the locked read-out used — the chips never move.
  *
  * PRESET TABLE, ONE PLACE. `src/db/servings.ts`'s `SERVING_PRESETS` is the metric conversion table
- * (client ruling 5) — this file never re-implements it. `src/theme/tokens.ts`'s `servingPresetKeys`
- * gives each preset a stable string key for testIDs and UI rules; the two arrays are the same order
- * (`PRESET_BY_KEY`, zipped by index in `../serving-preset.ts`) because #86 has not yet landed a
- * stable `key` field on `SERVING_PRESETS` itself (issue #185) — this is the documented fallback
- * until it does. `matchingPresetKey` lives there too, shared with `<PortionSheet>` (issue #93).
+ * (client ruling 5) and the source of each preset's stable `key` (issue #185) — this file never
+ * re-implements either. The chip row renders straight off `SERVING_PRESETS`, in table order, and
+ * `resolvePresetKey` (`../serving-preset.ts`) resolves an edited food's chip by reading a matching
+ * preset's own `.key`, shared with `<PortionSheet>` (issue #93, retired the index-zipped
+ * `matchingPresetKey`/`PRESET_BY_KEY` in issue #198).
  *
  * CUSTOM NEVER RESETS. Picking Custom seeds its basis + amount from whichever chip was selected just
  * before it (`customTouchedRef`, below) — never a reset to 0. The label starts blank for a brand-new
@@ -47,11 +47,11 @@
  */
 import { useEffect, useRef, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View, TextInput, type NativeSyntheticEvent, type NativeScrollEvent, type TextStyle } from 'react-native';
-import { UNIT_OF_BASIS, servingOf, type FoodBasis, type FoodInput } from '../../db';
+import { SERVING_PRESETS, UNIT_OF_BASIS, servingOf, servingPresetByKey, type FoodBasis, type FoodInput, type ServingPresetKey } from '../../db';
 import { formatGrams, formatMl, formatPreviewProtein } from '../format/food';
 import { useHapticFeedback } from '../../hooks/useHapticFeedback';
-import { PRESET_BY_KEY, matchingPresetKey } from '../serving-preset';
-import { haptics, radius, servingPresetKeys, size, space, type, type ServingPresetKey, type Theme, type TypeStyle } from '../../theme/tokens';
+import { resolvePresetKey } from '../serving-preset';
+import { haptics, radius, size, space, type, type Theme, type TypeStyle } from '../../theme/tokens';
 import { Stepper } from './Stepper';
 
 type ServingKey = ServingPresetKey | 'custom';
@@ -71,7 +71,7 @@ function per100Heading(basis: FoodBasis): string {
 export type FoodFormProps = {
   /** `undefined`/`null` — a fresh food, every field starts blank/zero and the 100 g preset is
    * selected. Given — an edit, pre-selecting the matching preset or falling back to Custom
-   * (see `matchingPresetKey`). */
+   * (see `resolvePresetKey`). */
   readonly initial?: FoodInput | null;
   readonly onSave: (input: FoodInput) => void;
   readonly onCancel: () => void;
@@ -238,7 +238,7 @@ export function FoodForm({ initial = null, onSave, onCancel, variant = 'screen',
   const fireHaptic = useHapticFeedback();
   const isEditing = initial !== null;
 
-  const matched = initial ? matchingPresetKey(initial.servingLabel, initial.basis, initial.servingAmount) : '100g';
+  const matched = initial ? resolvePresetKey(initial.servingLabel, initial.basis, initial.servingAmount) : '100g';
   const [servingKey, setServingKey] = useState<ServingKey>(matched ?? 'custom');
 
   // Custom's own state. Always seeded from `initial?.servingLabel` when editing — even when a
@@ -277,9 +277,12 @@ export function FoodForm({ initial = null, onSave, onCancel, variant = 'screen',
     if (servingKey === key) return;
     setServingKey(key);
     if (!customTouchedRef.current) {
-      const preset = PRESET_BY_KEY[key];
-      setCustomBasis(preset.basis);
-      setCustomAmount(preset.amount);
+      // Always found: `key` only ever arrives from a `SERVING_PRESETS` entry rendered below.
+      const preset = servingPresetByKey(key);
+      if (preset) {
+        setCustomBasis(preset.basis);
+        setCustomAmount(preset.amount);
+      }
     }
     fireHaptic(haptics.servingPicked);
   };
@@ -291,7 +294,7 @@ export function FoodForm({ initial = null, onSave, onCancel, variant = 'screen',
     fireHaptic(haptics.servingPicked);
   };
 
-  const preset = servingKey === 'custom' ? null : PRESET_BY_KEY[servingKey];
+  const preset = servingKey === 'custom' ? null : (servingPresetByKey(servingKey) ?? null);
   const basis = preset ? preset.basis : customBasis;
   const servingAmount = preset ? preset.amount : customAmount;
   const servingLabel = preset ? preset.label : customLabel;
@@ -351,13 +354,13 @@ export function FoodForm({ initial = null, onSave, onCancel, variant = 'screen',
           <Text style={textStyle(type.label, foodForm.sectionMetaText)}>{basis === 'weight' ? 'Weight · grams' : 'Volume · millilitres'}</Text>
         </View>
         <View style={styles.chipGrid}>
-          {servingPresetKeys.map((key) => (
+          {SERVING_PRESETS.map((p) => (
             <Chip
-              key={key}
-              testID={`${testID}-serving-${key}`}
-              label={PRESET_BY_KEY[key].label}
-              selected={servingKey === key}
-              onPress={() => selectPreset(key)}
+              key={p.key}
+              testID={`${testID}-serving-${p.key}`}
+              label={p.label}
+              selected={servingKey === p.key}
+              onPress={() => selectPreset(p.key)}
               theme={theme}
             />
           ))}

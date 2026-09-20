@@ -115,3 +115,5 @@ For the sprint-by-sprint plan see [`README.md`](README.md); for open work see th
 - 2026-09-20  feat: undo toast auto-dismiss token (issue #83)  (PR #196)
 - 2026-09-20  feat: undo toast auto-dismisses on undoAutoDismissMs, not the 3min ceiling (issue #83)  (PR #199)
 - 2026-09-20  docs: record the client's 10 s undo ruling in decisions ruling 2 (issue #83)  (PR #197 closes #83)
+- 2026-09-20  feat: stable key on every serving preset, with a lookup (issue #185)  (PR #200 closes #185)
+- 2026-09-20  chore: retire the unreachable undo-toast ceiling (issue #201)  (PR #202)
