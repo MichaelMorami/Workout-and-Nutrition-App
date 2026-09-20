@@ -346,6 +346,22 @@ describe('food form (issue #88)', () => {
   });
 });
 
+describe('undo toast timing (issue #83)', () => {
+  it('auto-dismisses at the ten seconds the client asked for', () => {
+    expect(interaction.undoAutoDismissMs).toBe(10_000);
+  });
+
+  it('keeps the ordinary dismissal well inside the stale-undo ceiling, so the two knobs cannot swap jobs', () => {
+    expect(interaction.undoAutoDismissMs).toBeLessThan(interaction.undoCeilingMs);
+  });
+
+  it('leaves long enough to read the toast and reach Undo one-handed', () => {
+    // The toast must outlast its own entrance animation plus a reach; anything under a few
+    // seconds is the 4 s timer the client rejected.
+    expect(interaction.undoAutoDismissMs).toBeGreaterThan(motion.events.toastIn.duration + 4000);
+  });
+});
+
 describe('serving steps (issue #93, decided in #88)', () => {
   const steps = interaction.servingSteps;
 
