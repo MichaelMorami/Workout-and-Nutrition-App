@@ -413,7 +413,7 @@
         "src/db/index.ts",
         "src/theme/tokens.ts"
       ],
-      "loc": 326
+      "loc": 338
     },
     "src/components/food-form/Stepper.tsx": {
       "exports": [
@@ -704,7 +704,7 @@
         "src/store/undoToast.ts",
         "src/theme/tokens.ts"
       ],
-      "loc": 193
+      "loc": 194
     },
     "src/components/search/SearchSheet.tsx": {
       "exports": [
@@ -752,7 +752,7 @@
         "src/hooks/deviceWhen.ts",
         "src/theme/tokens.ts"
       ],
-      "loc": 240,
+      "loc": 243,
       "importedBy": [
         "app/(tabs)/settings.tsx"
       ]

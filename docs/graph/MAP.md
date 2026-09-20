@@ -351,7 +351,7 @@ jq -r '.modules["src/db/queries/nutrition.ts"].exports[]' docs/graph/symbols.jso
 
 ## `src/components/food-form/`
 
-### `src/components/food-form/FoodForm.tsx`  <sub>326 lines</sub>
+### `src/components/food-form/FoodForm.tsx`  <sub>338 lines</sub>
 
 - `function FoodForm({ initial = null, onSave, onCancel, theme, testID = 'food-form' }: FoodFormProps): import("react").JSX.Element`
 - `type FoodFormProps = {
@@ -668,7 +668,7 @@ jq -r '.modules["src/db/queries/nutrition.ts"].exports[]' docs/graph/symbols.jso
 
 ## `src/components/search/`
 
-### `src/components/search/CreateFoodSheet.tsx`  <sub>193 lines</sub>
+### `src/components/search/CreateFoodSheet.tsx`  <sub>194 lines</sub>
 
 - `function CreateFoodSheet({ db, query, onLogged, onClose, locale, presentation = 'modal', theme, testID = 'create-food-sheet' }: CreateFoodSheetProps): import("react").JSX.Element | null`
 - `type CreateFoodSheetProps = {
@@ -712,7 +712,7 @@ jq -r '.modules["src/db/queries/nutrition.ts"].exports[]' docs/graph/symbols.jso
 
 ## `src/components/settings/`
 
-### `src/components/settings/TargetsGroup.tsx`  <sub>240 lines</sub>
+### `src/components/settings/TargetsGroup.tsx`  <sub>243 lines</sub>
 
 - `function TargetsGroup({ db, theme, locale, testID = 'targets' }: TargetsGroupProps): import("react").JSX.Element`
 - `type TargetsGroupProps = {
