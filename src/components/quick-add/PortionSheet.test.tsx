@@ -93,6 +93,58 @@ describe('PortionSheet', () => {
     expect(servingSteps(meal)).toEqual(servingSteps(food));
   });
 
+  describe('issue #93: per-preset serving steps', () => {
+    // "1 pot" (`food`, above) matches no `SERVING_PRESETS` row, so it falls to `custom` — the
+    // ½-to-8 list above is the `custom` preset's own steps, not a generic default.
+    const tbspFood: FoodCandidate = {
+      ...food,
+      servingLabel: '1 tbsp',
+      basis: 'volume',
+      servingAmount: 15,
+      servingGrams: null,
+      servingMl: 15,
+    };
+    const g100Food: FoodCandidate = {
+      ...food,
+      servingLabel: '100 g',
+      basis: 'weight',
+      servingAmount: 100,
+      servingGrams: 100,
+      servingMl: null,
+    };
+
+    it("a tbsp food's strip steps in quarters up to the tbsp preset's max (4)", () => {
+      expect(servingSteps(tbspFood)).toEqual([
+        0.25, 0.5, 0.75, 1, 1.25, 1.5, 1.75, 2, 2.25, 2.5, 2.75, 3, 3.25, 3.5, 3.75, 4,
+      ]);
+      expect(interaction.servingSteps.tbsp).toEqual({ increment: 0.25, max: 4 });
+    });
+
+    it('a custom food (no matching preset) still steps in halves up to 8', () => {
+      expect(servingSteps(food)).toEqual([
+        0.5, 1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5, 5.5, 6, 6.5, 7, 7.5, 8,
+      ]);
+    });
+
+    it('fraction labels render as ¼ ½ ¾ 1 1¼ …', async () => {
+      await renderSheet({ candidate: tbspFood });
+      expect(screen.getByTestId('sheet-step-0.25')).toHaveTextContent('¼');
+      expect(screen.getByTestId('sheet-step-0.5')).toHaveTextContent('½');
+      expect(screen.getByTestId('sheet-step-0.75')).toHaveTextContent('¾');
+      expect(screen.getByTestId('sheet-step-1')).toHaveTextContent('1');
+      expect(screen.getByTestId('sheet-step-1.25')).toHaveTextContent('1¼');
+    });
+
+    it("the Exact slider's initial range opens at the preset's own max, not the old sliderMaxServings", async () => {
+      await renderSheet({ candidate: g100Food });
+      await fireEvent.press(screen.getByTestId('sheet-mode-exact'));
+
+      const track = screen.getByTestId('sheet-exact-track');
+      // 100 g serving × the `100g` preset's max (5) = 500 — not 100 × the old flat `sliderMaxServings` (4) = 400.
+      expect(track.props.accessibilityValue.max).toBe(100 * interaction.servingSteps['100g'].max);
+    });
+  });
+
   it('issue #91: serving steps show only the value — no kcal text on the buttons', async () => {
     await renderSheet();
     expect(screen.getByTestId('sheet-step-0.5')).toHaveTextContent('½');
@@ -244,7 +296,7 @@ describe('PortionSheet', () => {
     await renderSheet();
     await fireEvent.press(screen.getByTestId('sheet-mode-exact'));
 
-    const initialRange = 170 * interaction.sliderMaxServings;
+    const initialRange = 170 * interaction.servingSteps.custom.max;
     const pressesPastInitialRange = Math.ceil(initialRange / interaction.sliderNudgeG) + 5;
     for (let i = 0; i < pressesPastInitialRange; i += 1) {
       await fireEvent.press(screen.getByTestId('sheet-exact-nudge-up'));
@@ -252,14 +304,15 @@ describe('PortionSheet', () => {
 
     const expected = 170 + pressesPastInitialRange * interaction.sliderNudgeG;
     expect(expected).toBeGreaterThan(initialRange);
-    expect(screen.getByTestId('sheet-exact-readout')).toHaveTextContent(`${expected} g`);
+    // `formatGrams` groups thousands (issue #124) — the preset's own max pushes this well past 1,000.
+    expect(screen.getByTestId('sheet-exact-readout')).toHaveTextContent(`${expected.toLocaleString()} g`);
   });
 
   it('issue #92: once the value has grown past the initial range, dragging to the far end of the track reaches the grown range, not the old max', async () => {
     await renderSheet();
     await fireEvent.press(screen.getByTestId('sheet-mode-exact'));
 
-    const initialRange = 170 * interaction.sliderMaxServings;
+    const initialRange = 170 * interaction.servingSteps.custom.max;
     const pressesPastInitialRange = Math.ceil(initialRange / interaction.sliderNudgeG) + 5;
     for (let i = 0; i < pressesPastInitialRange; i += 1) {
       await fireEvent.press(screen.getByTestId('sheet-exact-nudge-up'));
@@ -374,14 +427,14 @@ describe('PortionSheet', () => {
       await fireEvent.press(screen.getByTestId('sheet-mode-exact'));
       await fireEvent.press(screen.getByTestId('sheet-exact-readout'));
 
-      // baseRange is 170 * interaction.sliderMaxServings (4) = 680 — comfortably below 1000.
-      await fireEvent.changeText(screen.getByTestId('sheet-exact-readout-input'), '1000');
+      // baseRange is 170 * interaction.servingSteps.custom.max (8) = 1360 — comfortably below 2000.
+      await fireEvent.changeText(screen.getByTestId('sheet-exact-readout-input'), '2000');
       await fireEvent(screen.getByTestId('sheet-exact-readout-input'), 'blur');
 
-      expect(screen.getByTestId('sheet-exact-readout')).toHaveTextContent('1,000 g');
+      expect(screen.getByTestId('sheet-exact-readout')).toHaveTextContent('2,000 g');
       const track = screen.getByTestId('sheet-exact-track');
-      expect(track.props.accessibilityValue.max).toBeGreaterThanOrEqual(1000);
-      expect(track.props.accessibilityValue.now).toBe(1000);
+      expect(track.props.accessibilityValue.max).toBeGreaterThanOrEqual(2000);
+      expect(track.props.accessibilityValue.now).toBe(2000);
     });
 
     it('an empty entry reverts to the previous value — nothing is committed', async () => {
