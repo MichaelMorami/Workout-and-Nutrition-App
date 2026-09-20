@@ -12,6 +12,7 @@
  * fallback, not a re-implementation of the preset table itself.
  */
 import { fireEvent, render, screen } from '@testing-library/react-native';
+import { TextInput } from 'react-native';
 import type { FoodInput } from '../../db';
 import { themes } from '../../theme/tokens';
 import { FoodForm } from './FoodForm';
@@ -72,9 +73,14 @@ describe('FoodForm — serving picker', () => {
   });
 
   it('Custom opens Label, Measured by and Amount, seeded from the last chip, and focuses Label', async () => {
+    // Issue #89 review B3: `props.focused` is `undefined` on an RNTL `TextInput`, so
+    // `props.focused ?? true` was vacuously true regardless of the component. A spy on the real
+    // `TextInput.prototype.focus` actually fails if the effect stops calling it.
+    const focusSpy = jest.spyOn(TextInput.prototype, 'focus');
     await render(<FoodForm theme={theme} onSave={jest.fn()} onCancel={jest.fn()} testID="food-form" />);
 
     await fireEvent.press(screen.getByTestId('food-form-serving-tbsp'));
+    focusSpy.mockClear();
     await fireEvent.press(screen.getByTestId('food-form-serving-custom'));
 
     expect(screen.getByTestId('food-form-serving-custom').props.accessibilityState).toEqual({ selected: true });
@@ -85,7 +91,8 @@ describe('FoodForm — serving picker', () => {
     // starts from a reset. The label itself always starts blank; only basis+amount seed.
     expect(screen.getByTestId('food-form-basis-volume').props.accessibilityState).toEqual({ selected: true });
     expect(screen.getByTestId('food-form-serving-amount-value')).toHaveTextContent('15');
-    expect(screen.getByTestId('food-form-serving-label').props.focused ?? true).toBeTruthy();
+    expect(focusSpy).toHaveBeenCalledTimes(1);
+    focusSpy.mockRestore();
   });
 
   it('switching away from Custom and back preserves what was typed there — switching is never a reset', async () => {
@@ -189,14 +196,33 @@ describe('FoodForm — nutrition and the live preview', () => {
 
     expect(screen.getByTestId('food-form-preview')).toHaveTextContent('100 g = 97 kcal · 9 g protein');
   });
+
+  it('displays the protein stepper at its own 0.1 precision, not the default whole-number rounding (issue #89 carry-over 1 / review B2)', async () => {
+    await render(<FoodForm theme={theme} onSave={jest.fn()} onCancel={jest.fn()} testID="food-form" />);
+
+    // Without `formatValue`, the default `Math.round` display would read "0" here — precisely the
+    // regression carry-over 1 exists to prevent.
+    await fireEvent.press(screen.getByTestId('food-form-protein-increase'));
+    expect(screen.getByTestId('food-form-protein-value')).toHaveTextContent('0.1');
+
+    // Nine more 0.1 taps land exactly on 1 — the trailing ".0" a naive fixed-precision formatter
+    // would show is dropped.
+    for (let i = 0; i < 9; i += 1) {
+      await fireEvent.press(screen.getByTestId('food-form-protein-increase'));
+    }
+    expect(screen.getByTestId('food-form-protein-value')).toHaveTextContent('1');
+  });
 });
 
 describe('FoodForm — editing pre-selects the matching preset, or falls back to Custom', () => {
-  it('pre-selects the preset chip that matches basis + serving amount', async () => {
+  it('pre-selects the preset chip that matches label + basis + serving amount', async () => {
+    // Issue #89's unblock comment (carry-over 2): the match is label+basis+amount together, not
+    // basis+amount alone — a food genuinely saved with the preset's own label still lands on that
+    // chip.
     const initial: FoodInput = {
       name: 'Whole milk',
       brand: null,
-      servingLabel: 'a glass',
+      servingLabel: '1 cup',
       basis: 'volume',
       servingAmount: 250,
       kcalPer100: 60,
@@ -206,6 +232,32 @@ describe('FoodForm — editing pre-selects the matching preset, or falls back to
 
     expect(screen.getByTestId('food-form-serving-cup').props.accessibilityState).toEqual({ selected: true });
     expect(screen.getByTestId('food-form-locked-amount')).toHaveTextContent('250 ml', { exact: false });
+  });
+
+  it('preserves a serving label that differs from every preset through an edit that touches only nutrition (review B1 — was silently rewritten to "1 cup")', async () => {
+    const onSave = jest.fn();
+    const initial: FoodInput = {
+      name: 'Kefir',
+      brand: null,
+      servingLabel: '1 bottle',
+      basis: 'volume',
+      servingAmount: 250,
+      kcalPer100: 60,
+      proteinPer100: 3,
+    };
+    await render(<FoodForm initial={initial} theme={theme} onSave={onSave} onCancel={jest.fn()} testID="food-form" />);
+
+    // Same basis + amount as the cup preset, but a different label — falls to Custom, with the
+    // original label intact and visible, never blank.
+    expect(screen.getByTestId('food-form-serving-custom').props.accessibilityState).toEqual({ selected: true });
+    expect(screen.getByTestId('food-form-serving-label').props.value).toBe('1 bottle');
+
+    await fireEvent.press(screen.getByTestId('food-form-kcal-increase'));
+    await fireEvent.press(screen.getByTestId('food-form-save'));
+
+    expect(onSave).toHaveBeenCalledWith(
+      expect.objectContaining({ name: 'Kefir', servingLabel: '1 bottle', basis: 'volume', servingAmount: 250, kcalPer100: 61, proteinPer100: 3 }),
+    );
   });
 
   it('falls back to Custom, pre-filled, when no preset matches', async () => {
