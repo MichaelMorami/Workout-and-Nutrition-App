@@ -7,9 +7,10 @@
  * `src/components/settings/__evidence__/build-evidence.mjs`.
  *
  * Three states, per theme: resting (unchanged from before this issue), tap-to-type open (the value
- * well swaps to a `decimal-pad` field, bordered in `line.strong` — see the TOKEN GAP note in
- * `Stepper.tsx`), and mid-hold (the − / + glyph highlighted, standing in for the auto-repeat/
- * accelerate a screenshot cannot otherwise show motion for).
+ * well swaps to a `decimal-pad` field, bordered in `color.foodForm.fieldBorderFocus` /
+ * `size.foodForm.fieldBorderWidthFocus` — landed in #182, reused here per `Stepper.tsx`'s header
+ * comment), and mid-hold (the − / + glyph highlighted, standing in for the auto-repeat/accelerate a
+ * screenshot cannot otherwise show motion for).
  *
  * Run: node src/components/food-form/__evidence__/build-evidence.mjs
  * (Node >= 23.6 — imports the .ts sources directly via native type stripping.)
@@ -57,17 +58,18 @@ function restingWell(theme, label, value, unit) {
   </div>`;
 }
 
-/** The editing value well — issue #87's tap-to-type field, `line.strong` border (see `Stepper.tsx`'s
- * TOKEN GAP note: there is no dedicated "editable" token yet, so this reuses the existing generic
- * emphasis colour). No unit while typing, decimal-pad caret shown as plain text. */
+/** The editing value well — issue #87's tap-to-type field, bordered in
+ * `color.foodForm.fieldBorderFocus` at `size.foodForm.fieldBorderWidthFocus` (#182; that token's own
+ * doc comment names a stepper's value well as a covered case). No unit while typing, decimal-pad
+ * caret shown as plain text. */
 function editingWell(theme, label, draft) {
-  const { stepper: s, line, text } = theme.color;
+  const { stepper: s, foodForm, text } = theme.color;
   return `
   <div class="stepper">
     <span style="${font(typeTokens.label)}color:${text.secondary}">${label}</span>
     <div class="stepperRow">
       ${stepBtn(theme, '&minus;', false)}
-      <div class="valueWell" style="min-height:${size.stepper.buttonHit}px;border-radius:${radius.md}px;background:${s.valueBg};border:1px solid ${line.strong}">
+      <div class="valueWell" style="min-height:${size.stepper.buttonHit}px;border-radius:${radius.md}px;background:${s.valueBg};border:${size.foodForm.fieldBorderWidthFocus}px solid ${foodForm.fieldBorderFocus}">
         <span style="${font(typeTokens.stepperValue)}color:${s.valueText}">${draft}<span class="caret" style="background:${s.valueText}"></span></span>
       </div>
       ${stepBtn(theme, '+', false)}
@@ -105,7 +107,7 @@ function card(theme, title, body, width = 300) {
 function page(theme) {
   const resting = card(theme, 'Resting — tap the value or hold +/-', restingWell(theme, 'Kcal per 100 g', 120, 'kcal'));
   const editing = card(theme, 'Tap-to-type open — decimal-pad, current value selected (issue #87)', editingWell(theme, 'Kcal per 100 g', '612'));
-  const holding = card(theme, 'Holding + — auto-repeats, then accelerates after ~1 s', holdingWell(theme, 'Kcal per 100 g', 845, 'kcal'));
+  const holding = card(theme, 'Holding + — auto-repeats, then accelerates after ~1.4 s', holdingWell(theme, 'Kcal per 100 g', 845, 'kcal'));
 
   return `<!doctype html><meta charset="utf-8"><title>Stepper — ${theme.name}</title>
   <style>

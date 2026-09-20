@@ -1,8 +1,9 @@
 /**
  * `<TargetsGroup>` — issue #44's "TARGETS" group on the Settings screen: kcal and protein targets
- * through `getSettings`/`updateSettings`, a stepper (never a keyboard) to change either one, and
- * "Set" in place of a number on day one — before `updateSettings` has ever been called, per
- * `SettingsView.isDefault`.
+ * through `getSettings`/`updateSettings`, a stepper (its own 50 kcal / 5 g step, unchanged by
+ * `docs/decisions.md` ruling 11 — only the tap-to-type/hold-to-accelerate mechanics are shared with
+ * `<FoodForm>`) to change either one, and "Set" in place of a number on day one — before
+ * `updateSettings` has ever been called, per `SettingsView.isDefault`.
  */
 import { fireEvent, render, screen } from '@testing-library/react-native';
 import React from 'react';
@@ -49,7 +50,9 @@ describe('TargetsGroup', () => {
     expect(screen.getByTestId('targets-protein-value')).toHaveTextContent('180 g');
   });
 
-  it('tapping a row opens the targets sheet with steppers, no keyboard', async () => {
+  // Renamed from "...with steppers, no keyboard" — ruling 11 (docs/decisions.md) means a keyboard
+  // is one tap away here too (tap-to-type), just not the default view this test checks.
+  it('tapping a row opens the targets sheet with steppers', async () => {
     mockGetSettings.mockReturnValue(SET_VIEW);
     await render(<TargetsGroup db={db} theme={theme} testID="targets" />);
 

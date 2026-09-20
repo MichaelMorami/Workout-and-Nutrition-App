@@ -1,8 +1,11 @@
 /**
  * `<TargetsGroup>` — issue #44's "TARGETS" section of the Settings screen: the only place
  * `kcalTarget`/`proteinTarget` (`getSettings`/`updateSettings`, #35/#36) are ever changed. Two
- * disclosure rows open one shared sheet with a `<Stepper>` per target — "never make the user type a
- * number a stepper could set" applies here exactly as it does on `<FoodForm>`.
+ * disclosure rows open one shared sheet with a `<Stepper>` per target. Per `docs/decisions.md`
+ * ruling 11, `<Stepper>`'s tap-to-type applies here too (typing is allowed everywhere it is used) —
+ * what stays specific to this screen is the step size itself: 50 kcal / 5 g, not the 1 / 0.1 grid
+ * `<FoodForm>` uses, because the client's ruling kept a target's own step where it was never the
+ * problem the typed entry now solves.
  *
  * NO SAVE BUTTON — EACH STEPPER TAP IS THE WRITE. Unlike `<FoodForm>` (a multi-field creation flow
  * with nothing sane to commit mid-edit), a target is one number with an always-valid current value:

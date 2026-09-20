@@ -28,7 +28,8 @@
  *
  * TAP COUNT: open the search bar (1) + tap Create (2) + tap Save (3) — three fixed taps for a
  * brand-new food logged once, whatever it takes to edit the name (pre-filled already) and set the
- * numbers (`FoodForm`'s steppers, never a keyboard number field per the tap doctrine).
+ * numbers (`FoodForm`'s steppers — tap-to-type or hold-to-accelerate per `docs/decisions.md` ruling
+ * 11, not a forced keyboard, but typing is available and often the faster path for a large value).
  */
 import { useEffect } from 'react';
 import { Modal, Pressable, StyleSheet, Text, View, type TextStyle } from 'react-native';
