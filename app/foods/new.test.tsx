@@ -43,7 +43,6 @@ describe('NewFoodScreen', () => {
     await renderScreen();
 
     await fireEvent.changeText(screen.getByTestId('food-form-name'), 'Boiled eggs');
-    await fireEvent.changeText(screen.getByTestId('food-form-serving-label'), '2 eggs');
     await fireEvent.press(screen.getByTestId('food-form-kcal-increase'));
     await fireEvent.press(screen.getByTestId('food-form-protein-increase'));
     await fireEvent.press(screen.getByTestId('food-form-save'));
@@ -51,7 +50,7 @@ describe('NewFoodScreen', () => {
     expect(mockCreateFood).toHaveBeenCalledWith(
       expect.anything(),
       expect.objectContaining({
-        food: expect.objectContaining({ name: 'Boiled eggs', servingLabel: '2 eggs', basis: 'weight', servingAmount: 100, kcalPer100: 1, proteinPer100: 0.1 }),
+        food: expect.objectContaining({ name: 'Boiled eggs', servingLabel: '100 g', basis: 'weight', servingAmount: 100, kcalPer100: 1, proteinPer100: 0.1 }),
       }),
     );
     expect(mockBack).toHaveBeenCalledTimes(1);
