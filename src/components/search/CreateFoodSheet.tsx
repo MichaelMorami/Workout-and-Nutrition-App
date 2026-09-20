@@ -26,10 +26,16 @@
  * exactly as `FoodForm`'s own no-`initial` default; only the title swaps `Create "‹query›"` for the
  * plain "Create new food" so nothing renders a dangling `Create ""`.
  *
- * TAP COUNT: open the search bar (1) + tap Create (2) + tap Save (3) — three fixed taps for a
- * brand-new food logged once, whatever it takes to edit the name (pre-filled already) and set the
- * numbers (`FoodForm`'s steppers — tap-to-type or hold-to-accelerate per `docs/decisions.md` ruling
- * 11, not a forced keyboard, but typing is available and often the faster path for a large value).
+ * TAP COUNT (issue #89, `Spec.dc.html` section 4): open the search bar (1) + tap Create (2) + tap
+ * Save (3) are the three fixed taps every path shares; a brand-new food already opens on the 100 g
+ * preset, so a pack measured that way needs no serving tap at all — kcal + protein are the only two
+ * form taps left (5 total). A different preset (1 cup/tbsp/tsp/100 ml) is one chip tap (6 total): it
+ * sets label, basis and amount together. A Custom weight serving (e.g. "1 scoop") is 4 form taps —
+ * Custom, amount, kcal, protein — Custom focuses its own Label field, no extra tap to start typing,
+ * and weight carries over from the 100 g default. A Custom volume serving adds the Measured-by tap
+ * (5 form taps) unless the last preset tapped was already a volume one. `FoodForm`'s steppers stay
+ * tap-to-type or hold-to-accelerate throughout (`docs/decisions.md` ruling 11), never a forced
+ * keyboard.
  */
 import { useEffect } from 'react';
 import { Modal, Pressable, StyleSheet, Text, View, type TextStyle } from 'react-native';
@@ -156,7 +162,7 @@ export function CreateFoodSheet({ db, query, onLogged, onClose, locale, presenta
           {query.length > 0 ? `Create "${query}"` : 'Create new food'}
         </Text>
         <View style={styles.formArea}>
-          <FoodForm initial={initial} onSave={handleSave} onCancel={onClose} theme={theme} testID={`${testID}-form`} />
+          <FoodForm initial={initial} onSave={handleSave} onCancel={onClose} variant="sheet" theme={theme} testID={`${testID}-form`} />
         </View>
       </View>
     </>

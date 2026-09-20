@@ -28,11 +28,16 @@
  * 0.5 stay exactly as they were. That distinction is each caller's own `step` prop, not this
  * component's to make.
  *
- * Both buttons are `size.stepper.buttonWidth` × `size.stepper.buttonHit` (56×48), comfortably over
- * `size.tapTargetMin` (44), the same dimensions `PortionSheet.tsx`'s `NudgeButton` already uses for
- * the same shape of control — this is that pattern generalised with a label and a configurable
- * step/min/max instead of being pinned to grams. The value well keeps that same 48 pt height as its
- * own tap target once it doubles as the "type it" button.
+ * Both buttons default to `size.stepper.buttonWidth` × `size.stepper.buttonHit` (56×48), comfortably
+ * over `size.tapTargetMin` (44), the same dimensions `PortionSheet.tsx`'s `NudgeButton` already uses
+ * for the same shape of control — this is that pattern generalised with a label and a configurable
+ * step/min/max instead of being pinned to grams. The value well keeps that same height as its own
+ * tap target once it doubles as the "type it" button. ISSUE #89: `buttonWidth`/`buttonHit`/`gap`/
+ * `valueTextColor` are optional overrides, still ≥ `size.tapTargetMin` for every caller today —
+ * the food form's own amount/kcal/protein steppers are narrower and tighter
+ * (`size.foodForm.nutritionButtonWidth`/`nutritionHit`/`stepperGap`) to fit two side by side on a
+ * 375 pt phone, and the kcal/protein wells recolour their figure (`foodForm.kcalValueText`/
+ * `proteinValueText`). `TargetsGroup` and `MealForm` pass none of these and keep the defaults above.
  *
  * TOKEN GAP (flagged for design-lead, not filled in here per this issue's scope — see the PR body).
  * `interaction.stepperRepeatDelayMs` already covers the initial hold-to-repeat delay, but there is
@@ -64,6 +69,19 @@ export type StepperProps = {
   readonly locale?: string;
   readonly theme: Theme;
   readonly testID?: string;
+  /** Overrides `size.stepper.buttonWidth` — issue #89's three food-form steppers (amount, kcal,
+   * protein) are narrower (`size.foodForm.nutritionButtonWidth`, 44) so two fit side by side on a
+   * 375 pt phone; every other caller (`TargetsGroup`, `MealForm`) keeps the wider Workout default. */
+  readonly buttonWidth?: number;
+  /** Overrides `size.stepper.buttonHit` for both the −/+ buttons and the value well. */
+  readonly buttonHit?: number;
+  /** Overrides the −, well, + gap (`styles.row`'s default `space[3]`) — the food form's three
+   * steppers use the tighter `size.foodForm.stepperGap`. */
+  readonly gap?: number;
+  /** Overrides `stepper.valueText` for the value well's figure — the food form's kcal and protein
+   * steppers colour their value (`foodForm.kcalValueText` / `foodForm.proteinValueText`); every
+   * other caller, and this form's own amount stepper, keep the plain default. */
+  readonly valueTextColor?: string;
 };
 
 /** Steady-state auto-repeat cadence once a hold passes `interaction.stepperRepeatDelayMs` — ~8/s,
@@ -113,6 +131,10 @@ export function Stepper({
   locale,
   theme,
   testID = 'stepper',
+  buttonWidth = size.stepper.buttonWidth,
+  buttonHit = size.stepper.buttonHit,
+  gap = space[3],
+  valueTextColor,
 }: StepperProps) {
   const { stepper, foodForm } = theme.color;
   const fireHaptic = useHapticFeedback();
@@ -225,11 +247,12 @@ export function Stepper({
   });
 
   const display = formatValue ? formatValue(value) : Math.round(value).toLocaleString(locale);
+  const valueColor = valueTextColor ?? stepper.valueText;
 
   return (
     <View testID={testID} style={styles.root}>
       <Text style={textStyle(type.label, theme.color.text.secondary)}>{label}</Text>
-      <View style={styles.row}>
+      <View style={[styles.row, { gap }]}>
         <Pressable
           testID={`${testID}-decrease`}
           onPressIn={() => onPressIn(-1)}
@@ -240,8 +263,8 @@ export function Stepper({
           style={[
             styles.button,
             {
-              width: size.stepper.buttonWidth,
-              minHeight: size.stepper.buttonHit,
+              width: buttonWidth,
+              minHeight: buttonHit,
               borderRadius: radius.md,
               backgroundColor: stepper.buttonBg,
             },
@@ -259,7 +282,7 @@ export function Stepper({
           style={[
             styles.valueWell,
             {
-              minHeight: size.stepper.buttonHit,
+              minHeight: buttonHit,
               borderRadius: radius.md,
               backgroundColor: stepper.valueBg,
               borderWidth: editing ? size.foodForm.fieldBorderWidthFocus : 0,
@@ -270,7 +293,7 @@ export function Stepper({
           {editing ? (
             <TextInput
               testID={`${testID}-input`}
-              style={textStyle(type.stepperValue, stepper.valueText)}
+              style={textStyle(type.stepperValue, valueColor)}
               value={draft}
               onChangeText={setDraft}
               onBlur={commit}
@@ -282,7 +305,7 @@ export function Stepper({
             />
           ) : (
             <>
-              <Text testID={`${testID}-value`} style={textStyle(type.stepperValue, stepper.valueText)}>
+              <Text testID={`${testID}-value`} style={textStyle(type.stepperValue, valueColor)}>
                 {display}
               </Text>
               {unit ? (
@@ -304,8 +327,8 @@ export function Stepper({
           style={[
             styles.button,
             {
-              width: size.stepper.buttonWidth,
-              minHeight: size.stepper.buttonHit,
+              width: buttonWidth,
+              minHeight: buttonHit,
               borderRadius: radius.md,
               backgroundColor: stepper.buttonBg,
             },
@@ -325,7 +348,6 @@ const styles = StyleSheet.create({
   row: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: space[3],
   },
   button: {
     alignItems: 'center',

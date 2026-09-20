@@ -15,3 +15,11 @@ export function formatGrams(grams: number, locale?: string): string {
 export function formatMl(ml: number, locale?: string): string {
   return `${Math.round(ml).toLocaleString(locale)} ml`;
 }
+
+/** Issue #89's live-preview-strip rule for the protein figure only ("132 kcal · 25 g protein"):
+ * one decimal place under 10 g, a whole number at 10 g and above, trailing `.0` dropped. No unit
+ * suffix — the preview strip supplies its own " g protein"/" g" around this. Kcal has no equivalent
+ * seam; it is always a whole number, so `Math.round(...).toLocaleString(locale)` inline is enough. */
+export function formatPreviewProtein(grams: number, locale?: string): string {
+  return grams.toLocaleString(locale, { maximumFractionDigits: grams < 10 ? 1 : 0 });
+}

@@ -340,7 +340,6 @@ describe('TodayScreen', () => {
 
     expect(screen.getByTestId('today-create-food-sheet-form-name').props.value).toBe('Boiled eggs');
 
-    await fireEvent.changeText(screen.getByTestId('today-create-food-sheet-form-serving-label'), '2 eggs');
     await fireEvent.press(screen.getByTestId('today-create-food-sheet-form-save'));
 
     expect(mockCreateFoodAndLog).toHaveBeenCalledTimes(1);

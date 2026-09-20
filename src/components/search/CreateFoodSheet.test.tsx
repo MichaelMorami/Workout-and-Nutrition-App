@@ -94,6 +94,13 @@ describe('<CreateFoodSheet>', () => {
     expect(screen.getByTestId('create-sheet-title')).toHaveTextContent('Create "boiled eggs"');
   });
 
+  // Issue #89, section 6: the create sheet is always a fresh food, so `<FoodForm>`'s `variant`
+  // reads Save as "Save & log ‹serving›" rather than the plain "Save food" a pushed screen shows.
+  it('Save reads "Save & log ‹serving›" — the create sheet passes FoodForm variant="sheet"', async () => {
+    await renderSheet({ query: 'boiled eggs' });
+    expect(screen.getByTestId('create-sheet-form-save')).toHaveTextContent('Save & log 100 g');
+  });
+
   it('opens on an empty string, not only a non-empty query, with a blank name (issue #97)', async () => {
     await renderSheet({ query: '' });
 
@@ -107,12 +114,11 @@ describe('<CreateFoodSheet>', () => {
     mockCreateFoodAndLog.mockReturnValue({ food: foodRow({ name: 'Boiled eggs' }), receipt: receipt() });
     await renderSheet({ query: 'Boiled eggs' });
 
-    await fireEvent.changeText(screen.getByTestId('create-sheet-form-serving-label'), '2 eggs');
     await fireEvent.press(screen.getByTestId('create-sheet-form-save'));
 
     expect(mockCreateFoodAndLog).toHaveBeenCalledTimes(1);
     expect(mockCreateFoodAndLog.mock.calls[0]?.[1]).toMatchObject({
-      food: expect.objectContaining({ name: 'Boiled eggs', servingLabel: '2 eggs' }),
+      food: expect.objectContaining({ name: 'Boiled eggs', servingLabel: '100 g' }),
     });
   });
 
@@ -122,7 +128,6 @@ describe('<CreateFoodSheet>', () => {
     const onClose = jest.fn();
     await renderSheet({ query: 'boiled eggs', onLogged, onClose });
 
-    await fireEvent.changeText(screen.getByTestId('create-sheet-form-serving-label'), '2 eggs');
     await fireEvent.press(screen.getByTestId('create-sheet-form-save'));
 
     expect(onLogged).toHaveBeenCalledWith(receipt());
@@ -137,7 +142,6 @@ describe('<CreateFoodSheet>', () => {
     const onClose = jest.fn();
     await renderSheet({ query: 'boiled eggs', onLogged, onClose });
 
-    await fireEvent.changeText(screen.getByTestId('create-sheet-form-serving-label'), '2 eggs');
     await fireEvent.press(screen.getByTestId('create-sheet-form-save'));
 
     expect(onLogged).not.toHaveBeenCalled();
@@ -167,7 +171,6 @@ describe('<CreateFoodSheet>', () => {
       </DbProvider>,
     );
 
-    await fireEvent.changeText(screen.getByTestId('create-sheet-form-serving-label'), '2 eggs');
     await fireEvent.press(screen.getByTestId('create-sheet-form-save'));
 
     expect(screen.getByTestId('toast-title')).toHaveTextContent('Boiled eggs');

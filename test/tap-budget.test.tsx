@@ -508,10 +508,11 @@ describe('tap-count budget — search and create (issue #23, 2026-09-11 update)'
 
     expect(screen.getByTestId('today-create-food-sheet-form-name').props.value).toBe('Protein bar');
 
-    // Filling in the numbers: steppers and a serving-label field, never a keyboard number field
-    // (`FoodForm`'s own tap doctrine) — none of this counts against the 3 *fixed* taps the issue's
-    // budget allows on top of "name and numbers".
-    await fireEvent.changeText(screen.getByTestId('today-create-food-sheet-form-serving-label'), '1 bar');
+    // Filling in the numbers: steppers only, never a keyboard number field (`FoodForm`'s own tap
+    // doctrine) — none of this counts against the 3 *fixed* taps the issue's budget allows on top of
+    // "name and numbers". A fresh food opens on the 100 g preset (issue #89), so there is no serving
+    // field to fill at all here — `today-create-food-sheet-form-serving-label` only exists once
+    // Custom is picked, which this "pack measured in grams" case never does.
     await fireEvent.press(screen.getByTestId('today-create-food-sheet-form-kcal-increase'));
     await fireEvent.press(screen.getByTestId('today-create-food-sheet-form-protein-increase'));
 
@@ -541,7 +542,8 @@ describe('tap-count budget — search and create (issue #23, 2026-09-11 update)'
     await fireEvent.press(screen.getByTestId('today-search-sheet-bar'));
     await fireEvent.changeText(screen.getByTestId('today-search-sheet-input'), 'Protein bar');
     await fireEvent.press(screen.getByTestId('today-search-sheet-create'));
-    await fireEvent.changeText(screen.getByTestId('today-create-food-sheet-form-serving-label'), '1 bar');
+    // Default 100 g preset (issue #89) — nothing to fill beyond the query-prefilled name before Save;
+    // there is no `…-serving-label` field to type into outside Custom.
     await fireEvent.press(screen.getByTestId('today-create-food-sheet-form-save'));
 
     expect(screen.queryByTestId('today-undo-toast-title')).toBeNull();
@@ -555,12 +557,14 @@ describe('tap-count budget — search and create (issue #23, 2026-09-11 update)'
     // meant inventing throwaway letters just to make the row appear at all. The budget this proves
     // is that the pinned "+ Create new food" row removes exactly that — zero `fireEvent.changeText`
     // calls on `today-search-sheet-input`, the search bar itself, anywhere in this test. It is
-    // *not* a claim that the form needs no typing at all: `FoodForm` requires a non-empty name and
-    // serving label regardless of entry point (`FoodForm.tsx`'s own `firstError`), and unlike the
-    // query-seeded Create row, a blank query pre-fills nothing, so the name field starts empty too.
-    // That data entry is the same "plus whatever text/steppers fill in the name and the numbers"
-    // the query-seeded Create case above already spends on top of its 3 fixed taps — here it is
-    // just one field more, because there is no query left to pre-fill it.
+    // *not* a claim that the form needs no typing at all: `FoodForm` still requires a non-empty name
+    // (`FoodForm.tsx`'s own `firstError`) — unlike the query-seeded Create row, a blank query
+    // pre-fills nothing, so the name field starts empty too. (`firstError`'s serving-label check is
+    // Custom-only, issue #89 — a fresh food opens on the 100 g preset, so this case, same as the
+    // query-seeded one above, has no serving field to fill at all.) That name entry is the same
+    // "plus whatever text/steppers fill in the name and the numbers" the query-seeded Create case
+    // above already spends on top of its 3 fixed taps — here it is just the name field instead of
+    // nothing, because there is no query left to pre-fill it.
     mockRecentFoods.mockReturnValue([]);
     // Explicit, not just the neutral default: this test's whole point is that the pinned row is
     // there even with genuinely nothing to fall back on — the library-fallback test above is the
@@ -605,7 +609,6 @@ describe('tap-count budget — search and create (issue #23, 2026-09-11 update)'
     expect(screen.getByTestId('today-create-food-sheet-form-name').props.value).toBe('');
 
     await fireEvent.changeText(screen.getByTestId('today-create-food-sheet-form-name'), 'Rice cake');
-    await fireEvent.changeText(screen.getByTestId('today-create-food-sheet-form-serving-label'), '1 cake');
     await fireEvent.press(screen.getByTestId('today-create-food-sheet-form-kcal-increase'));
     await fireEvent.press(screen.getByTestId('today-create-food-sheet-form-protein-increase'));
 
