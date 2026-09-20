@@ -3,7 +3,7 @@
  * Exact is the one mode with its own Log button (a drag must not commit on release by accident).
  * Behaviour only: what each control calls, not pixel layout.
  */
-import { fireEvent, render, screen } from '@testing-library/react-native';
+import { fireEvent, render, screen, within } from '@testing-library/react-native';
 import type { ComponentProps } from 'react';
 import { StyleSheet } from 'react-native';
 import type { FoodCandidate, MealCandidate } from '../../db';
@@ -271,7 +271,7 @@ describe('PortionSheet', () => {
 
     // A drag to the far right always lands on the *current* range's ceiling. If touching the track
     // still reset the value to the old 680 g cap, this would read 680 g instead.
-    const readoutText = screen.getByTestId('sheet-exact-readout').props.children as string;
+    const readoutText = screen.getByTestId('sheet-exact-readout-value').props.children as string;
     const grownValue = Number(readoutText.replace(/\D/g, ''));
     expect(grownValue).toBeGreaterThan(initialRange);
   });
@@ -289,7 +289,7 @@ describe('PortionSheet', () => {
     // `fireEvent` dispatches straight to the element we name, so it cannot reproduce the native
     // hit-test itself; this asserts the handler's own mapping is a pure, monotonic function of
     // `locationX`, which is what that fix guarantees holds for every event RN ever delivers here.
-    const readoutValue = (): number => Number((screen.getByTestId('sheet-exact-readout').props.children as string).replace(/\D/g, ''));
+    const readoutValue = (): number => Number((screen.getByTestId('sheet-exact-readout-value').props.children as string).replace(/\D/g, ''));
 
     const values: number[] = [];
     let timeStamp = 1;
@@ -338,6 +338,135 @@ describe('PortionSheet', () => {
     await fireEvent.press(screen.getByTestId('sheet-exact-log'));
 
     expect(onLog).toHaveBeenCalledWith(meal, 1.5);
+  });
+
+  describe('issue #94: tap the readout to type an amount', () => {
+    it('tapping the readout opens a decimal-pad input seeded with the current value, selected', async () => {
+      await renderSheet();
+      await fireEvent.press(screen.getByTestId('sheet-mode-exact'));
+
+      await fireEvent.press(screen.getByTestId('sheet-exact-readout'));
+
+      const input = screen.getByTestId('sheet-exact-readout-input');
+      expect(input.props.value).toBe('170');
+      expect(input.props.keyboardType).toBe('decimal-pad');
+      expect(input.props.selectTextOnFocus).toBe(true);
+    });
+
+    it('typing a food amount and committing updates the readout, figures and Log button — whole grams', async () => {
+      const onLog = jest.fn();
+      await renderSheet({ onLog });
+      await fireEvent.press(screen.getByTestId('sheet-mode-exact'));
+      await fireEvent.press(screen.getByTestId('sheet-exact-readout'));
+
+      await fireEvent.changeText(screen.getByTestId('sheet-exact-readout-input'), '650');
+      await fireEvent(screen.getByTestId('sheet-exact-readout-input'), 'blur');
+
+      expect(screen.getByTestId('sheet-exact-readout')).toHaveTextContent('650 g');
+      expect(screen.queryByTestId('sheet-exact-readout-input')).toBeNull();
+
+      await fireEvent.press(screen.getByTestId('sheet-exact-log'));
+      expect(onLog).toHaveBeenCalledWith(food, 650 / 170);
+    });
+
+    it('a value above the slider\'s initial range is kept, not clamped back down — the range grows to fit it', async () => {
+      await renderSheet();
+      await fireEvent.press(screen.getByTestId('sheet-mode-exact'));
+      await fireEvent.press(screen.getByTestId('sheet-exact-readout'));
+
+      // baseRange is 170 * interaction.sliderMaxServings (4) = 680 — comfortably below 1000.
+      await fireEvent.changeText(screen.getByTestId('sheet-exact-readout-input'), '1000');
+      await fireEvent(screen.getByTestId('sheet-exact-readout-input'), 'blur');
+
+      expect(screen.getByTestId('sheet-exact-readout')).toHaveTextContent('1,000 g');
+      const track = screen.getByTestId('sheet-exact-track');
+      expect(track.props.accessibilityValue.max).toBeGreaterThanOrEqual(1000);
+      expect(track.props.accessibilityValue.now).toBe(1000);
+    });
+
+    it('an empty entry reverts to the previous value — nothing is committed', async () => {
+      const onLog = jest.fn();
+      await renderSheet({ onLog });
+      await fireEvent.press(screen.getByTestId('sheet-mode-exact'));
+      await fireEvent.press(screen.getByTestId('sheet-exact-readout'));
+
+      await fireEvent.changeText(screen.getByTestId('sheet-exact-readout-input'), '');
+      await fireEvent(screen.getByTestId('sheet-exact-readout-input'), 'blur');
+
+      expect(screen.getByTestId('sheet-exact-readout')).toHaveTextContent('170 g');
+      await fireEvent.press(screen.getByTestId('sheet-exact-log'));
+      expect(onLog).toHaveBeenCalledWith(food, 1);
+    });
+
+    it('an invalid entry reverts to the previous value — nothing is committed', async () => {
+      await renderSheet();
+      await fireEvent.press(screen.getByTestId('sheet-mode-exact'));
+      await fireEvent.press(screen.getByTestId('sheet-exact-readout'));
+
+      await fireEvent.changeText(screen.getByTestId('sheet-exact-readout-input'), 'abc');
+      await fireEvent(screen.getByTestId('sheet-exact-readout-input'), 'blur');
+
+      expect(screen.getByTestId('sheet-exact-readout')).toHaveTextContent('170 g');
+    });
+
+    it('a typed food amount is rounded to the nearest whole gram', async () => {
+      await renderSheet();
+      await fireEvent.press(screen.getByTestId('sheet-mode-exact'));
+      await fireEvent.press(screen.getByTestId('sheet-exact-readout'));
+
+      await fireEvent.changeText(screen.getByTestId('sheet-exact-readout-input'), '133.7');
+      await fireEvent(screen.getByTestId('sheet-exact-readout-input'), 'blur');
+
+      expect(screen.getByTestId('sheet-exact-readout')).toHaveTextContent('134 g');
+    });
+
+    it('submitting from the keyboard commits, same as blur', async () => {
+      await renderSheet();
+      await fireEvent.press(screen.getByTestId('sheet-mode-exact'));
+      await fireEvent.press(screen.getByTestId('sheet-exact-readout'));
+
+      await fireEvent.changeText(screen.getByTestId('sheet-exact-readout-input'), '300');
+      await fireEvent(screen.getByTestId('sheet-exact-readout-input'), 'submitEditing');
+
+      expect(screen.getByTestId('sheet-exact-readout')).toHaveTextContent('300 g');
+    });
+
+    it("a meal's typed value rounds to the nearest 0.5 servings, per docs/decisions.md ruling 11", async () => {
+      const onLog = jest.fn();
+      await renderSheet({ candidate: meal, onLog });
+      await fireEvent.press(screen.getByTestId('sheet-mode-exact'));
+      await fireEvent.press(screen.getByTestId('sheet-exact-readout'));
+
+      await fireEvent.changeText(screen.getByTestId('sheet-exact-readout-input'), '2.3');
+      await fireEvent(screen.getByTestId('sheet-exact-readout-input'), 'blur');
+
+      // 2.3 rounds to the nearest 0.5 → 2.5, never a typed way around the 0.5 step.
+      expect(screen.getByTestId('sheet-exact-readout')).toHaveTextContent('×2.5');
+
+      await fireEvent.press(screen.getByTestId('sheet-exact-log'));
+      expect(onLog).toHaveBeenCalledWith(meal, 2.5);
+    });
+
+    it('the readout is an accessible control that names the current amount', async () => {
+      await renderSheet();
+      await fireEvent.press(screen.getByTestId('sheet-mode-exact'));
+
+      const readout = screen.getByTestId('sheet-exact-readout');
+      expect(readout.props.accessibilityRole).toBe('button');
+      expect(readout.props.accessibilityLabel).toContain('170 g');
+    });
+
+    it('the Exact control stays inside a keyboard-avoiding wrapper so the Log button is not covered', async () => {
+      await renderSheet();
+      await fireEvent.press(screen.getByTestId('sheet-mode-exact'));
+
+      expect(screen.getByTestId('sheet-keyboard-avoider')).toBeTruthy();
+      // The Log button is a descendant of the avoider, so it lifts with the same keyboard inset —
+      // never left behind under the keyboard. Real keyboard-frame animation is not something RNTL
+      // can assert; issue #94's acceptance checklist marks that an iPhone follow-up, not a gate.
+      const avoider = screen.getByTestId('sheet-keyboard-avoider');
+      expect(within(avoider).getByTestId('sheet-exact-log')).toBeTruthy();
+    });
   });
 
   it('resets to Presets mode when a different candidate opens the sheet', async () => {
