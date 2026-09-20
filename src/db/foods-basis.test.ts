@@ -383,13 +383,16 @@ describe('logging', () => {
 // -------------------------------------------------------------------------------------------
 
 describe('SERVING_PRESETS', () => {
-  it('is metric only, and each preset carries the basis it implies', () => {
+  it('is metric only, and each preset carries the basis it implies and a stable key', () => {
+    // The `key` is the identity (issue #185): it is what a saved food re-selects its chip by, and
+    // it does not move when the label or the amount next to it is corrected. `serving-presets.test.ts`
+    // pins that contract; this pins the table's contents.
     expect(SERVING_PRESETS).toEqual([
-      { label: '100 g', basis: 'weight', amount: 100 },
-      { label: '100 ml', basis: 'volume', amount: 100 },
-      { label: '1 cup', basis: 'volume', amount: 250 },
-      { label: '1 tbsp', basis: 'volume', amount: 15 },
-      { label: '1 tsp', basis: 'volume', amount: 5 },
+      { key: '100g', label: '100 g', basis: 'weight', amount: 100 },
+      { key: '100ml', label: '100 ml', basis: 'volume', amount: 100 },
+      { key: 'cup', label: '1 cup', basis: 'volume', amount: 250 },
+      { key: 'tbsp', label: '1 tbsp', basis: 'volume', amount: 15 },
+      { key: 'tsp', label: '1 tsp', basis: 'volume', amount: 5 },
     ]);
   });
 });
