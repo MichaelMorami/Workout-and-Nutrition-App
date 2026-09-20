@@ -554,7 +554,7 @@ jq -r '.modules["src/db/queries/nutrition.ts"].exports[]' docs/graph/symbols.jso
 
 ## `src/components/quick-add/`
 
-### `src/components/quick-add/PortionSheet.tsx`  <sub>696 lines</sub>
+### `src/components/quick-add/PortionSheet.tsx`  <sub>778 lines</sub>
 
 - `function PortionSheet({
   candidate,
@@ -1228,7 +1228,7 @@ _no exports_
   /** Opens the field, seeded with the current value, selected so typing replaces it. */
   reado...`
 
-<sub>used by: `src/components/food-form/Stepper.tsx`</sub>
+<sub>used by: `src/components/food-form/Stepper.tsx`, `src/components/quick-add/PortionSheet.tsx`</sub>
 
 ### `src/hooks/useHapticFeedback.ts`  <sub>49 lines</sub>
 
