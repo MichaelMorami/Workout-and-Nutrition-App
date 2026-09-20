@@ -1,7 +1,8 @@
 /**
  * `useUndoToastStore` — the toast is up after `show`, replaced (not stacked) by a second `show`,
- * cleared by `dismiss`, and cleared on its own after `interaction.undoCeilingMs` — the only timed
- * dismissal (`docs/decisions.md`: no 4-second guess).
+ * cleared by `dismiss`, and cleared on its own after `interaction.undoAutoDismissMs` — the store's
+ * only timed dismissal (issue #83; the 2026-09-20 client ruling: ten seconds, wall-clock, no pause
+ * while backgrounded).
  *
  * `.test.tsx`, not `.test.ts`: `jest.config.js`'s "data" project doesn't match `src/store/**`, and
  * "components" only picks up `src/**\/*.test.tsx` (`theme-preference.test.tsx`'s note).
@@ -51,28 +52,41 @@ describe('useUndoToastStore', () => {
     expect(useUndoToastStore.getState().toast).toBeNull();
   });
 
-  it('clears itself at the undo ceiling, wall-clock from the log', () => {
+  it('clears itself 10 seconds after show, wall-clock from the log', () => {
     useUndoToastStore.getState().show(payload());
-    jest.advanceTimersByTime(interaction.undoCeilingMs - 1);
+    jest.advanceTimersByTime(interaction.undoAutoDismissMs - 1);
     expect(useUndoToastStore.getState().toast).not.toBeNull();
     jest.advanceTimersByTime(1);
     expect(useUndoToastStore.getState().toast).toBeNull();
   });
 
-  it('a second show resets the ceiling instead of stacking a stale one', () => {
+  it('a second show (another log) resets the 10s clock instead of stacking a stale one', () => {
     useUndoToastStore.getState().show(payload());
-    jest.advanceTimersByTime(interaction.undoCeilingMs - 1);
+    jest.advanceTimersByTime(interaction.undoAutoDismissMs - 1);
     useUndoToastStore.getState().show(payload({ title: 'second' }));
-    jest.advanceTimersByTime(interaction.undoCeilingMs - 1);
+    jest.advanceTimersByTime(interaction.undoAutoDismissMs - 1);
     expect(useUndoToastStore.getState().toast?.title).toBe('second');
   });
 
-  it('dismiss clears a pending ceiling timer — it does not fire on an unrelated later toast', () => {
+  it('dismiss clears a pending auto-dismiss timer — it does not fire on an unrelated later toast', () => {
     useUndoToastStore.getState().show(payload());
     useUndoToastStore.getState().dismiss();
     useUndoToastStore.getState().show(payload({ title: 'unrelated' }));
-    jest.advanceTimersByTime(interaction.undoCeilingMs - 1);
+    jest.advanceTimersByTime(interaction.undoAutoDismissMs - 1);
     expect(useUndoToastStore.getState().toast?.title).toBe('unrelated');
+  });
+
+  it('undo within the 10s window still reverses the log — dismiss before the timer fires leaves the token intact for the caller', () => {
+    useUndoToastStore.getState().show(payload());
+    jest.advanceTimersByTime(interaction.undoAutoDismissMs - 1);
+    const { toast } = useUndoToastStore.getState();
+    // `<UndoToast>` (not this store) is what calls `undo(db, { token })` on tap — the store's job
+    // is only to keep the payload's token available, unchanged, right up to the last millisecond
+    // before auto-dismiss, and to stop the timer so a same-tick undo never races the auto-dismiss.
+    expect(toast?.token).toEqual(token);
+    useUndoToastStore.getState().dismiss();
+    jest.advanceTimersByTime(1);
+    expect(useUndoToastStore.getState().toast).toBeNull();
   });
 
   // Issue #100: a food-archive delete has no `UndoToken` — `action` stands in for it, and
