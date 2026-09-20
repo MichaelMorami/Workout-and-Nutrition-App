@@ -90,4 +90,52 @@ describe('useEditableNumber', () => {
     expect(onCommit).not.toHaveBeenCalled();
     expect(result.current.editing).toBe(false);
   });
+
+  // Issue #184 review: a `decimal-pad` shows a comma for its decimal key in most non-English
+  // locales — "33,5" must commit the same as "33.5", not silently revert as unparseable.
+  it('commit accepts a comma decimal separator, same as a dot', async () => {
+    const onCommit = jest.fn();
+    const { result } = await renderHook(() => useEditableNumber({ value: 120, onCommit }));
+    await act(() => result.current.startEditing());
+
+    await act(() => result.current.setDraft('33,5'));
+    await act(() => result.current.commit());
+
+    expect(onCommit).toHaveBeenCalledWith(33.5);
+  });
+
+  it('parseDraft previews the parsed, clamped number without committing or ending the edit', async () => {
+    const onCommit = jest.fn();
+    const { result } = await renderHook(() => useEditableNumber({ value: 120, max: 500, onCommit }));
+    await act(() => result.current.startEditing());
+
+    await act(() => result.current.setDraft('9000'));
+
+    expect(result.current.parseDraft()).toBe(500);
+    expect(onCommit).not.toHaveBeenCalled();
+    expect(result.current.editing).toBe(true);
+  });
+
+  it('parseDraft returns null for an empty or invalid draft', async () => {
+    const { result } = await renderHook(() => useEditableNumber({ value: 120, onCommit: jest.fn() }));
+    await act(() => result.current.startEditing());
+
+    await act(() => result.current.setDraft(''));
+    expect(result.current.parseDraft()).toBeNull();
+
+    await act(() => result.current.setDraft('abc'));
+    expect(result.current.parseDraft()).toBeNull();
+  });
+
+  it('cancel closes the field without parsing or committing', async () => {
+    const onCommit = jest.fn();
+    const { result } = await renderHook(() => useEditableNumber({ value: 120, onCommit }));
+    await act(() => result.current.startEditing());
+    await act(() => result.current.setDraft('999'));
+
+    await act(() => result.current.cancel());
+
+    expect(onCommit).not.toHaveBeenCalled();
+    expect(result.current.editing).toBe(false);
+  });
 });

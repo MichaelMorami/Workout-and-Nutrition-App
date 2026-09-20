@@ -25,7 +25,10 @@ describe('FoodForm', () => {
     expect(screen.getByTestId('food-form-basis-weight').props.accessibilityState).toEqual({ selected: true });
     expect(screen.getByTestId('food-form-serving-amount-value')).toHaveTextContent('100');
     expect(screen.getByTestId('food-form-kcal-value')).toHaveTextContent('0');
-    expect(screen.getByTestId('food-form-protein-value')).toHaveTextContent('0');
+    // Always one decimal place — the stepper's step is 0.1, so its default (whole-number) display
+    // would otherwise round a genuinely-zero 0.1-granularity value the same as a genuinely-zero
+    // whole one, losing the distinction the step exists to make (issue #184 review).
+    expect(screen.getByTestId('food-form-protein-value')).toHaveTextContent('0.0');
   });
 
   it('pre-fills every field from an existing food when editing', async () => {
@@ -46,7 +49,29 @@ describe('FoodForm', () => {
     expect(screen.getByTestId('food-form-basis-weight').props.accessibilityState).toEqual({ selected: true });
     expect(screen.getByTestId('food-form-serving-amount-value')).toHaveTextContent('170');
     expect(screen.getByTestId('food-form-kcal-value')).toHaveTextContent('70');
-    expect(screen.getByTestId('food-form-protein-value')).toHaveTextContent('12');
+    expect(screen.getByTestId('food-form-protein-value')).toHaveTextContent('12.0');
+  });
+
+  // Issue #184 review: the protein stepper's step is 0.1, but its default display (`Math.round`)
+  // showed a whole number regardless — a pre-filled 12.4 read back as "12", and a plain + tap from 0
+  // read as "0", both hiding the exact figure the field is supposed to hold.
+  it('shows the protein figure to one decimal place — the 0.1 step never gets rounded away in the display', async () => {
+    const initial: FoodInput = {
+      name: 'Mixed nuts',
+      brand: null,
+      servingLabel: '30 g',
+      basis: 'weight',
+      servingAmount: 30,
+      kcalPer100: 600,
+      proteinPer100: 12.4,
+    };
+    await render(<FoodForm initial={initial} theme={theme} onSave={jest.fn()} onCancel={jest.fn()} testID="food-form" />);
+
+    expect(screen.getByTestId('food-form-protein-value')).toHaveTextContent('12.4');
+
+    await fireEvent.press(screen.getByTestId('food-form-protein-increase'));
+
+    expect(screen.getByTestId('food-form-protein-value')).toHaveTextContent('12.5');
   });
 
   it('pre-fills a volume food with the volume toggle selected', async () => {
