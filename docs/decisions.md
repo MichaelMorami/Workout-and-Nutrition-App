@@ -37,9 +37,21 @@ consumption is not, and being trapped on 0.5 increments is precisely the problem
 portion sheet without it.
 
 **Undo is required.** There is no save button anywhere, so the haptic is the only confirmation the
-user gets — which makes a mistaken tap silent unless undo catches it. Currently designed as a
-4-second toast above the tab bar. *Open question raised with the client: 4 s may be too short when
-the phone is on the bench mid-set.*
+user gets — which makes a mistaken tap silent unless undo catches it. Originally designed as a
+4-second toast above the tab bar, with an open question raised with the client: 4 s may be too short
+when the phone is on the bench mid-set.
+
+**Amendment, 2026-09-20 — the client answered: ten seconds.** *"The pop-up approval of a new food
+addition after logging, with the undo button, should disappear after 10 sec. (We may change this
+later, but currently it's too long.)"* This supersedes both the 4-second design above and the "no
+4-second timer" reading that followed it: the toast **is** timed, and ten seconds is the number.
+
+It is one knob — `interaction.undoAutoDismissMs` in `src/theme/tokens.ts` — because the client has
+said outright they may retune it. Wall-clock from the log: the clock keeps running while the phone
+is locked or the app is backgrounded, so a toast that `interaction.undoSurvives` may be past its ten
+seconds on return and dismiss at once. That is the current default, not a promise; if the client
+would rather the clock paused, it pauses at that token. A new log while the toast is up restarts the
+clock rather than stacking a second toast. Issue #83.
 
 ### 3. kg and cm only — no unit switch
 
