@@ -351,17 +351,17 @@ jq -r '.modules["src/db/queries/nutrition.ts"].exports[]' docs/graph/symbols.jso
 
 ## `src/components/food-form/`
 
-### `src/components/food-form/FoodForm.tsx`  <sub>575 lines</sub>
+### `src/components/food-form/FoodForm.tsx`  <sub>578 lines</sub>
 
 - `function FoodForm({ initial = null, onSave, onCancel, variant = 'screen', theme, testID = 'food-form' }: FoodFormProps): import("react").JSX.Element`
 - `type FoodFormProps = {
   /** `undefined`/`null` — a fresh food, every field starts blank/zero and the 100 g preset is
    * selected. Given — an edit, pre-selecting the matching preset or falling back to Custom
-   * (see `matchingPresetKey`). */
+   * (see `resolvePresetKey`). */
   readonly initial?: FoodInput | null;
   readonly onSave: (input: FoodInput) => void;
   readonly onCancel: () => void;
-  /** `'sheet'` — inside `CreateF...`
+  /** `'sheet'` — inside `CreateFo...`
 
 ### `src/components/food-form/Stepper.tsx`  <sub>367 lines</sub>
 
@@ -418,11 +418,11 @@ jq -r '.modules["src/db/queries/nutrition.ts"].exports[]' docs/graph/symbols.jso
 - `type FoodFormProps = {
   /** `undefined`/`null` — a fresh food, every field starts blank/zero and the 100 g preset is
    * selected. Given — an edit, pre-selecting the matching preset or falling back to Custom
-   * (see `matchingPresetKey`). */
+   * (see `resolvePresetKey`). */
   readonly initial?: FoodInput | null;
   readonly onSave: (input: FoodInput) => void;
   readonly onCancel: () => void;
-  /** `'sheet'` — inside `CreateF...`
+  /** `'sheet'` — inside `CreateFo...`
 - `type StepperProps = {
   readonly label: string;
   readonly value: number;
@@ -721,10 +721,9 @@ jq -r '.modules["src/db/queries/nutrition.ts"].exports[]' docs/graph/symbols.jso
 
 ## `src/components/`
 
-### `src/components/serving-preset.ts`  <sub>40 lines</sub>
+### `src/components/serving-preset.ts`  <sub>46 lines</sub>
 
-- `const PRESET_BY_KEY: Readonly<Record<"100g" | "100ml" | "cup" | "tbsp" | "tsp", ServingPreset>>`
-- `function matchingPresetKey(label: string, basis: FoodBasis, amount: number): ServingPresetKey | null`
+- `function resolvePresetKey(label: string, basis: FoodBasis, amount: number, table: readonly ServingPreset[] = SERVING_PRESETS): ServingPresetKey | null`
 
 <sub>used by: `src/components/food-form/FoodForm.tsx`, `src/components/quick-add/PortionSheet.tsx`</sub>
 
@@ -1432,4 +1431,4 @@ _no exports_
   readonly fontVariant?: readonly ['tabular-nums'];
 }`
 
-<sub>used by: `app/(tabs)/_layout.tsx`, `app/(tabs)/index.tsx`, `app/(tabs)/settings.tsx`, `app/_layout.tsx`, `app/foods/[id].tsx`, `app/foods/new.tsx`, `app/meals/[id].tsx`, `app/meals/new.tsx`, `src/components/charts/ProgressArc.tsx`, `src/components/day-log/DayLogList.tsx`, `src/components/day-log/DayLogRow.tsx`, `src/components/food-form/FoodForm.tsx`, `src/components/food-form/Stepper.tsx`, `src/components/food-list/FoodList.tsx`, `src/components/meals/MealForm.tsx`, `src/components/meals/MealList.tsx`, `src/components/quick-add/PortionSheet.tsx`, `src/components/quick-add/QuickAddGrid.tsx`, `src/components/quick-add/QuickAddTile.tsx`, `src/components/quick-add/UndoToast.tsx`, `src/components/search/CreateFoodSheet.tsx`, `src/components/search/SearchSheet.tsx`, `src/components/serving-preset.ts`, `src/components/settings/TargetsGroup.tsx`, `src/components/shared/SwipeToDelete.tsx`, `src/components/theme/ThemeProvider.tsx`, `src/components/theme/font-assets.ts`, `src/components/theme/theme-context.ts`, `src/components/today/TodayHeader.tsx`, `src/components/today/WeightChip.tsx`, `src/hooks/useHapticFeedback.ts`, `src/hooks/useTheme.ts`, `src/store/logTracker.ts`, `src/store/theme-preference.ts`, `src/store/undoToast.ts`</sub>
+<sub>used by: `app/(tabs)/_layout.tsx`, `app/(tabs)/index.tsx`, `app/(tabs)/settings.tsx`, `app/_layout.tsx`, `app/foods/[id].tsx`, `app/foods/new.tsx`, `app/meals/[id].tsx`, `app/meals/new.tsx`, `src/components/charts/ProgressArc.tsx`, `src/components/day-log/DayLogList.tsx`, `src/components/day-log/DayLogRow.tsx`, `src/components/food-form/FoodForm.tsx`, `src/components/food-form/Stepper.tsx`, `src/components/food-list/FoodList.tsx`, `src/components/meals/MealForm.tsx`, `src/components/meals/MealList.tsx`, `src/components/quick-add/PortionSheet.tsx`, `src/components/quick-add/QuickAddGrid.tsx`, `src/components/quick-add/QuickAddTile.tsx`, `src/components/quick-add/UndoToast.tsx`, `src/components/search/CreateFoodSheet.tsx`, `src/components/search/SearchSheet.tsx`, `src/components/settings/TargetsGroup.tsx`, `src/components/shared/SwipeToDelete.tsx`, `src/components/theme/ThemeProvider.tsx`, `src/components/theme/font-assets.ts`, `src/components/theme/theme-context.ts`, `src/components/today/TodayHeader.tsx`, `src/components/today/WeightChip.tsx`, `src/hooks/useHapticFeedback.ts`, `src/hooks/useTheme.ts`, `src/store/logTracker.ts`, `src/store/theme-preference.ts`, `src/store/undoToast.ts`</sub>
