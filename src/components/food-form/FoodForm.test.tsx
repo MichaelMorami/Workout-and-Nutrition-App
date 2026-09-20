@@ -470,7 +470,7 @@ describe('FoodForm — the Custom reveal is driven by motion.events.customReveal
       fireEvent.press(screen.getByTestId('food-form-serving-custom'));
     });
 
-    const content = screen.getByTestId('food-form-custom-reveal').children[0] as {
+    const content = screen.getByTestId('food-form-custom-reveal').children[0] as unknown as {
       props: { onLayout: (e: unknown) => void };
     };
     await act(async () => {
