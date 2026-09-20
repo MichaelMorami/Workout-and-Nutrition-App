@@ -1277,7 +1277,7 @@ _no exports_
 
 <sub>used by: `src/components/theme/ThemeProvider.tsx`</sub>
 
-### `src/store/undoToast.ts`  <sub>84 lines</sub>
+### `src/store/undoToast.ts`  <sub>85 lines</sub>
 
 - `const useUndoToastStore: import("zustand").UseBoundStore<import("zustand").StoreApi<UndoToastState>>`
 - `interface LogDelta`
