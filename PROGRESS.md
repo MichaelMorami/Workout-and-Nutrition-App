@@ -114,3 +114,4 @@ For the sprint-by-sprint plan see [`README.md`](README.md); for open work see th
 - 2026-09-20  feat: wire per-preset serving steps into PortionSheet (issue #93)  (PR #194 closes #93)
 - 2026-09-20  feat: undo toast auto-dismiss token (issue #83)  (PR #196)
 - 2026-09-20  feat: undo toast auto-dismisses on undoAutoDismissMs, not the 3min ceiling (issue #83)  (PR #199)
+- 2026-09-20  docs: record the client's 10 s undo ruling in decisions ruling 2 (issue #83)  (PR #197 closes #83)
