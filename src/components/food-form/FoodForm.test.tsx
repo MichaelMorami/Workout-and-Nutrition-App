@@ -25,10 +25,10 @@ describe('FoodForm', () => {
     expect(screen.getByTestId('food-form-basis-weight').props.accessibilityState).toEqual({ selected: true });
     expect(screen.getByTestId('food-form-serving-amount-value')).toHaveTextContent('100');
     expect(screen.getByTestId('food-form-kcal-value')).toHaveTextContent('0');
-    // Always one decimal place — the stepper's step is 0.1, so its default (whole-number) display
-    // would otherwise round a genuinely-zero 0.1-granularity value the same as a genuinely-zero
-    // whole one, losing the distinction the step exists to make (issue #184 review).
-    expect(screen.getByTestId('food-form-protein-value')).toHaveTextContent('0.0');
+    // A whole-number protein figure reads unpadded, no trailing ".0" — per the #88 spec board
+    // (design/food-form/canvas/Spec.dc.html: "a trailing .0 is dropped"). Only when the value
+    // actually has a fractional part does the decimal show (see the dedicated test below).
+    expect(screen.getByTestId('food-form-protein-value')).toHaveTextContent('0');
   });
 
   it('pre-fills every field from an existing food when editing', async () => {
@@ -49,7 +49,7 @@ describe('FoodForm', () => {
     expect(screen.getByTestId('food-form-basis-weight').props.accessibilityState).toEqual({ selected: true });
     expect(screen.getByTestId('food-form-serving-amount-value')).toHaveTextContent('170');
     expect(screen.getByTestId('food-form-kcal-value')).toHaveTextContent('70');
-    expect(screen.getByTestId('food-form-protein-value')).toHaveTextContent('12.0');
+    expect(screen.getByTestId('food-form-protein-value')).toHaveTextContent('12');
   });
 
   // Issue #184 review: the protein stepper's step is 0.1, but its default display (`Math.round`)

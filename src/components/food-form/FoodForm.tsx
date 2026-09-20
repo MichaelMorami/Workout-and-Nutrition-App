@@ -251,9 +251,21 @@ export function FoodForm({ initial = null, onSave, onCancel, theme, testID = 'fo
         max={500}
         unit={UNIT_OF_BASIS.weight}
         onChange={setProteinPer100}
-        // Always one decimal place, matching the 0.1 step's own granularity — the default
+        // Up to one decimal place, matching the 0.1 step's own granularity — the default
         // `Math.round` display would otherwise show "0" for a fresh 0.1 tap (issue #184 review).
-        formatValue={(v) => v.toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 })}
+        // A trailing .0 is dropped ("9 g", never "9.0 g") per the #88 spec board
+        // (design/food-form/canvas/Spec.dc.html); only `maximumFractionDigits` is set, not
+        // `minimumFractionDigits` — a whole-number value well already reads fine unpadded, and
+        // padding it here would just be pixels the spec explicitly draws without. This governs the
+        // value well only: the preview strip's "whole numbers above 10 g" half of the spec is not
+        // implemented here, deliberately — that would re-create the original bug (a typed 12.4
+        // would display back as "12").
+        // The explicit `undefined` here is the platform-default locale, same as the other two
+        // steppers on this form get implicitly via `Stepper`'s own unset `locale` prop — neither is
+        // wired to a real device locale yet (`FoodForm` doesn't accept one), so this isn't a special
+        // case being carved out, just `toLocaleString`'s required-positional-argument syntax for
+        // "no locale override, but yes to these options" (review, #184 round 3).
+        formatValue={(v) => v.toLocaleString(undefined, { maximumFractionDigits: 1 })}
         theme={theme}
         testID={`${testID}-protein`}
       />
