@@ -66,10 +66,10 @@
  *    token — `glyph` (`src/theme/tokens.ts`) has no lock entry. Rendered without an icon rather than
  *    hard-coding an Ionicons name design-lead never published.
  *  - The footer is the last item inside the form's own `ScrollView`, not a true pinned/keyboard-
- *    avoiding footer — there is no `KeyboardAvoidingView` precedent anywhere in this codebase yet
- *    (tracked separately as issue #207, out of scope for #191 — see that issue for why). Not
- *    changed here. `footerDivider` still appears once the content has scrolled, via a plain
- *    `onScroll` check.
+ *    avoiding footer — `PortionSheet.tsx` already has a `KeyboardAvoidingView` precedent, but this
+ *    form does not follow it yet (tracked separately as issue #207, out of scope for #191 — see that
+ *    issue for why). Not changed here. `footerDivider` still appears once the content has scrolled,
+ *    via a plain `onScroll` check.
  */
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import {
@@ -324,6 +324,27 @@ function CustomReveal({
   // for its own payload, rather than a `setState` tucked inside an effect body.
   if (visible && !rendered) setRendered(true);
 
+  // Declared ahead of the effects below on purpose: both `height` and `heightKnown` also appear in
+  // the second effect's dependency array, and this codebase's lint rule (`react-hooks/immutability`)
+  // refuses a direct (non-`withTiming`) snap-write to a shared value from code that comes *after* an
+  // effect the same value was named in — a bare `height.value = 0` reads too much like the kind of
+  // effect-driven state write React's own compiler rejects, even though a Reanimated shared value
+  // isn't render state. Snapping here, before either effect, keeps the snap and the `useAnimatedStyle`
+  // read of the very same value unambiguous about which one is the "handle", not merely satisfies the
+  // linter.
+  const handleLayout = (event: LayoutChangeEvent): void => {
+    const measured = event.nativeEvent.layout.height;
+    measuredHeight.current = measured;
+    if (!hasToggledRef.current || !visible || measured === height.value) return;
+    if (!heightKnown.value) {
+      // First measurement since a real open/close transition: snap the shared value to 0 first so
+      // this tween has somewhere to grow from, rather than "jumping" from an assumed-known value.
+      height.value = 0;
+      heightKnown.value = true;
+    }
+    height.value = withTiming(measured, { duration, easing: Easing.bezier(...curve) });
+  };
+
   useEffect(() => {
     if (visible) {
       if (removalTimer.current) {
@@ -351,7 +372,7 @@ function CustomReveal({
     opacity.value = withTiming(visible ? 1 : 0, { duration, easing: Easing.bezier(...curve) });
     // Closing always has a known height to retreat from — Custom cannot be closed before it has
     // been opened, so `measuredHeight.current` is always set by the time this branch runs.
-    // Opening's height tween lives entirely in `handleLayout` below instead of here: on the very
+    // Opening's height tween lives entirely in `handleLayout` above instead of here: on the very
     // first open in this component's lifetime `onLayout` has not fired yet when this effect runs
     // (it needs a real native layout pass), so this effect used to have nothing to tween from and
     // fell back to fade-only — the common case for anyone who picks Custom just once (review #209,
@@ -366,19 +387,6 @@ function CustomReveal({
       height.value = withTiming(0, { duration, easing: Easing.bezier(...curve) });
     }
   }, [visible, duration, curve, height, heightKnown, opacity]);
-
-  const handleLayout = (event: LayoutChangeEvent): void => {
-    const measured = event.nativeEvent.layout.height;
-    measuredHeight.current = measured;
-    if (!hasToggledRef.current || !visible || measured === height.value) return;
-    if (!heightKnown.value) {
-      // First measurement since a real open/close transition: snap the shared value to 0 first so
-      // this tween has somewhere to grow from, rather than "jumping" from an assumed-known value.
-      height.value = 0;
-      heightKnown.value = true;
-    }
-    height.value = withTiming(measured, { duration, easing: Easing.bezier(...curve) });
-  };
 
   const animatedStyle = useAnimatedStyle(() => ({
     height: heightKnown.value ? height.value : undefined,

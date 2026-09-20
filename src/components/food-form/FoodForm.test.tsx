@@ -430,7 +430,9 @@ describe('FoodForm — the Custom reveal is driven by motion.events.customReveal
   // `BasisToggle` buttons and the Amount stepper would sit at `height: 0, opacity: 0` forever,
   // reachable by a screen reader reading over the locked read-out it's supposedly replaced.
   it('removes the Custom fields once the close tween has run', async () => {
-    jest.useFakeTimers();
+    // Fake timers are already global (`test/setup/` freezes the clock for every suite via
+    // `freezeTime()`), so this test just advances them directly — switching timer modes locally is
+    // a project-wide guard rail, enforced in `test/time.test.ts`.
     await render(<FoodForm theme={theme} onSave={jest.fn()} onCancel={jest.fn()} testID="food-form" />);
 
     await act(async () => {
@@ -451,6 +453,5 @@ describe('FoodForm — the Custom reveal is driven by motion.events.customReveal
     // asserts what actually left the tree, not what merely stopped being announced.
     expect(screen.queryByTestId('food-form-serving-label', { includeHiddenElements: true })).toBeNull();
     expect(screen.queryByTestId('food-form-basis-weight', { includeHiddenElements: true })).toBeNull();
-    jest.useRealTimers();
   });
 });
