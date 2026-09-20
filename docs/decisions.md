@@ -489,3 +489,37 @@ a backfill — and it goes through `db-engineer`, not into a constant.
 field that is not its display text and not its position in the array. Labels are for reading,
 amounts get corrected, and array order is not a promise. `interaction.servingSteps` in the theme
 tokens is keyed the same way and for the same reason.
+
+## Forms — the frame, and who owns the keyboard inset
+
+Issue #207 · PR #212 · canvas `design/keyboard-footer/canvas`
+
+### 13. Every form is a scrolling body under a pinned footer
+
+The footer is a sibling of the scroll view, never its last child, and it rides the keyboard. Save
+was already reachable on both platforms — the #188 review confirmed it — so this buys no
+correctness. It buys the first priority: with the keyboard up, the thing you are about to press is
+already under your thumb, and you never scroll to find it.
+
+Three rules make it portable to the next form without a second design pass:
+
+- **One keyboard avoider per presentation**, owned by the outermost frame on screen. A pushed
+  screen's form owns it; inside a sheet the *sheet* owns it, because the scrim has to rise too, and
+  the form inside adds none. Two avoiders shift the content twice.
+- **The footer owns the bottom inset, the body owns none**, through
+  `formFooterPaddingBottom(keyboardVisible, insets.bottom)` in `src/theme/tokens.ts`: the pad alone
+  with the keyboard up, `max(inset, pad)` with it down. Adding the safe-area inset on top of the
+  keyboard lifts the button off a band of dead keys — that is the mistake the function exists to
+  make unrepeatable.
+- **The footer never collapses.** Two rows whenever the keyboard is up; any note row is
+  keyboard-down only. The body absorbs every bit of the squeeze and scrolls — on a 375 × 667 phone
+  with a 260 pt keyboard that still leaves 209 pt of form.
+
+The lift itself is the OS's animation, not ours: `KeyboardAvoidingView` (RN core — it has to run in
+Expo Go) follows the keyboard's own curve, which is also why reduce motion needs no branch for it.
+Vitals owns no duration for that travel and must not grow one.
+
+**How to read it for a new case.** When a control's position depends on a thing the OS animates,
+let the OS own the motion and own only the distances around it. A Vitals duration laid over a
+system curve does not refine it — it desynchronises from it on the one device that animates at a
+different speed.
