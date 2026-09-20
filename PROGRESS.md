@@ -111,3 +111,4 @@ For the sprint-by-sprint plan see [`README.md`](README.md); for open work see th
 - 2026-09-20  feat: useEditableNumber hook — tap-to-type parse/clamp/revert (issue #87)  (PR #184 closes #87)
 - 2026-09-20  feat: food-form serving picker — chips, Custom fields, live preview (issue #89)  (PR #188 closes #89)
 - 2026-09-20  feat: Exact-mode readout — tap to type an amount (issue #94)  (PR #193 closes #94)
+- 2026-09-20  feat: wire per-preset serving steps into PortionSheet (issue #93)  (PR #194 closes #93)

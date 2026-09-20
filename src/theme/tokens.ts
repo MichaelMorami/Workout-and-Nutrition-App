@@ -1537,9 +1537,26 @@ export const interaction = {
   /** How long a search row shows its Logged beat before the sheet closes. */
   rowLoggedHoldMs: 240,
   /**
-   * Undo toast ceiling, wall-clock from the log. The toast is dismissed by your next action
-   * (`undoDismissedBy`), not by a short timer; this ceiling only stops a stale undo carrying into the
-   * next meal. Three minutes covers one full rest period for a heavy compound lift.
+   * How long the undo toast stays up: it dismisses itself this long after `show()`, wall-clock from
+   * the log (client ruling, 2026-09-20 — the answer to the open question behind decisions ruling 2).
+   * This is the ordinary dismissal, and the single knob for it — a new log while the toast is up
+   * restarts this clock. Retune the number here; never write the milliseconds into the store.
+   *
+   * Ten seconds is long enough to read "Logged 250 g oats" and reach the button one-handed, short
+   * enough that the toast is gone before it is in the way of the next thing you log.
+   *
+   * Wall-clock is the current default, not a promise: the clock keeps running while the phone is
+   * locked or the app is backgrounded, so a toast that `undoSurvives` may be past its ten seconds on
+   * return and dismiss at once. If the client would rather the clock paused, it pauses here.
+   */
+  undoAutoDismissMs: 10_000,
+  /**
+   * The stale-undo ceiling — a different job from `undoAutoDismissMs`, which is the ordinary
+   * dismissal above. This is the outer bound, wall-clock from the log, that stops an undo the
+   * ordinary path somehow missed from carrying into the next meal: three minutes covers one full
+   * rest period for a heavy compound lift. Once the toast dismisses itself at ten seconds the
+   * ceiling may have nothing left to do; whether it still earns its keep is the store's call in
+   * `undoToast.ts` (issue #83), so it stays named here until that PR decides.
    */
   undoCeilingMs: 180_000,
   /** What ends the undo toast early. */
