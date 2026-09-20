@@ -351,8 +351,9 @@ describe('undo toast timing (issue #83)', () => {
     expect(interaction.undoAutoDismissMs).toBe(10_000);
   });
 
-  it('keeps the ordinary dismissal well inside the stale-undo ceiling, so the two knobs cannot swap jobs', () => {
-    expect(interaction.undoAutoDismissMs).toBeLessThan(interaction.undoCeilingMs);
+  it('no longer names a stale-undo ceiling: the store runs one wall-clock timer (issue #201)', () => {
+    expect(interaction).not.toHaveProperty('undoCeilingMs');
+    expect(interaction.undoDismissedBy).not.toContain('ceiling');
   });
 
   it('leaves long enough to read the toast and reach Undo one-handed', () => {
