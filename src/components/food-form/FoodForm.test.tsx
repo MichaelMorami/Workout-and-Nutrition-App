@@ -14,10 +14,20 @@
 import { fireEvent, render, screen } from '@testing-library/react-native';
 import { TextInput } from 'react-native';
 import type { FoodInput } from '../../db';
-import { themes } from '../../theme/tokens';
+import { motion, themes } from '../../theme/tokens';
 import { FoodForm } from './FoodForm';
+import { __resetAnimations, __setReducedMotion, __timingCalls } from './test-support/reanimated-mock';
+
+// Reanimated 4 pulls in `react-native-worklets`, which throws under `jest-expo/ios` at import time
+// (qa-engineer's #45 is the real fix). `./test-support/reanimated-mock` is this folder's own
+// stand-in — see its module doc for why it is not shared with `quick-add`'s copy.
+jest.mock('react-native-reanimated', () => jest.requireActual('./test-support/reanimated-mock'));
 
 const theme = themes.dark;
+
+afterEach(() => {
+  __resetAnimations();
+});
 
 describe('FoodForm — serving picker', () => {
   it('starts a new food on the 100 g preset, locked and ready to save untouched', async () => {
@@ -72,10 +82,17 @@ describe('FoodForm — serving picker', () => {
     expect(screen.getByTestId('food-form-locked-amount')).toHaveTextContent('100 g', { exact: false });
   });
 
-  it('Custom opens Label, Measured by and Amount, seeded from the last chip, and focuses Label', async () => {
+  it('Custom opens Label, Measured by and Amount, seeded from the last chip, and focuses the Label field specifically', async () => {
     // Issue #89 review B3: `props.focused` is `undefined` on an RNTL `TextInput`, so
     // `props.focused ?? true` was vacuously true regardless of the component. A spy on the real
     // `TextInput.prototype.focus` actually fails if the effect stops calling it.
+    //
+    // Issue #191, item 3: asserting only `toHaveBeenCalledTimes(1)` is prototype-wide — it would
+    // still pass if the effect focused Brand, or Amount, or any other field on the form, since
+    // every `TextInput` shares the same prototype. Naming the instance the spy was actually called
+    // on (`food-form-serving-label`'s own `testID`) is what a wrong-field regression trips: point
+    // the autofocus at another field and this line goes red, where the old bare-count assertion
+    // did not (see the PR body for that mutation's output).
     const focusSpy = jest.spyOn(TextInput.prototype, 'focus');
     await render(<FoodForm theme={theme} onSave={jest.fn()} onCancel={jest.fn()} testID="food-form" />);
 
@@ -92,6 +109,8 @@ describe('FoodForm — serving picker', () => {
     expect(screen.getByTestId('food-form-basis-volume').props.accessibilityState).toEqual({ selected: true });
     expect(screen.getByTestId('food-form-serving-amount-value')).toHaveTextContent('15');
     expect(focusSpy).toHaveBeenCalledTimes(1);
+    const instances = focusSpy.mock.instances as unknown as { props: { testID?: string } }[];
+    expect(instances[0]?.props.testID).toBe('food-form-serving-label');
     focusSpy.mockRestore();
   });
 
@@ -362,5 +381,49 @@ describe('FoodForm — accessibility, keyboard and other unchanged behaviour', (
     expect(cancel.props.accessibilityLabel).toBe('Cancel');
     expect(chip.props.accessibilityRole).toBe('button');
     expect(chip.props.accessibilityLabel).toBeTruthy();
+  });
+});
+
+describe('FoodForm — the Custom reveal is driven by motion.events.customReveal (issue #191, item 1)', () => {
+  it('opening Custom fades it in on the customReveal duration and easing', async () => {
+    await render(<FoodForm theme={theme} onSave={jest.fn()} onCancel={jest.fn()} testID="food-form" />);
+
+    await fireEvent.press(screen.getByTestId('food-form-serving-custom'));
+
+    const call = __timingCalls.find((c) => c.toValue === 1);
+    expect(call).toBeDefined();
+    expect(call?.config?.duration).toBe(motion.events.customReveal.duration);
+  });
+
+  it('closing Custom fades it out on the same token', async () => {
+    await render(<FoodForm theme={theme} onSave={jest.fn()} onCancel={jest.fn()} testID="food-form" />);
+
+    await fireEvent.press(screen.getByTestId('food-form-serving-custom'));
+    __timingCalls.length = 0;
+    await fireEvent.press(screen.getByTestId('food-form-serving-cup'));
+
+    const call = __timingCalls.find((c) => c.toValue === 0);
+    expect(call).toBeDefined();
+    expect(call?.config?.duration).toBe(motion.events.customReveal.duration);
+  });
+
+  it('honours reduce motion — the reveal collapses to its instant duration', async () => {
+    __setReducedMotion(true);
+    await render(<FoodForm theme={theme} onSave={jest.fn()} onCancel={jest.fn()} testID="food-form" />);
+
+    await fireEvent.press(screen.getByTestId('food-form-serving-custom'));
+
+    const call = __timingCalls.find((c) => c.toValue === 1);
+    expect(call).toBeDefined();
+    expect(call?.config?.duration).toBe(motion.events.customReveal.reduced.duration);
+  });
+
+  it('still opens the fields at once regardless of reduce motion — only the timing changes', async () => {
+    __setReducedMotion(true);
+    await render(<FoodForm theme={theme} onSave={jest.fn()} onCancel={jest.fn()} testID="food-form" />);
+
+    await fireEvent.press(screen.getByTestId('food-form-serving-custom'));
+
+    expect(screen.getByTestId('food-form-serving-label')).toBeTruthy();
   });
 });
