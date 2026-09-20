@@ -401,3 +401,38 @@ there. The foods list in Settings (#100) follows the same rule.
 
 Deleting a meal tombstones the meal and its items. It never touches past `food_log` rows, because
 they store their own `kcal`/`protein` (see `CLAUDE.md`, "History is immutable").
+
+## Exact numbers — typing is allowed, and the step is not the escape hatch
+
+Ruled by the client on 2026-09-15 in issue #87, landed in PR #184 · binds
+`src/components/food-form/Stepper.tsx` and every screen that uses it · no change to the data model
+
+### 11. A number field is allowed when the stepper is the slow path, not the fast one
+
+**The situation.** The original doctrine was "never a keyboard number field": every amount moved in
++/- taps on a five-unit grid, on the reasoning that a keyboard is slower than a tap and that a grid
+keeps a value tidy. The client's bug report (6.4) measured what that cost on real food. A nut butter
+at 600 kcal per 100 g took **120 taps** to log; a plain 100 g serving took 20. A label reading 37 g
+could not be entered at all — only 35 or 40.
+
+**The ruling.** Three changes, everywhere `Stepper` is used:
+
+- **Tap the value to type it.** A `decimal-pad` opens with the current value selected, so typing
+  replaces it. An empty or invalid entry reverts in silence; nothing is ever half-committed.
+- **+/- steps by 1** (protein by 0.1) **in the food form**, so a correction of one gram is one tap.
+- **Holding +/-** repeats and then accelerates, for a long run in one gesture.
+
+**Targets and meal portions keep their own step sizes** (50 kcal / 5 g, and 0.5 servings). Their
+steps were never the problem — reaching an exact number was, and typing now covers that. Dropping a
+2,400 kcal target to steps of 1 would have made the common case worse to fix the rare one.
+
+**Why it costs no taps.** The grid was defending tidiness, not speed. Typing is *fewer* taps
+whenever the target is more than a few steps away, and the stepper is still there for the small
+correction, which is the case it was always good at. Tap-to-type raises the ceiling and lowers
+nothing: setting an arbitrary kcal value goes from ~120 taps to one tap plus typing.
+
+**How to read it for a new case.** A stepper is right when the value moves by a step or two from
+where it already is. The moment a real value on a real label needs more than a handful of taps, the
+control needs a way to be told the number outright. That is not a licence for a bare text field:
+the typed path is an *addition* to the stepper, keeps the same clamping and validation, and reverts
+rather than storing nonsense. #94 applies the same rule to the portion sheet's quantity readout.
