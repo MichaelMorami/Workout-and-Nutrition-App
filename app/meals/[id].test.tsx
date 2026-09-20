@@ -20,6 +20,14 @@ import * as schema from '../../src/db/schema';
 import { themes } from '../../src/theme/tokens';
 import EditMealScreen from './[id]';
 
+// This screen renders `<MealForm>`, which imports `Stepper` from the `food-form` barrel — that
+// barrel also re-exports `<FoodForm>`, which now drives its Custom reveal through
+// `react-native-reanimated` (issue #191). Reanimated 4 loads `react-native-worklets`, which reaches
+// for a native module at import time and throws under `jest-expo/ios` (qa-engineer's #45 is the
+// real fix) — `../../src/components/food-form/test-support/reanimated-mock` is the local stand-in
+// `FoodForm.test.tsx` itself uses.
+jest.mock('react-native-reanimated', () => jest.requireActual('../../src/components/food-form/test-support/reanimated-mock'));
+
 const mockBack = jest.fn();
 let mockParams: { id: string } = { id: '' };
 jest.mock('expo-router', () => ({

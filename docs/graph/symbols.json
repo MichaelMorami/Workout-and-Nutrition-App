@@ -1,6 +1,6 @@
 {
   "generated": "scripts/graph-gen.mjs — do not edit by hand",
-  "moduleCount": 88,
+  "moduleCount": 89,
   "modules": {
     "app/(tabs)/_layout.tsx": {
       "exports": [
@@ -408,6 +408,7 @@
       "imports": [
         "react",
         "react-native",
+        "react-native-reanimated",
         "src/components/food-form/Stepper.tsx",
         "src/components/format/food.ts",
         "src/components/serving-preset.ts",
@@ -415,7 +416,7 @@
         "src/hooks/useHapticFeedback.ts",
         "src/theme/tokens.ts"
       ],
-      "loc": 578
+      "loc": 790
     },
     "src/components/food-form/Stepper.tsx": {
       "exports": [
@@ -450,6 +451,26 @@
         "src/components/meals/MealForm.tsx",
         "src/components/search/CreateFoodSheet.tsx"
       ]
+    },
+    "src/components/food-form/test-support/reanimated-mock.tsx": {
+      "exports": [
+        "const Easing: { bezier: (x1: number, y1: number, x2: number, y2: number) => MockEasing; }",
+        "const __timingCalls: { toValue: unknown; config: TimingConfig | undefined; }[]",
+        "const default: { View: typeof AnimatedView; }",
+        "const useAnimatedStyle: <T>(updater: () => T) => T",
+        "const useReducedMotion: () => boolean",
+        "function __resetAnimations(): void",
+        "function __setReducedMotion(value: boolean): void",
+        "function useSharedValue(initial: T): SharedValue<T>",
+        "function withTiming(toValue: T, config?: TimingConfig): T",
+        "type MockEasing = { readonly factory: () => (t: number) => number; readonly points: readonly number[] }",
+        "type TimingConfig = { readonly duration?: number; readonly easing?: MockEasing }"
+      ],
+      "imports": [
+        "react",
+        "react-native"
+      ],
+      "loc": 88
     },
     "src/components/food-list/FoodList.tsx": {
       "exports": [

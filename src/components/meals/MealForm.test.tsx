@@ -12,6 +12,14 @@ import { listFoods, searchFoodsOnly } from '../../db';
 import { themes } from '../../theme/tokens';
 import { MealForm } from './MealForm';
 
+// `<MealForm>` imports `Stepper` from `../food-form`'s barrel, which also re-exports `<FoodForm>` —
+// evaluating the barrel therefore evaluates `FoodForm.tsx` too, which now drives its Custom reveal
+// through `react-native-reanimated` (issue #191). Reanimated 4 loads `react-native-worklets`, which
+// reaches for a native module at import time and throws under `jest-expo/ios` (qa-engineer's #45 is
+// the real fix) — `../food-form/test-support/reanimated-mock` is the local stand-in
+// `FoodForm.test.tsx` itself uses.
+jest.mock('react-native-reanimated', () => jest.requireActual('../food-form/test-support/reanimated-mock'));
+
 jest.mock('../../db', () => ({
   ...jest.requireActual<typeof import('../../db')>('../../db'),
   listFoods: jest.fn(),

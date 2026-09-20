@@ -34,24 +34,72 @@
  * changes" plus a history note when editing, and paints the footer `foodForm.footerBgScreen` (the
  * canvas). Never both at once — a screen is never inside the create sheet's own footer band.
  *
+ * CUSTOM REVEAL (issue #191, item 1). `motion.events.customReveal` (height + fade) now drives
+ * `<CustomReveal>` below through `react-native-reanimated`, the same `useReducedMotion` +
+ * `useSharedValue` + `useEffect`-keyed-`withTiming` shape `QuickAddTile`'s `tilePressIn`/`tilePressOut`
+ * and `UndoToast`'s `toastIn`/`toastOut` already use for every other `motion.events.*` token in this
+ * codebase.
+ *  - Reanimated has no "auto height" primitive, so the reveal's own `onLayout` (`handleLayout`)
+ *    drives the height tween directly rather than a `useEffect` keyed only to `visible` — an effect
+ *    fires before the native layout pass has produced a measurement, so keying the open tween to it
+ *    alone left the very first open fade-only (review #209, S1). Driving it from `onLayout` instead
+ *    also means the box tracks the fields' own height if it changes while still open (Dynamic Type,
+ *    rotation), rather than staying pinned at whatever was first measured. `hasToggledRef` keeps this
+ *    passive on the very first paint when a form lands straight on Custom (an edit with no matching
+ *    preset) — nothing tweens in on mount, only on an actual open/close after that. RNTL's renderer
+ *    does not fire `onLayout` on its own, but a test can invoke the `View`'s `onLayout` prop by hand
+ *    with a synthetic event, `act()`-wrapped so the mock's re-render lands before the next assertion
+ *    reads it — `FoodForm.test.tsx`'s "reopening Custom mid-close returns the fields to their
+ *    measured height" test (review #209 round 2, B4) exercises this path directly, open → grow →
+ *    close → reopen. Whether `handleLayout` is ever *called* on a given path is a property of the
+ *    tree (does the measured frame actually change, does the subtree unmount), not of the harness —
+ *    on device, `useAnimatedStyle` itself needs no React re-render at all, so nothing here depends on
+ *    RNTL's rendering model beyond that one caveat.
+ *  - The fields stay mounted through their own close tween (`UndoToast`'s held-payload shape), per
+ *    `motion.events.customReveal`'s own doc (`tokens.ts`, "interruptible: a second chip tap
+ *    mid-animation reverses it from where it is") and this reveal's promise that a chip tap back to
+ *    Custom mid-close reverses it from wherever it is, rather than a hard cut. Reopening *during* the
+ *    close hold never gets a new `onLayout` — `revealContent`'s own frame never changes across the
+ *    cycle, so RN never re-fires the layout event, and the subtree never unmounts either — so the
+ *    visibility effect below carries an explicit `visible` branch that retargets `height` for exactly
+ *    that case (review #209 round 2, B4; guarded by `heightKnown.value` so `handleLayout` still owns
+ *    a genuine first open). `FoodForm.test.tsx`'s "removes the Custom fields once the close tween has
+ *    run" test (review #209, B1) guards the end of an uninterrupted hold — the fields are gone once
+ *    the token's own duration has elapsed. For the hold itself, the `Animated.View` also drops
+ *    `pointerEvents` to `'none'` and hides itself from the accessibility tree
+ *    (`accessibilityElementsHidden` / `importantForAccessibility="no-hide-descendants"`) the instant
+ *    `visible` goes false, so a screen reader never announces a field that is already fading out
+ *    underneath the locked read-out.
+ *
  * DISCLOSED GAPS (see this issue's PR body):
  *  - The locked read-out's padlock glyph has a colour token (`foodForm.lockIcon`) but no icon *name*
  *    token — `glyph` (`src/theme/tokens.ts`) has no lock entry. Rendered without an icon rather than
  *    hard-coding an Ionicons name design-lead never published.
- *  - The Custom-reveal's `motion.events.customReveal` (200 ms height+fade) is not wired through
- *    `react-native-reanimated` — it is a plain conditional render. Precedent: `PortionSheet`'s own
- *    `portionModeSwap` token is equally unwired today; RNTL cannot assert animation timing anyway.
  *  - The footer is the last item inside the form's own `ScrollView`, not a true pinned/keyboard-
- *    avoiding footer — there is no `KeyboardAvoidingView` precedent anywhere in this codebase yet.
- *    `footerDivider` still appears once the content has scrolled, via a plain `onScroll` check.
+ *    avoiding footer — `PortionSheet.tsx` already has a `KeyboardAvoidingView` precedent, but this
+ *    form does not follow it yet (tracked separately as issue #207, out of scope for #191 — see that
+ *    issue for why). Not changed here. `footerDivider` still appears once the content has scrolled,
+ *    via a plain `onScroll` check.
  */
-import { useEffect, useRef, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View, TextInput, type NativeSyntheticEvent, type NativeScrollEvent, type TextStyle } from 'react-native';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
+import {
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+  TextInput,
+  type LayoutChangeEvent,
+  type NativeSyntheticEvent,
+  type NativeScrollEvent,
+  type TextStyle,
+} from 'react-native';
+import Animated, { Easing, useAnimatedStyle, useReducedMotion, useSharedValue, withTiming } from 'react-native-reanimated';
 import { SERVING_PRESETS, UNIT_OF_BASIS, servingOf, servingPresetByKey, type FoodBasis, type FoodInput, type ServingPresetKey } from '../../db';
 import { formatGrams, formatMl, formatPreviewProtein } from '../format/food';
 import { useHapticFeedback } from '../../hooks/useHapticFeedback';
 import { resolvePresetKey } from '../serving-preset';
-import { haptics, radius, size, space, type, type Theme, type TypeStyle } from '../../theme/tokens';
+import { haptics, motion, radius, size, space, type, type Theme, type TypeStyle } from '../../theme/tokens';
 import { Stepper } from './Stepper';
 
 type ServingKey = ServingPresetKey | 'custom';
@@ -233,9 +281,168 @@ function Chip({
   );
 }
 
+/**
+ * Drives `motion.events.customReveal` (height + fade) through `react-native-reanimated` for the
+ * Custom fields — same `useReducedMotion` + `useSharedValue` + `useEffect`-keyed-`withTiming` shape
+ * as `QuickAddTile`'s `tilePressIn`/`tilePressOut` and `UndoToast`'s `toastIn`/`toastOut` (module doc,
+ * "CUSTOM REVEAL"). Mounted once for the form's lifetime — `visible` toggles rather than this
+ * component being conditionally created/destroyed by its caller — so the refs and shared values
+ * below persist across every open/close instead of resetting each time.
+ *
+ * HELD THROUGH ITS OWN CLOSE, same shape as `UndoToast`'s payload hold: `rendered` keeps the fields
+ * (and their typed-in state, which in fact lives one level up in `FoodForm` itself — issue #89's
+ * "switching is never a reset") in the tree until the close tween's own duration has elapsed, so a
+ * chip tap back to Custom mid-close reverses the animation from wherever it is rather than cutting
+ * it. Opening is immediate — the fields must exist to be tapped into the instant Custom is picked.
+ *
+ * HEIGHT IS MEASURED, NOT GUESSED. There is no "auto height" primitive in Reanimated — `onLayout` on
+ * the unclipped content below reports its natural height once it has rendered, and only once that is
+ * known does this stop rendering an unclipped (`height: undefined`) box and start tweening a real
+ * number between it and 0. The first-ever open (including an edit that lands straight on Custom) has
+ * nothing measured yet, so it renders unclipped and un-tweened — nothing to reveal when it was
+ * already there at first paint.
+ */
+function CustomReveal({
+  visible,
+  reducedMotion,
+  children,
+  testID,
+}: {
+  visible: boolean;
+  reducedMotion: boolean;
+  children: ReactNode;
+  testID: string;
+}) {
+  const [rendered, setRendered] = useState(visible);
+  const removalTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const measuredHeight = useRef<number | null>(null);
+  const mountedRef = useRef(false);
+  // True once this reveal has undergone at least one visible transition since mount. Landing
+  // straight on Custom at mount (an edit with no matching preset) is not a transition — nothing
+  // tweens in, per the "renders unclipped and un-tweened" doc note above — so `handleLayout` below
+  // only starts actively tweening height once the user has actually opened or closed it once.
+  const hasToggledRef = useRef(false);
+  const height = useSharedValue(0);
+  const heightKnown = useSharedValue(false);
+  const opacity = useSharedValue(visible ? 1 : 0);
+
+  const revealEvent = motion.events.customReveal;
+  const duration = reducedMotion ? revealEvent.reduced.duration : revealEvent.duration;
+  const curve = motion.easing[revealEvent.easing];
+
+  // Adopted the instant `visible` turns true — the same derived-state escape hatch `UndoToast` uses
+  // for its own payload, rather than a `setState` tucked inside an effect body.
+  if (visible && !rendered) setRendered(true);
+
+  // Declared ahead of the effects below on purpose: both `height` and `heightKnown` also appear in
+  // the second effect's dependency array, and this codebase's lint rule (`react-hooks/immutability`)
+  // refuses a direct (non-`withTiming`) snap-write to a shared value from code that comes *after* an
+  // effect the same value was named in — a bare `height.value = 0` reads too much like the kind of
+  // effect-driven state write React's own compiler rejects, even though a Reanimated shared value
+  // isn't render state. Snapping here, before either effect, keeps the snap and the `useAnimatedStyle`
+  // read of the very same value unambiguous about which one is the "handle", not merely satisfies the
+  // linter.
+  const handleLayout = (event: LayoutChangeEvent): void => {
+    const measured = event.nativeEvent.layout.height;
+    measuredHeight.current = measured;
+    if (!hasToggledRef.current || !visible || measured === height.value) return;
+    if (!heightKnown.value) {
+      // First measurement since a real open/close transition: snap the shared value to 0 first so
+      // this tween has somewhere to grow from, rather than "jumping" from an assumed-known value.
+      height.value = 0;
+      heightKnown.value = true;
+    }
+    height.value = withTiming(measured, { duration, easing: Easing.bezier(...curve) });
+  };
+
+  useEffect(() => {
+    if (visible) {
+      if (removalTimer.current) {
+        clearTimeout(removalTimer.current);
+        removalTimer.current = null;
+      }
+      return;
+    }
+    if (!rendered) return;
+    removalTimer.current = setTimeout(() => setRendered(false), duration);
+    return () => {
+      if (removalTimer.current) clearTimeout(removalTimer.current);
+    };
+  }, [visible, rendered, duration]);
+
+  useEffect(() => {
+    // First run ever (component mount): whatever `visible` starts as is simply how the form opens.
+    // An edit landing straight on Custom shows its fields already there — nothing to tween in from.
+    if (!mountedRef.current) {
+      mountedRef.current = true;
+      opacity.value = visible ? 1 : 0;
+      return;
+    }
+    hasToggledRef.current = true;
+    opacity.value = withTiming(visible ? 1 : 0, { duration, easing: Easing.bezier(...curve) });
+    // Closing always has a known height to retreat from — Custom cannot be closed before it has
+    // been opened, so `measuredHeight.current` is always set by the time this branch runs.
+    // Opening's height tween lives entirely in `handleLayout` above instead of here: on the very
+    // first open in this component's lifetime `onLayout` has not fired yet when this effect runs
+    // (it needs a real native layout pass), so this effect used to have nothing to tween from and
+    // fell back to fade-only — the common case for anyone who picks Custom just once (review #209,
+    // S1). Driving the open tween from the layout event itself fixes that, and also means a later
+    // growth in the fields' own height while still open (Dynamic Type, rotation) gets picked up too,
+    // instead of staying pinned at whatever height was first measured (review #209, S1).
+    //
+    // The `visible` branch below exists for one reason only: `tokens.ts`'s own doc on this event
+    // ("interruptible: a second chip tap mid-animation reverses it from where it is") and this
+    // reveal's own doc above both promise that a chip tap back to Custom mid-close reverses smoothly
+    // — but a reopen *during* the 200ms close hold never fires `handleLayout` to make that happen.
+    // The fields stay mounted (`rendered` doesn't flip) and `revealContent`'s own frame never
+    // changes across the whole cycle (`overflow: 'hidden'` is paint-only, not layout, and RN's
+    // default `flexShrink: 0` means the parent's explicit height never constrains the child's
+    // measured size) — so RN never re-fires the layout event, and nothing else was retargeting
+    // `height` on that path. Without this branch the reveal got stranded at `height: 0, opacity: 1`:
+    // mounted, fully opaque, `pointerEvents: 'auto'`, un-hidden from the accessibility tree, and
+    // clipped to nothing by `overflow: 'hidden'` — an empty gap that eats taps and that VoiceOver
+    // announces as a real field (review #209, B4). `heightKnown.value` gates it to only the reopen
+    // case: a genuine first-ever open still has no known height yet, so `handleLayout` keeps owning
+    // that measurement untouched.
+    if (visible) {
+      if (heightKnown.value && measuredHeight.current !== null) {
+        height.value = withTiming(measuredHeight.current, { duration, easing: Easing.bezier(...curve) });
+      }
+    } else if (measuredHeight.current !== null) {
+      if (!heightKnown.value) {
+        height.value = measuredHeight.current;
+        heightKnown.value = true;
+      }
+      height.value = withTiming(0, { duration, easing: Easing.bezier(...curve) });
+    }
+  }, [visible, duration, curve, height, heightKnown, opacity]);
+
+  const animatedStyle = useAnimatedStyle(() => ({
+    height: heightKnown.value ? height.value : undefined,
+    opacity: opacity.value,
+  }));
+
+  if (!rendered) return null;
+
+  return (
+    <Animated.View
+      testID={testID}
+      style={[styles.reveal, animatedStyle]}
+      pointerEvents={visible ? 'auto' : 'none'}
+      importantForAccessibility={visible ? 'auto' : 'no-hide-descendants'}
+      accessibilityElementsHidden={!visible}
+    >
+      <View onLayout={handleLayout} style={styles.revealContent}>
+        {children}
+      </View>
+    </Animated.View>
+  );
+}
+
 export function FoodForm({ initial = null, onSave, onCancel, variant = 'screen', theme, testID = 'food-form' }: FoodFormProps) {
   const { button, foodForm } = theme.color;
   const fireHaptic = useHapticFeedback();
+  const reducedMotion = useReducedMotion();
   const isEditing = initial !== null;
 
   const matched = initial ? resolvePresetKey(initial.servingLabel, initial.basis, initial.servingAmount) : '100g';
@@ -373,31 +580,30 @@ export function FoodForm({ initial = null, onSave, onCancel, variant = 'screen',
           />
         </View>
 
-        {servingKey === 'custom' ? (
-          <>
-            <Field
-              label="Label"
-              value={customLabel}
-              onChangeText={setCustomLabel}
-              theme={theme}
-              placeholder="1 scoop"
-              testID={`${testID}-serving-label`}
-              hasError={error !== null && customLabel.trim().length === 0}
-              inputRef={labelInputRef}
-            />
-            <BasisToggle basis={customBasis} onChange={setCustomBasis} theme={theme} testID={`${testID}-basis`} />
-            <Stepper
-              label={`Amount ${unit}`}
-              value={customAmount}
-              step={1}
-              min={1}
-              max={2000}
-              onChange={setCustomAmount}
-              theme={theme}
-              testID={`${testID}-serving-amount`}
-            />
-          </>
-        ) : (
+        <CustomReveal visible={servingKey === 'custom'} reducedMotion={reducedMotion} testID={`${testID}-custom-reveal`}>
+          <Field
+            label="Label"
+            value={customLabel}
+            onChangeText={setCustomLabel}
+            theme={theme}
+            placeholder="1 scoop"
+            testID={`${testID}-serving-label`}
+            hasError={error !== null && customLabel.trim().length === 0}
+            inputRef={labelInputRef}
+          />
+          <BasisToggle basis={customBasis} onChange={setCustomBasis} theme={theme} testID={`${testID}-basis`} />
+          <Stepper
+            label={`Amount ${unit}`}
+            value={customAmount}
+            step={1}
+            min={1}
+            max={2000}
+            onChange={setCustomAmount}
+            theme={theme}
+            testID={`${testID}-serving-amount`}
+          />
+        </CustomReveal>
+        {servingKey !== 'custom' ? (
           <View
             testID={`${testID}-locked-amount`}
             style={[styles.lockedRow, { minHeight: size.foodForm.lockedRowHeight }]}
@@ -408,7 +614,7 @@ export function FoodForm({ initial = null, onSave, onCancel, variant = 'screen',
               per {preset?.label} · {basis}
             </Text>
           </View>
-        )}
+        ) : null}
       </View>
 
       <View style={styles.section}>
@@ -508,6 +714,12 @@ const styles = StyleSheet.create({
   content: {
     gap: space[6],
     paddingBottom: space[9],
+  },
+  reveal: {
+    overflow: 'hidden',
+  },
+  revealContent: {
+    gap: space[4],
   },
   field: {
     gap: space[2],

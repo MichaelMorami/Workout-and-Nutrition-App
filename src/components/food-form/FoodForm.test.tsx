@@ -11,13 +11,23 @@
  * has not landed a stable `key` field on `SERVING_PRESETS` yet (issue #185), so this is a documented
  * fallback, not a re-implementation of the preset table itself.
  */
-import { fireEvent, render, screen } from '@testing-library/react-native';
-import { TextInput } from 'react-native';
+import { act, fireEvent, render, screen } from '@testing-library/react-native';
+import { StyleSheet, TextInput } from 'react-native';
 import type { FoodInput } from '../../db';
-import { themes } from '../../theme/tokens';
+import { motion, themes } from '../../theme/tokens';
 import { FoodForm } from './FoodForm';
+import { __resetAnimations, __setReducedMotion, __timingCalls } from './test-support/reanimated-mock';
+
+// Reanimated 4 pulls in `react-native-worklets`, which throws under `jest-expo/ios` at import time
+// (qa-engineer's #45 is the real fix). `./test-support/reanimated-mock` is this folder's own
+// stand-in — see its module doc for why it is not shared with `quick-add`'s copy.
+jest.mock('react-native-reanimated', () => jest.requireActual('./test-support/reanimated-mock'));
 
 const theme = themes.dark;
+
+afterEach(() => {
+  __resetAnimations();
+});
 
 describe('FoodForm — serving picker', () => {
   it('starts a new food on the 100 g preset, locked and ready to save untouched', async () => {
@@ -72,10 +82,17 @@ describe('FoodForm — serving picker', () => {
     expect(screen.getByTestId('food-form-locked-amount')).toHaveTextContent('100 g', { exact: false });
   });
 
-  it('Custom opens Label, Measured by and Amount, seeded from the last chip, and focuses Label', async () => {
+  it('Custom opens Label, Measured by and Amount, seeded from the last chip, and focuses the Label field specifically', async () => {
     // Issue #89 review B3: `props.focused` is `undefined` on an RNTL `TextInput`, so
     // `props.focused ?? true` was vacuously true regardless of the component. A spy on the real
     // `TextInput.prototype.focus` actually fails if the effect stops calling it.
+    //
+    // Issue #191, item 3: asserting only `toHaveBeenCalledTimes(1)` is prototype-wide — it would
+    // still pass if the effect focused Brand, or Amount, or any other field on the form, since
+    // every `TextInput` shares the same prototype. Naming the instance the spy was actually called
+    // on (`food-form-serving-label`'s own `testID`) is what a wrong-field regression trips: point
+    // the autofocus at another field and this line goes red, where the old bare-count assertion
+    // did not (see the PR body for that mutation's output).
     const focusSpy = jest.spyOn(TextInput.prototype, 'focus');
     await render(<FoodForm theme={theme} onSave={jest.fn()} onCancel={jest.fn()} testID="food-form" />);
 
@@ -92,6 +109,8 @@ describe('FoodForm — serving picker', () => {
     expect(screen.getByTestId('food-form-basis-volume').props.accessibilityState).toEqual({ selected: true });
     expect(screen.getByTestId('food-form-serving-amount-value')).toHaveTextContent('15');
     expect(focusSpy).toHaveBeenCalledTimes(1);
+    const instances = focusSpy.mock.instances as unknown as { props: { testID?: string } }[];
+    expect(instances[0]?.props.testID).toBe('food-form-serving-label');
     focusSpy.mockRestore();
   });
 
@@ -362,5 +381,121 @@ describe('FoodForm — accessibility, keyboard and other unchanged behaviour', (
     expect(cancel.props.accessibilityLabel).toBe('Cancel');
     expect(chip.props.accessibilityRole).toBe('button');
     expect(chip.props.accessibilityLabel).toBeTruthy();
+  });
+});
+
+describe('FoodForm — the Custom reveal is driven by motion.events.customReveal (issue #191, item 1)', () => {
+  it('opening Custom fades it in on the customReveal duration and easing', async () => {
+    await render(<FoodForm theme={theme} onSave={jest.fn()} onCancel={jest.fn()} testID="food-form" />);
+
+    await fireEvent.press(screen.getByTestId('food-form-serving-custom'));
+
+    const call = __timingCalls.find((c) => c.toValue === 1);
+    expect(call).toBeDefined();
+    expect(call?.config?.duration).toBe(motion.events.customReveal.duration);
+    // Review #209, B2: the duration alone doesn't prove the curve came from the token — assert the
+    // easing points too, so swapping `motion.easing[event.easing]` for any other curve goes red.
+    expect(call?.config?.easing?.points).toEqual(motion.easing[motion.events.customReveal.easing]);
+  });
+
+  it('closing Custom fades it out on the same token', async () => {
+    await render(<FoodForm theme={theme} onSave={jest.fn()} onCancel={jest.fn()} testID="food-form" />);
+
+    await fireEvent.press(screen.getByTestId('food-form-serving-custom'));
+    __timingCalls.length = 0;
+    await fireEvent.press(screen.getByTestId('food-form-serving-cup'));
+
+    const call = __timingCalls.find((c) => c.toValue === 0);
+    expect(call).toBeDefined();
+    expect(call?.config?.duration).toBe(motion.events.customReveal.duration);
+    expect(call?.config?.easing?.points).toEqual(motion.easing[motion.events.customReveal.easing]);
+  });
+
+  it('honours reduce motion — the reveal collapses to its instant duration', async () => {
+    __setReducedMotion(true);
+    await render(<FoodForm theme={theme} onSave={jest.fn()} onCancel={jest.fn()} testID="food-form" />);
+
+    await fireEvent.press(screen.getByTestId('food-form-serving-custom'));
+
+    const call = __timingCalls.find((c) => c.toValue === 1);
+    expect(call).toBeDefined();
+    expect(call?.config?.duration).toBe(motion.events.customReveal.reduced.duration);
+  });
+
+  // Review #209, B1: the fields are held mounted through their own close tween (so a chip tap back
+  // to Custom mid-close reverses smoothly), and nothing previously asserted that hold actually ends.
+  // Without this test, mutating the release to never unmount (`setRendered(true)` instead of
+  // `setRendered(false)`) leaves every other test in this file, and every neighbour suite, green —
+  // see the PR body for that mutation's output. Left un-collapsed, the Label field, both
+  // `BasisToggle` buttons and the Amount stepper would sit at `height: 0, opacity: 0` forever,
+  // reachable by a screen reader reading over the locked read-out it's supposedly replaced.
+  it('removes the Custom fields once the close tween has run', async () => {
+    // Fake timers are already global (`test/setup/` freezes the clock for every suite via
+    // `freezeTime()`), so this test just advances them directly — switching timer modes locally is
+    // a project-wide guard rail, enforced in `test/time.test.ts`.
+    await render(<FoodForm theme={theme} onSave={jest.fn()} onCancel={jest.fn()} testID="food-form" />);
+
+    await act(async () => {
+      fireEvent.press(screen.getByTestId('food-form-serving-custom'));
+    });
+    await act(async () => {
+      fireEvent.press(screen.getByTestId('food-form-serving-cup'));
+    });
+    await act(async () => {
+      jest.advanceTimersByTime(motion.events.customReveal.duration + 1);
+    });
+
+    // `{ includeHiddenElements: true }`: the wrapping `Animated.View` also drops itself from the
+    // accessibility tree (`accessibilityElementsHidden`/`no-hide-descendants`) the instant `visible`
+    // goes false — RNTL's default queries hide that subtree too, so a plain `queryByTestId` here
+    // would read null the moment the close *starts*, not when the hold actually ends, and this test
+    // would no longer catch the mutation it exists for. Piercing that with `includeHiddenElements`
+    // asserts what actually left the tree, not what merely stopped being announced.
+    expect(screen.queryByTestId('food-form-serving-label', { includeHiddenElements: true })).toBeNull();
+    expect(screen.queryByTestId('food-form-basis-weight', { includeHiddenElements: true })).toBeNull();
+  });
+
+  // Review #209, round 2, B4: since `fcf4277` moved the open-side height tween out of the visibility
+  // effect and into `handleLayout`, a reopen *during* the close hold never gets a new `onLayout` —
+  // `revealContent`'s own frame never changes across the whole cycle, so RN never re-fires the
+  // layout event — and nothing else was retargeting `height`. Without the visibility effect's own
+  // `visible` branch, this test lands on `{height: 0, opacity: 1}`: mounted, fully opaque, clipped to
+  // nothing by `overflow: 'hidden'` — the fields never recover until the user closes and waits out
+  // the full hold. `content.props.onLayout(...)` invokes the same prop RN itself would call, wrapped
+  // in `act()` so the mock's `forceRender` flushes before the next assertion reads it — this path is
+  // testable without a device, contrary to this file's earlier disclosure.
+  it('reopening Custom mid-close returns the fields to their measured height', async () => {
+    await render(<FoodForm theme={theme} onSave={jest.fn()} onCancel={jest.fn()} testID="food-form" />);
+    await act(async () => {
+      fireEvent.press(screen.getByTestId('food-form-serving-custom'));
+    });
+
+    const content = screen.getByTestId('food-form-custom-reveal').children[0] as unknown as {
+      props: { onLayout: (e: unknown) => void };
+    };
+    await act(async () => {
+      content.props.onLayout({ nativeEvent: { layout: { height: 240, width: 300, x: 0, y: 0 } } });
+    });
+
+    await act(async () => {
+      fireEvent.press(screen.getByTestId('food-form-serving-cup'));
+    });
+    await act(async () => {
+      jest.advanceTimersByTime(motion.events.customReveal.duration / 2);
+    });
+    // Back to Custom before the hold releases: still mounted, so no new layout event arrives.
+    await act(async () => {
+      fireEvent.press(screen.getByTestId('food-form-serving-custom'));
+    });
+    await act(async () => {
+      jest.advanceTimersByTime(motion.events.customReveal.duration * 2);
+    });
+
+    const style = StyleSheet.flatten(screen.getByTestId('food-form-custom-reveal').props.style) as {
+      opacity?: number;
+      height?: number;
+    };
+    expect(style.opacity).toBe(1);
+    expect(style.height).toBe(240);
   });
 });
