@@ -402,8 +402,8 @@
     },
     "src/components/food-form/FoodForm.tsx": {
       "exports": [
-        "function FoodForm({ initial = null, onSave, onCancel, theme, testID = 'food-form' }: FoodFormProps): import(\"react\").JSX.Element",
-        "type FoodFormProps = {\n  /** `undefined`/`null` — a fresh food, every field starts blank/zero. Given — an edit, pre-filled\n   * at exactly what the food currently holds (issue #43: \"pre-fill everything that can be predicted\"). */\n  readonly initial?: FoodInput | null;\n  readonly onSave: (input: FoodInput) => void;\n  readonly onCancel: () => void;\n  readonly theme: Theme;\n  readonly testID?: str..."
+        "function FoodForm({ initial = null, onSave, onCancel, variant = 'screen', theme, testID = 'food-form' }: FoodFormProps): import(\"react\").JSX.Element",
+        "type FoodFormProps = {\n  /** `undefined`/`null` — a fresh food, every field starts blank/zero and the 100 g preset is\n   * selected. Given — an edit, pre-selecting the matching preset or falling back to Custom\n   * (see `matchingPresetKey`). */\n  readonly initial?: FoodInput | null;\n  readonly onSave: (input: FoodInput) => void;\n  readonly onCancel: () => void;\n  /** `'sheet'` — inside `CreateF..."
       ],
       "imports": [
         "react",
@@ -411,13 +411,14 @@
         "src/components/food-form/Stepper.tsx",
         "src/components/format/food.ts",
         "src/db/index.ts",
+        "src/hooks/useHapticFeedback.ts",
         "src/theme/tokens.ts"
       ],
-      "loc": 338
+      "loc": 586
     },
     "src/components/food-form/Stepper.tsx": {
       "exports": [
-        "function Stepper({\n  label,\n  value,\n  step,\n  min = 0,\n  max,\n  unit,\n  onChange,\n  formatValue,\n  locale,\n  theme,\n  testID = 'stepper',\n}: StepperProps): import(\"react\").JSX.Element",
+        "function Stepper({\n  label,\n  value,\n  step,\n  min = 0,\n  max,\n  unit,\n  onChange,\n  formatValue,\n  locale,\n  theme,\n  testID = 'stepper',\n  buttonWidth = size.stepper.buttonWidth,\n  buttonHit = size.stepper.buttonHit,\n  gap = space[3],\n  valueTextColor,\n}: StepperProps): import(\"react\").JSX.Element",
         "type StepperProps = {\n  readonly label: string;\n  readonly value: number;\n  readonly step: number;\n  /** Defaults to 0 — nothing on this form is ever negative (a serving, a kcal, a gram). */\n  readonly min?: number;\n  readonly max?: number;\n  readonly unit?: string;\n  readonly onChange: (value: number) => void;\n  /** Defaults to a rounded, locale-formatted number. Overridable for a food-serving..."
       ],
       "imports": [
@@ -427,7 +428,7 @@
         "src/hooks/useHapticFeedback.ts",
         "src/theme/tokens.ts"
       ],
-      "loc": 345,
+      "loc": 367,
       "importedBy": [
         "src/components/food-form/FoodForm.tsx",
         "src/components/settings/TargetsGroup.tsx"
@@ -435,9 +436,9 @@
     },
     "src/components/food-form/index.ts": {
       "exports": [
-        "function FoodForm({ initial = null, onSave, onCancel, theme, testID = 'food-form' }: FoodFormProps): import(\"react\").JSX.Element",
-        "function Stepper({\n  label,\n  value,\n  step,\n  min = 0,\n  max,\n  unit,\n  onChange,\n  formatValue,\n  locale,\n  theme,\n  testID = 'stepper',\n}: StepperProps): import(\"react\").JSX.Element",
-        "type FoodFormProps = {\n  /** `undefined`/`null` — a fresh food, every field starts blank/zero. Given — an edit, pre-filled\n   * at exactly what the food currently holds (issue #43: \"pre-fill everything that can be predicted\"). */\n  readonly initial?: FoodInput | null;\n  readonly onSave: (input: FoodInput) => void;\n  readonly onCancel: () => void;\n  readonly theme: Theme;\n  readonly testID?: str...",
+        "function FoodForm({ initial = null, onSave, onCancel, variant = 'screen', theme, testID = 'food-form' }: FoodFormProps): import(\"react\").JSX.Element",
+        "function Stepper({\n  label,\n  value,\n  step,\n  min = 0,\n  max,\n  unit,\n  onChange,\n  formatValue,\n  locale,\n  theme,\n  testID = 'stepper',\n  buttonWidth = size.stepper.buttonWidth,\n  buttonHit = size.stepper.buttonHit,\n  gap = space[3],\n  valueTextColor,\n}: StepperProps): import(\"react\").JSX.Element",
+        "type FoodFormProps = {\n  /** `undefined`/`null` — a fresh food, every field starts blank/zero and the 100 g preset is\n   * selected. Given — an edit, pre-selecting the matching preset or falling back to Custom\n   * (see `matchingPresetKey`). */\n  readonly initial?: FoodInput | null;\n  readonly onSave: (input: FoodInput) => void;\n  readonly onCancel: () => void;\n  /** `'sheet'` — inside `CreateF...",
         "type StepperProps = {\n  readonly label: string;\n  readonly value: number;\n  readonly step: number;\n  /** Defaults to 0 — nothing on this form is ever negative (a serving, a kcal, a gram). */\n  readonly min?: number;\n  readonly max?: number;\n  readonly unit?: string;\n  readonly onChange: (value: number) => void;\n  /** Defaults to a rounded, locale-formatted number. Overridable for a food-serving..."
       ],
       "imports": [],
@@ -482,10 +483,11 @@
     "src/components/format/food.ts": {
       "exports": [
         "function formatGrams(grams: number, locale?: string): string",
-        "function formatMl(ml: number, locale?: string): string"
+        "function formatMl(ml: number, locale?: string): string",
+        "function formatPreviewProtein(grams: number, locale?: string): string"
       ],
       "imports": [],
-      "loc": 18,
+      "loc": 26,
       "importedBy": [
         "src/components/day-log/DayLogList.tsx",
         "src/components/day-log/DayLogRow.tsx",
@@ -704,7 +706,7 @@
         "src/store/undoToast.ts",
         "src/theme/tokens.ts"
       ],
-      "loc": 194
+      "loc": 200
     },
     "src/components/search/SearchSheet.tsx": {
       "exports": [
@@ -1491,6 +1493,7 @@
       ],
       "loc": 49,
       "importedBy": [
+        "src/components/food-form/FoodForm.tsx",
         "src/components/food-form/Stepper.tsx",
         "src/components/food-list/FoodList.tsx",
         "src/components/meals/MealList.tsx",

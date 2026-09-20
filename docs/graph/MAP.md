@@ -351,19 +351,19 @@ jq -r '.modules["src/db/queries/nutrition.ts"].exports[]' docs/graph/symbols.jso
 
 ## `src/components/food-form/`
 
-### `src/components/food-form/FoodForm.tsx`  <sub>338 lines</sub>
+### `src/components/food-form/FoodForm.tsx`  <sub>586 lines</sub>
 
-- `function FoodForm({ initial = null, onSave, onCancel, theme, testID = 'food-form' }: FoodFormProps): import("react").JSX.Element`
+- `function FoodForm({ initial = null, onSave, onCancel, variant = 'screen', theme, testID = 'food-form' }: FoodFormProps): import("react").JSX.Element`
 - `type FoodFormProps = {
-  /** `undefined`/`null` — a fresh food, every field starts blank/zero. Given — an edit, pre-filled
-   * at exactly what the food currently holds (issue #43: "pre-fill everything that can be predicted"). */
+  /** `undefined`/`null` — a fresh food, every field starts blank/zero and the 100 g preset is
+   * selected. Given — an edit, pre-selecting the matching preset or falling back to Custom
+   * (see `matchingPresetKey`). */
   readonly initial?: FoodInput | null;
   readonly onSave: (input: FoodInput) => void;
   readonly onCancel: () => void;
-  readonly theme: Theme;
-  readonly testID?: str...`
+  /** `'sheet'` — inside `CreateF...`
 
-### `src/components/food-form/Stepper.tsx`  <sub>345 lines</sub>
+### `src/components/food-form/Stepper.tsx`  <sub>367 lines</sub>
 
 - `function Stepper({
   label,
@@ -377,6 +377,10 @@ jq -r '.modules["src/db/queries/nutrition.ts"].exports[]' docs/graph/symbols.jso
   locale,
   theme,
   testID = 'stepper',
+  buttonWidth = size.stepper.buttonWidth,
+  buttonHit = size.stepper.buttonHit,
+  gap = space[3],
+  valueTextColor,
 }: StepperProps): import("react").JSX.Element`
 - `type StepperProps = {
   readonly label: string;
@@ -393,7 +397,7 @@ jq -r '.modules["src/db/queries/nutrition.ts"].exports[]' docs/graph/symbols.jso
 
 ### `src/components/food-form/index.ts`  <sub>3 lines</sub>
 
-- `function FoodForm({ initial = null, onSave, onCancel, theme, testID = 'food-form' }: FoodFormProps): import("react").JSX.Element`
+- `function FoodForm({ initial = null, onSave, onCancel, variant = 'screen', theme, testID = 'food-form' }: FoodFormProps): import("react").JSX.Element`
 - `function Stepper({
   label,
   value,
@@ -406,15 +410,19 @@ jq -r '.modules["src/db/queries/nutrition.ts"].exports[]' docs/graph/symbols.jso
   locale,
   theme,
   testID = 'stepper',
+  buttonWidth = size.stepper.buttonWidth,
+  buttonHit = size.stepper.buttonHit,
+  gap = space[3],
+  valueTextColor,
 }: StepperProps): import("react").JSX.Element`
 - `type FoodFormProps = {
-  /** `undefined`/`null` — a fresh food, every field starts blank/zero. Given — an edit, pre-filled
-   * at exactly what the food currently holds (issue #43: "pre-fill everything that can be predicted"). */
+  /** `undefined`/`null` — a fresh food, every field starts blank/zero and the 100 g preset is
+   * selected. Given — an edit, pre-selecting the matching preset or falling back to Custom
+   * (see `matchingPresetKey`). */
   readonly initial?: FoodInput | null;
   readonly onSave: (input: FoodInput) => void;
   readonly onCancel: () => void;
-  readonly theme: Theme;
-  readonly testID?: str...`
+  /** `'sheet'` — inside `CreateF...`
 - `type StepperProps = {
   readonly label: string;
   readonly value: number;
@@ -463,10 +471,11 @@ jq -r '.modules["src/db/queries/nutrition.ts"].exports[]' docs/graph/symbols.jso
 
 ## `src/components/format/`
 
-### `src/components/format/food.ts`  <sub>18 lines</sub>
+### `src/components/format/food.ts`  <sub>26 lines</sub>
 
 - `function formatGrams(grams: number, locale?: string): string`
 - `function formatMl(ml: number, locale?: string): string`
+- `function formatPreviewProtein(grams: number, locale?: string): string`
 
 <sub>used by: `src/components/day-log/DayLogList.tsx`, `src/components/day-log/DayLogRow.tsx`, `src/components/food-form/FoodForm.tsx`, `src/components/food-list/FoodList.tsx`, `src/components/meals/MealForm.tsx`, `src/components/meals/MealList.tsx`, `src/components/quick-add/PortionSheet.tsx`, `src/components/quick-add/QuickAddGrid.tsx`, `src/components/search/CreateFoodSheet.tsx`, `src/components/search/SearchSheet.tsx`</sub>
 
@@ -668,7 +677,7 @@ jq -r '.modules["src/db/queries/nutrition.ts"].exports[]' docs/graph/symbols.jso
 
 ## `src/components/search/`
 
-### `src/components/search/CreateFoodSheet.tsx`  <sub>194 lines</sub>
+### `src/components/search/CreateFoodSheet.tsx`  <sub>200 lines</sub>
 
 - `function CreateFoodSheet({ db, query, onLogged, onClose, locale, presentation = 'modal', theme, testID = 'create-food-sheet' }: CreateFoodSheetProps): import("react").JSX.Element | null`
 - `type CreateFoodSheetProps = {
@@ -1225,7 +1234,7 @@ _no exports_
 
 - `function useHapticFeedback(): (haptic: Haptic) => void`
 
-<sub>used by: `src/components/food-form/Stepper.tsx`, `src/components/food-list/FoodList.tsx`, `src/components/meals/MealList.tsx`, `src/components/quick-add/PortionSheet.tsx`, `src/components/quick-add/QuickAddTile.tsx`, `src/components/quick-add/UndoToast.tsx`, `src/components/search/CreateFoodSheet.tsx`, `src/components/search/SearchSheet.tsx`</sub>
+<sub>used by: `src/components/food-form/FoodForm.tsx`, `src/components/food-form/Stepper.tsx`, `src/components/food-list/FoodList.tsx`, `src/components/meals/MealList.tsx`, `src/components/quick-add/PortionSheet.tsx`, `src/components/quick-add/QuickAddTile.tsx`, `src/components/quick-add/UndoToast.tsx`, `src/components/search/CreateFoodSheet.tsx`, `src/components/search/SearchSheet.tsx`</sub>
 
 ### `src/hooks/useTheme.ts`  <sub>14 lines</sub>
 
