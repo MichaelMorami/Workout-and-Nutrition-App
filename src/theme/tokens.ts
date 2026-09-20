@@ -1548,19 +1548,19 @@ export const interaction = {
    * Wall-clock is the current default, not a promise: the clock keeps running while the phone is
    * locked or the app is backgrounded, so a toast that `undoSurvives` may be past its ten seconds on
    * return and dismiss at once. If the client would rather the clock paused, it pauses here.
+   *
+   * There used to be a second, longer `undoCeilingMs` outer bound alongside this one — retired in
+   * issue #201. `undoToast.ts` (issue #83) ended up running exactly one wall-clock timer, this one,
+   * so the ceiling could never fire: the shorter timer always dismisses first, and the store has no
+   * pause that could push past it (confirmed by grep after #199 merged — `undoCeilingMs` and
+   * `ceilingTimer` appeared nowhere outside this file). It comes back if this token ever gains the
+   * pause-while-backgrounded mode above: a paused toast has no wall-clock end, so an un-pausable
+   * outer bound regains a real job capping it. Whoever builds that pause should expect to
+   * reintroduce a ceiling token here.
    */
   undoAutoDismissMs: 10_000,
-  /**
-   * The stale-undo ceiling — a different job from `undoAutoDismissMs`, which is the ordinary
-   * dismissal above. This is the outer bound, wall-clock from the log, that stops an undo the
-   * ordinary path somehow missed from carrying into the next meal: three minutes covers one full
-   * rest period for a heavy compound lift. Once the toast dismisses itself at ten seconds the
-   * ceiling may have nothing left to do; whether it still earns its keep is the store's call in
-   * `undoToast.ts` (issue #83), so it stays named here until that PR decides.
-   */
-  undoCeilingMs: 180_000,
   /** What ends the undo toast early. */
-  undoDismissedBy: ['anotherLog', 'sheetOpened', 'tabChanged', 'swipedAway', 'ceiling'],
+  undoDismissedBy: ['anotherLog', 'sheetOpened', 'tabChanged', 'swipedAway'],
   /** What deliberately does NOT end it. */
   undoSurvives: ['scroll', 'screenLock', 'appBackgrounded'],
   /** Stepper − / + auto-repeat starts after this hold. */
