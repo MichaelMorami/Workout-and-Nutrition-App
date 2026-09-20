@@ -110,3 +110,4 @@ For the sprint-by-sprint plan see [`README.md`](README.md); for open work see th
 - 2026-09-19  feat: food form tokens (serving chips, locked read-out, nutrition steppers, live preview) and per-preset serving steps (issue #88)  (PR #182 closes #88)
 - 2026-09-20  feat: useEditableNumber hook — tap-to-type parse/clamp/revert (issue #87)  (PR #184 closes #87)
 - 2026-09-20  feat: food-form serving picker — chips, Custom fields, live preview (issue #89)  (PR #188 closes #89)
+- 2026-09-20  feat: Exact-mode readout — tap to type an amount (issue #94)  (PR #193 closes #94)
