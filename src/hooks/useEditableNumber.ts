@@ -23,10 +23,19 @@ export type UseEditableNumberResult = {
   /** Opens the field, seeded with the current value, selected so typing replaces it. */
   readonly startEditing: () => void;
   readonly setDraft: (text: string) => void;
+  /** Parses and clamps `draft` right now, without committing or ending the edit — `null` for the
+   * same "empty, non-numeric" cases `commit` discards. #94's Exact-mode readout uses this for a
+   * live preview while the digit-pad is still open. */
+  readonly parseDraft: () => number | null;
   /** Parses `draft`: a finite number clamps to `[min, max]` and fires `onCommit`; anything else
    * (empty, "-", "1.2.3", non-numeric) is silently discarded — the previous value stands, unchanged,
    * exactly as if this edit had never happened. Either way, editing ends. */
   readonly commit: () => void;
+  /** Closes the field without parsing or committing — an explicit "never mind", distinct from an
+   * empty/invalid `commit` only in that it skips the parse entirely. Either way the value stands
+   * unchanged; this exists for a caller with its own cancel affordance (e.g. a keyboard's dismiss),
+   * not required by `<Stepper>` itself, which only ever blurs or submits. */
+  readonly cancel: () => void;
 };
 
 /**
@@ -44,13 +53,26 @@ export function useEditableNumber({ value, min = -Infinity, max = Infinity, onCo
     setEditing(true);
   }, [value, formatDraft]);
 
-  const commit = useCallback(() => {
-    const parsed = Number(draft);
-    if (draft.trim() !== '' && Number.isFinite(parsed)) {
-      onCommit(Math.min(max, Math.max(min, parsed)));
-    }
-    setEditing(false);
-  }, [draft, min, max, onCommit]);
+  const parseDraft = useCallback((): number | null => {
+    // A comma decimal separator ("33,5") is how a `decimal-pad` keyboard shows the decimal key in
+    // most non-English locales — `Number(...)` only ever accepts a dot, so without this a comma
+    // entry silently reverted as if it were invalid text. Only the first comma is swapped: a second
+    // one (a stray thousands separator, "1,234,5") still fails to parse below, exactly as before.
+    const normalized = draft.trim().replace(',', '.');
+    const parsed = Number(normalized);
+    if (normalized === '' || !Number.isFinite(parsed)) return null;
+    return Math.min(max, Math.max(min, parsed));
+  }, [draft, min, max]);
 
-  return { editing, draft, startEditing, setDraft, commit };
+  const commit = useCallback(() => {
+    const parsed = parseDraft();
+    if (parsed !== null) onCommit(parsed);
+    setEditing(false);
+  }, [parseDraft, onCommit]);
+
+  const cancel = useCallback(() => {
+    setEditing(false);
+  }, []);
+
+  return { editing, draft, startEditing, setDraft, parseDraft, commit, cancel };
 }

@@ -10,6 +10,16 @@
  * itself now also accepts a tapped, typed exact value (never rounded to this grid) and an
  * accelerating hold for a fast large change, so these three steppers only need to cover *small*
  * corrections — the doctrine `<Stepper>`'s own header describes, not "never a keyboard number field".
+ * SCOPE RULING (client, PR #184 review): this smaller-step grid is food-form only. `TargetsGroup`'s
+ * (50 kcal / 5 g) and `MealForm`'s (0.5 servings) steppers keep their existing step sizes — they get
+ * tap-to-type and hold-to-accelerate too (that lives in `<Stepper>` itself, not gated per caller),
+ * just not this step-size change.
+ *
+ * The protein stepper's `formatValue` below is not decoration: without it, `<Stepper>`'s default
+ * display (`Math.round(value)`) throws away the 0.1 a step of that size exists to show — a typed
+ * `12.4` would commit correctly but *display* as "12" (issue #184 review). `formatValue` is how a
+ * caller with a sub-1 step already opts into decimal display — `MealForm`'s own `×1½`-style override
+ * is the existing precedent this follows, not a new pattern.
  *
  * SCOPE NOTE: a one-tap serving-preset picker (100 g / 100 ml / 1 cup / 1 tbsp / 1 tsp + Custom) is
  * issue #89, blocked on #88's design. This form is deliberately the plain #86 data-shape adaptation
@@ -241,6 +251,9 @@ export function FoodForm({ initial = null, onSave, onCancel, theme, testID = 'fo
         max={500}
         unit={UNIT_OF_BASIS.weight}
         onChange={setProteinPer100}
+        // Always one decimal place, matching the 0.1 step's own granularity — the default
+        // `Math.round` display would otherwise show "0" for a fresh 0.1 tap (issue #184 review).
+        formatValue={(v) => v.toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 })}
         theme={theme}
         testID={`${testID}-protein`}
       />

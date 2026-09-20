@@ -12,14 +12,21 @@
  * value well itself is now also a button. **Tap the value** to open `decimal-pad` with the current
  * value selected, so typing replaces it outright (600 kcal = 4 taps, not 120). **Hold +/-** still
  * covers a large change without the keypad: it auto-repeats after `interaction.stepperRepeatDelayMs`
- * and accelerates to a ten-step jump after about a second held, so a big change is one hold, not
- * dozens of taps.
+ * and accelerates to a ten-step jump after about 1.4 s held in total (the repeat delay plus
+ * `REPEAT_ACCELERATE_AFTER_MS`, not `REPEAT_ACCELERATE_AFTER_MS` alone — see that constant's own
+ * comment), so a big change is one hold, not dozens of taps.
  *
  * Typed entry is exact — never rounded to `step`'s grid — and clamps to `[min, max]` on commit; an
  * empty or unparseable entry reverts to the value that was showing before the tap, silently, no
  * error text (this is text entry recovering from a typo, not form validation). The tap-to-type half
  * of this is `useEditableNumber` (`src/hooks`), factored out on purpose: issue #94 reuses it for the
  * portion sheet's Exact-mode readout without taking a dependency on this component's −/+ buttons.
+ *
+ * SCOPE RULING (client, PR #184 review): tap-to-type and hold-to-accelerate apply everywhere this
+ * component is used — `TargetsGroup` and `MealForm` included — but the food form's own step-size
+ * change (5 -> 1 / 0.1, see `FoodForm.tsx`) is food-form only; `TargetsGroup`'s 50/5 and `MealForm`'s
+ * 0.5 stay exactly as they were. That distinction is each caller's own `step` prop, not this
+ * component's to make.
  *
  * Both buttons are `size.stepper.buttonWidth` × `size.stepper.buttonHit` (56×48), comfortably over
  * `size.tapTargetMin` (44), the same dimensions `PortionSheet.tsx`'s `NudgeButton` already uses for
@@ -29,12 +36,12 @@
  *
  * TOKEN GAP (flagged for design-lead, not filled in here per this issue's scope — see the PR body).
  * `interaction.stepperRepeatDelayMs` already covers the initial hold-to-repeat delay, but there is
- * no token yet for the steady-state repeat interval, the acceleration threshold/multiplier, or a
- * dedicated "editable value" emphasis colour. This file falls back to plain constants for the first
- * three (documented right where they are used, below) and reuses `theme.color.line.strong` — the
- * existing generic emphasis/outline colour ("dashed 'add' affordances, selected-segment outlines,
- * sheet grabbers") — for the edit-mode border, rather than inventing a new semantic token for one
- * component.
+ * still no token for the steady-state repeat interval or the acceleration threshold/multiplier —
+ * this file falls back to plain constants for those (documented right where they are used, below).
+ * The editable-value emphasis colour is no longer a gap: issue #88 landed `color.foodForm.fieldBorderFocus`
+ * / `size.foodForm.fieldBorderWidthFocus`, and `size.foodForm.fieldBorderWidthFocus`'s own doc comment
+ * names "a stepper's value well" alongside a text field, so this edit-mode border uses it here too,
+ * even though `<Stepper>` itself is shared with `TargetsGroup`/`MealForm` outside the food form.
  */
 import { useCallback, useEffect, useRef } from 'react';
 import { Pressable, StyleSheet, Text, TextInput, View, type TextStyle } from 'react-native';
@@ -63,8 +70,12 @@ export type StepperProps = {
  * the rate the issue's approved mechanism names. No token yet; see the header's TOKEN GAP note. */
 const REPEAT_INTERVAL_MS = 125;
 
-/** How long into a hold the repeat jumps from one step at a time to `REPEAT_ACCELERATED_MULTIPLIER`
- * steps at a time — "~1 s held" per the issue. No token yet; see the header's TOKEN GAP note. */
+/** How long *after the repeat interval starts* (i.e. after `interaction.stepperRepeatDelayMs` has
+ * already elapsed) the repeat jumps from one step at a time to `REPEAT_ACCELERATED_MULTIPLIER` steps
+ * at a time — so acceleration lands at `stepperRepeatDelayMs + REPEAT_ACCELERATE_AFTER_MS` (400 + 1000
+ * = ~1.4 s) from the initial press, not the "~1 s held" the issue's mechanism describes loosely — a
+ * discrepancy flagged in review (#184) as cosmetic, not a behaviour change. No token yet; see the
+ * header's TOKEN GAP note. */
 const REPEAT_ACCELERATE_AFTER_MS = 1000;
 
 /** The step multiplier a hold reaches after `REPEAT_ACCELERATE_AFTER_MS`. No token yet; see the
@@ -103,7 +114,7 @@ export function Stepper({
   theme,
   testID = 'stepper',
 }: StepperProps) {
-  const { stepper, line } = theme.color;
+  const { stepper, foodForm } = theme.color;
   const fireHaptic = useHapticFeedback();
 
   // Tracks the latest committed value so a fast hold's repeated ticks always step from the most
@@ -122,6 +133,12 @@ export function Stepper({
       if (bounded === current) return;
       valueRef.current = bounded;
       onChange(bounded);
+      // New in #87, and — because this function is every step's only path, hold-repeat included —
+      // it now fires on a plain single tap too, in `TargetsGroup`/`MealForm` as well as the food
+      // form (`<Stepper>` is shared by all three). Disclosed in the PR: this Stepper had no haptic
+      // at all before #87; it is now `haptics.sliderDetent`, the same "selection tick" already used
+      // for `PortionSheet`'s own nudge buttons, so every − / + tap on this control now confirms the
+      // same way one already did there.
       fireHaptic(haptics.sliderDetent);
     },
     [step, min, max, onChange, fireHaptic],
@@ -160,7 +177,30 @@ export function Stepper({
     [applyStep],
   );
 
-  const onPressOut = useCallback(() => clearHold(), [clearHold]);
+  // `onPressOut` always runs before `onPress` for the same gesture (React Native's Pressability
+  // deactivates, then activates the press, synchronously, in the same call) — so a release that
+  // lands back on the button still needs `isHolding` to read `true` when `onTap` below checks it, or
+  // its own trailing `onPress` would add an extra step on top of everything the hold already applied.
+  // But a release *off* the button skips `onPress` for this gesture entirely (Pressability only
+  // fires it when the touch ends inside the hit rect) — nothing would ever clear `isHolding`, and it
+  // would wrongly swallow the next, wholly unrelated tap (issue #184 review).
+  //
+  // A microtask does not thread this needle: `@testing-library/react-native`'s `fireEvent` awaits
+  // between simulated events, which flushes microtasks regardless of whether the real gesture they
+  // stand in for was one continuous touch or two separate ones — so a microtask clears `isHolding`
+  // before the on-target case's own trailing `onPress` ever runs, breaking the very suppression this
+  // exists for. A macrotask does not have that problem: nothing here advances fake timers just by
+  // being `await`ed, so the deferred clear below stays pending — and `isHolding` stays `true` — for
+  // exactly as long as the on-target case's synchronous `onPressOut` -> `onPress` pair takes (however
+  // that pair is simulated), firing only once real time has actually since passed.
+  const onPressOut = useCallback(() => {
+    clearHold();
+    if (isHolding.current) {
+      setTimeout(() => {
+        isHolding.current = false;
+      }, 0);
+    }
+  }, [clearHold]);
 
   // A quick tap fires `onPressIn` then `onPressOut` well inside `stepperRepeatDelayMs`, so the
   // pending hold timer above never fires and this is the only step applied — one tap, one step, as
@@ -222,8 +262,8 @@ export function Stepper({
               minHeight: size.stepper.buttonHit,
               borderRadius: radius.md,
               backgroundColor: stepper.valueBg,
-              borderWidth: editing ? StyleSheet.hairlineWidth : 0,
-              borderColor: line.strong,
+              borderWidth: editing ? size.foodForm.fieldBorderWidthFocus : 0,
+              borderColor: foodForm.fieldBorderFocus,
             },
           ]}
         >
