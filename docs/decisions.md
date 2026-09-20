@@ -436,3 +436,44 @@ where it already is. The moment a real value on a real label needs more than a h
 control needs a way to be told the number outright. That is not a licence for a bare text field:
 the typed path is an *addition* to the stepper, keeps the same clamping and validation, and reverts
 rather than storing nonsense. #94 applies the same rule to the portion sheet's quantity readout.
+
+## Serving presets — what identifies a preset
+
+Recommended by `design-lead` in issue #185, landed by `db-engineer` · binds `src/db/servings.ts`
+and every screen that pre-selects a serving chip · no change to the SQLite schema
+
+### 12. The `key` is a preset's identity, not its label
+
+**The situation.** `SERVING_PRESETS` (ruling 5) is a constant table of five metric servings, and the
+food form has to answer "which chip was this food saved with?" every time an existing food is
+opened. With nothing but `label`, `basis` and `amount` on a preset, the only available answer was to
+match all three at once — and both halves of that are wrong the moment the table is edited.
+Correcting a cup from 250 to 240 ml, or renaming "1 tbsp", loses every food saved with it: the food
+falls to Custom with no sign that anything happened. Matching on `basis` + `amount` alone is worse —
+it renamed a user's own "1 bottle"/volume/250 to "1 cup" on save (PR #188 review, B1). Removing a
+preset was the sharpest version: `PRESET_BY_KEY` zipped the table against the UI's key list *by
+array index*, so dropping one preset slid every later one up a place and a food saved as a cup came
+back as a tablespoon.
+
+**The ruling.** Every preset carries a **stable `key`** — `100g`, `100ml`, `cup`, `tbsp`, `tsp` —
+and **the key is the only thing that identifies it**. `servingPresetByKey()` is the one lookup. A
+key is never rendered, so it carries no spacing, capitalisation or translation, and it does not
+change when the label, the amount or the basis beside it is corrected. Those three are *contents*;
+the key is *identity*. Changing a preset's key is not an edit — it is removing one preset and adding
+another, and it must be treated as such.
+
+**A miss is a valid answer.** An unknown key — and a key whose preset a later release removed —
+resolves to `undefined`, never to a throw and never to a near-match. The caller falls back to the
+food's own Custom serving, which preserves the food's own label and amount instead of overwriting
+them with a preset's.
+
+**The presets are code, not rows.** Nothing is stored: a preset is a constant, so "stable" here
+means stable across edits to the constant, not a migrated column. A food resolves its chip from its
+own `servingLabel`/`basis`/`servingAmount` against the table. If a food ever needs to *remember* a
+key it no longer matches, that is a schema change — a `serving_preset_key` column, a migration and
+a backfill — and it goes through `db-engineer`, not into a constant.
+
+**How to read it for a new case.** Any constant table a user's data points at needs an identity
+field that is not its display text and not its position in the array. Labels are for reading,
+amounts get corrected, and array order is not a promise. `interaction.servingSteps` in the theme
+tokens is keyed the same way and for the same reason.
