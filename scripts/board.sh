@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 # Create the project board. Needs the 'project' token scope.
+# (scratch comment, issue #211 --no-close real-world proof)
 . "$(dirname "$0")/lib.sh"
 need gh
 
