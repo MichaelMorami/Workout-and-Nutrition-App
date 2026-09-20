@@ -107,3 +107,5 @@ For the sprint-by-sprint plan see [`README.md`](README.md); for open work see th
 - 2026-09-19  feat: name the serving in the portion sheet subtitle (issue #90)  (PR #180 closes #90)
 - 2026-09-19  fix: restore search-field focus when an overlay closes with search still open (issue #110)  (PR #179 closes #110)
 - 2026-09-19  fix: throw on a bare default and skip quoted text when matching default (issue #178)  (PR #181 closes #178)
+- 2026-09-19  feat: food form tokens (serving chips, locked read-out, nutrition steppers, live preview) and per-preset serving steps (issue #88)  (PR #182 closes #88)
+- 2026-09-20  feat: useEditableNumber hook — tap-to-type parse/clamp/revert (issue #87)  (PR #184 closes #87)
