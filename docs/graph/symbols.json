@@ -414,7 +414,7 @@
         "src/hooks/useHapticFeedback.ts",
         "src/theme/tokens.ts"
       ],
-      "loc": 586
+      "loc": 600
     },
     "src/components/food-form/Stepper.tsx": {
       "exports": [

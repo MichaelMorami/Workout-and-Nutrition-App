@@ -13,9 +13,12 @@
  * `SERVING_PRESETS` itself (issue #185) — this is the documented fallback until it does.
  *
  * CUSTOM NEVER RESETS. Picking Custom seeds its basis + amount from whichever chip was selected just
- * before it (`customSeedRef`, below) — never a reset to 0. The label itself always starts blank (it
- * is the one thing only the user can name), and once Custom has been explicitly picked once, further
- * preset taps stop touching its state, so switching back finds exactly what was typed.
+ * before it (`customTouchedRef`, below) — never a reset to 0. The label starts blank for a brand-new
+ * food (it is the one thing only the user can name), but for an edit it always starts pre-filled
+ * from `initial.servingLabel` — including when a preset matched on basis + amount but not on label,
+ * so the original name is one tap away, never discarded (PR #188 review, B1). Once Custom has been
+ * explicitly picked once, further preset taps stop touching its state, so switching back finds
+ * exactly what was typed (or, for an edit, exactly what was there to begin with).
  *
  * VALIDATION, EDIT PRE-SELECTION: see the two block comments further down, at `firstError` and the
  * `initial` resolution in `FoodForm` itself.
@@ -69,15 +72,23 @@ function per100Heading(basis: FoodBasis): string {
   return `Per ${amountText(basis, 100)}`;
 }
 
-/** Finds the preset key whose basis + amount match a food exactly — issue #89's carry-over #2: a
- * stable `key` does not exist on `SERVING_PRESETS` yet (#185), so an edit falls back to matching on
- * basis + amount together (unique per preset: weight/100, volume/100, volume/250, volume/15,
- * volume/5 are five distinct pairs) rather than the serving label text, which a user may have typed
- * freely even for what was originally a preset amount. */
-function matchingPresetKey(basis: FoodBasis, amount: number): ServingPresetKey | null {
+/** Finds the preset key whose label + basis + amount all match a food exactly — issue #89's
+ * unblock comment, carry-over #2: a stable `key` does not exist on `SERVING_PRESETS` yet (#185), so
+ * an edit falls back to matching on label+basis+amount together. The label matters as much as the
+ * numbers: "1 bottle"/volume/250 and "1 cup"/volume/250 share a preset's basis+amount but are not
+ * the same serving, and a basis+amount-only match silently renamed the former to the latter on
+ * save (PR #188 review, B1) — a real data-loss bug on the edit path. Matching all three means a food
+ * whose amount happens to land on a preset but whose label does not falls to Custom instead, with
+ * its own label preserved rather than overwritten.
+ *
+ * `label === ''` is the one exception, and it is not a real food: `catalog.ts`'s own `createFood`
+ * throws on a blank `servingLabel` (`invalid_input`), so no row ever reaches this form with one — a
+ * blank label only ever means `CreateFoodSheet`'s synthetic "nothing chosen yet" `initial`, which
+ * wants the 100 g preset's own label, not Custom. Basis+amount alone still resolves that case. */
+function matchingPresetKey(label: string, basis: FoodBasis, amount: number): ServingPresetKey | null {
   for (const key of servingPresetKeys) {
     const preset = PRESET_BY_KEY[key];
-    if (preset.basis === basis && preset.amount === amount) return key;
+    if (preset.basis === basis && preset.amount === amount && (label === '' || preset.label === label)) return key;
   }
   return null;
 }
@@ -252,13 +263,16 @@ export function FoodForm({ initial = null, onSave, onCancel, variant = 'screen',
   const fireHaptic = useHapticFeedback();
   const isEditing = initial !== null;
 
-  const matched = initial ? matchingPresetKey(initial.basis, initial.servingAmount) : '100g';
+  const matched = initial ? matchingPresetKey(initial.servingLabel, initial.basis, initial.servingAmount) : '100g';
   const [servingKey, setServingKey] = useState<ServingKey>(matched ?? 'custom');
 
-  // Custom's own state. Seeded from `initial` when editing falls back to Custom; otherwise from the
-  // default 100 g preset, so the very first tap on Custom (before any other chip) still carries over
-  // a sensible basis + amount instead of 0.
-  const [customLabel, setCustomLabel] = useState(matched ? '' : (initial?.servingLabel ?? ''));
+  // Custom's own state. Always seeded from `initial?.servingLabel` when editing — even when a
+  // preset matched — so the original label is still there, intact, the moment the user taps Custom
+  // (PR #188 review, B1: blanking it here made an overwritten label unrecoverable from the form).
+  // A brand-new food has no `initial`, so this is '' either way. Basis/amount seed from the default
+  // 100 g preset so the very first tap on Custom (before any other chip) still carries over a
+  // sensible basis + amount instead of 0.
+  const [customLabel, setCustomLabel] = useState(initial?.servingLabel ?? '');
   const [customBasis, setCustomBasis] = useState<FoodBasis>(initial?.basis ?? 'weight');
   const [customAmount, setCustomAmount] = useState(initial?.servingAmount ?? 100);
 
