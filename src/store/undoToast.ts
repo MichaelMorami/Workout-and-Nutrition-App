@@ -5,9 +5,10 @@
  * (`docs/decisions.md`), so it is mounted outside the `ScrollView` that `QuickAddGrid` lives in.
  * A store is what lets either side reach the same toast without threading it through a screen.
  *
- * `docs/decisions.md`'s "no 4-second timer" ruling: `interaction.undoCeilingMs` (three minutes) is
- * the only *timed* dismissal, there only to stop a stale toast carrying into the next meal — not a
- * guess at how long someone needs. Every other trigger in `interaction.undoDismissedBy` is a
+ * The 2026-09-20 client ruling (issue #83, `docs/decisions.md` ruling 2): the toast auto-dismisses
+ * `interaction.undoAutoDismissMs` (ten seconds) after `show()`, wall-clock — the clock keeps
+ * running while the phone is locked or the app is backgrounded, there is no pause. That is this
+ * store's only timed dismissal; every other trigger in `interaction.undoDismissedBy` is a
  * deliberate call from a component (`show()` replacing a toast still up counts as "anotherLog";
  * opening the portion sheet calls `dismiss()` directly) rather than something this store times
  * itself. `interaction.undoSurvives` lists scroll, screen lock and backgrounding on purpose — this
@@ -57,27 +58,27 @@ interface UndoToastState {
   readonly dismiss: () => void;
 }
 
-let ceilingTimer: ReturnType<typeof setTimeout> | null = null;
+let autoDismissTimer: ReturnType<typeof setTimeout> | null = null;
 
-function clearCeiling(): void {
-  if (ceilingTimer !== null) {
-    clearTimeout(ceilingTimer);
-    ceilingTimer = null;
+function clearAutoDismiss(): void {
+  if (autoDismissTimer !== null) {
+    clearTimeout(autoDismissTimer);
+    autoDismissTimer = null;
   }
 }
 
 export const useUndoToastStore = create<UndoToastState>((set) => ({
   toast: null,
   show: (payload) => {
-    clearCeiling();
-    ceilingTimer = setTimeout(() => {
-      ceilingTimer = null;
+    clearAutoDismiss();
+    autoDismissTimer = setTimeout(() => {
+      autoDismissTimer = null;
       set({ toast: null });
-    }, interaction.undoCeilingMs);
+    }, interaction.undoAutoDismissMs);
     set({ toast: payload });
   },
   dismiss: () => {
-    clearCeiling();
+    clearAutoDismiss();
     set({ toast: null });
   },
 }));

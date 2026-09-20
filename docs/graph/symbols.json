@@ -1595,7 +1595,7 @@
         "src/theme/tokens.ts",
         "zustand"
       ],
-      "loc": 84,
+      "loc": 85,
       "importedBy": [
         "app/(tabs)/index.tsx",
         "src/components/day-log/DayLogList.tsx",
