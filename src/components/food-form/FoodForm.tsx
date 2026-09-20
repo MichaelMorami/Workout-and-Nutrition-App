@@ -9,8 +9,9 @@
  * PRESET TABLE, ONE PLACE. `src/db/servings.ts`'s `SERVING_PRESETS` is the metric conversion table
  * (client ruling 5) — this file never re-implements it. `src/theme/tokens.ts`'s `servingPresetKeys`
  * gives each preset a stable string key for testIDs and UI rules; the two arrays are the same order
- * (`PRESET_BY_KEY` below zips them by index) because #86 has not yet landed a stable `key` field on
- * `SERVING_PRESETS` itself (issue #185) — this is the documented fallback until it does.
+ * (`PRESET_BY_KEY`, zipped by index in `../serving-preset.ts`) because #86 has not yet landed a
+ * stable `key` field on `SERVING_PRESETS` itself (issue #185) — this is the documented fallback
+ * until it does. `matchingPresetKey` lives there too, shared with `<PortionSheet>` (issue #93).
  *
  * CUSTOM NEVER RESETS. Picking Custom seeds its basis + amount from whichever chip was selected just
  * before it (`customTouchedRef`, below) — never a reset to 0. The label starts blank for a brand-new
@@ -46,17 +47,12 @@
  */
 import { useEffect, useRef, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View, TextInput, type NativeSyntheticEvent, type NativeScrollEvent, type TextStyle } from 'react-native';
-import { SERVING_PRESETS, UNIT_OF_BASIS, servingOf, type FoodBasis, type FoodInput, type ServingPreset } from '../../db';
+import { UNIT_OF_BASIS, servingOf, type FoodBasis, type FoodInput } from '../../db';
 import { formatGrams, formatMl, formatPreviewProtein } from '../format/food';
 import { useHapticFeedback } from '../../hooks/useHapticFeedback';
+import { PRESET_BY_KEY, matchingPresetKey } from '../serving-preset';
 import { haptics, radius, servingPresetKeys, size, space, type, type ServingPresetKey, type Theme, type TypeStyle } from '../../theme/tokens';
 import { Stepper } from './Stepper';
-
-/** `servingPresetKeys[i]` names `SERVING_PRESETS[i]` — see the module note on why this is a zip, not
- * a lookup into a stable key `SERVING_PRESETS` does not have yet (issue #185). */
-const PRESET_BY_KEY: Readonly<Record<ServingPresetKey, ServingPreset>> = Object.fromEntries(
-  servingPresetKeys.map((key, i) => [key, SERVING_PRESETS[i]]),
-) as Record<ServingPresetKey, ServingPreset>;
 
 type ServingKey = ServingPresetKey | 'custom';
 
@@ -70,27 +66,6 @@ function amountText(basis: FoodBasis, amount: number): string {
  * effect (a preset's own basis, or Custom's own Measured-by choice). */
 function per100Heading(basis: FoodBasis): string {
   return `Per ${amountText(basis, 100)}`;
-}
-
-/** Finds the preset key whose label + basis + amount all match a food exactly — issue #89's
- * unblock comment, carry-over #2: a stable `key` does not exist on `SERVING_PRESETS` yet (#185), so
- * an edit falls back to matching on label+basis+amount together. The label matters as much as the
- * numbers: "1 bottle"/volume/250 and "1 cup"/volume/250 share a preset's basis+amount but are not
- * the same serving, and a basis+amount-only match silently renamed the former to the latter on
- * save (PR #188 review, B1) — a real data-loss bug on the edit path. Matching all three means a food
- * whose amount happens to land on a preset but whose label does not falls to Custom instead, with
- * its own label preserved rather than overwritten.
- *
- * `label === ''` is the one exception, and it is not a real food: `catalog.ts`'s own `createFood`
- * throws on a blank `servingLabel` (`invalid_input`), so no row ever reaches this form with one — a
- * blank label only ever means `CreateFoodSheet`'s synthetic "nothing chosen yet" `initial`, which
- * wants the 100 g preset's own label, not Custom. Basis+amount alone still resolves that case. */
-function matchingPresetKey(label: string, basis: FoodBasis, amount: number): ServingPresetKey | null {
-  for (const key of servingPresetKeys) {
-    const preset = PRESET_BY_KEY[key];
-    if (preset.basis === basis && preset.amount === amount && (label === '' || preset.label === label)) return key;
-  }
-  return null;
 }
 
 export type FoodFormProps = {

@@ -46,28 +46,47 @@ import type { Candidate } from '../../db';
 import { formatGrams } from '../format/food';
 import { useEditableNumber } from '../../hooks/useEditableNumber';
 import { useHapticFeedback } from '../../hooks/useHapticFeedback';
-import { haptics, interaction, radius, size, space, type, type Theme, type TypeStyle } from '../../theme/tokens';
+import { matchingPresetKey } from '../serving-preset';
+import { haptics, interaction, radius, size, space, type, type ServingStepKey, type Theme, type TypeStyle } from '../../theme/tokens';
 
 /**
- * The Servings strip's step list (issue #91) — a single function so a later per-serving-type rule
- * (issue #93) has exactly one place to plug into instead of every call site guessing its own list.
- * Default: half-servings from ½ up to 8, the same list for a food and a meal candidate until #93
- * varies it by `candidate`. Built from `n / 2` rather than repeated `+= 0.5` so every entry is an
- * exact binary float (halves of an integer always are) — no drift to round away.
+ * Which per-preset step strip (`interaction.servingSteps`, issue #93) a candidate gets. A food
+ * matches its own serving to a preset key via `matchingPresetKey` — the same helper `<FoodForm>`
+ * uses to pre-select an edited food's chip, shared from `../serving-preset` so the label/basis/
+ * amount matching rule lives in exactly one place. A meal candidate carries no serving fields at
+ * all (`MealCandidate` in `src/db/types.ts` has none), so it always falls to `custom`.
  */
-export function servingSteps(_candidate: Candidate): readonly number[] {
+function presetKeyOf(candidate: Candidate): ServingStepKey {
+  if (candidate.kind !== 'food') return 'custom';
+  return matchingPresetKey(candidate.servingLabel, candidate.basis, candidate.servingAmount) ?? 'custom';
+}
+
+/**
+ * The Servings strip's step list (issue #91, per-preset since #93) — a single function so every
+ * call site reads the same list instead of guessing its own. The step and the top of the strip come
+ * from `interaction.servingSteps[key]` (`src/theme/tokens.ts`, researched and decided in #88): ¼
+ * steps for `cup`/`tbsp`/`tsp`, ½ steps for `100g`/`100ml`/`custom`. Built from `n / denominator`
+ * rather than repeated `+= increment` so every entry is an exact binary float (quarters and halves
+ * of an integer always are, in binary) — no drift to round away.
+ */
+export function servingSteps(candidate: Candidate): readonly number[] {
+  const { increment, max } = interaction.servingSteps[presetKeyOf(candidate)];
+  const denominator = increment === 0.25 ? 4 : 2;
   const steps: number[] = [];
-  for (let half = 1; half <= 16; half += 1) steps.push(half / 2);
+  for (let n = 1; n <= max * denominator; n += 1) steps.push(n / denominator);
   return steps;
 }
 
-/** "½", "1", "1½", "2" … the step's own value and nothing else — issue #91 drops the per-step kcal
- * line, so the Servings strip's buttons are value-only. */
+/** "¼", "½", "¾", "1", "1¼" … the step's own value and nothing else — issue #91 drops the per-step
+ * kcal line, so the Servings strip's buttons are value-only. Issue #93 adds quarters: only ¼ and ½
+ * increments exist (`interaction.servingSteps`'s own doc comment), so every fractional part is
+ * exactly one of ¼ ½ ¾ — safe to round to the nearest quarter rather than string-matching floats. */
 function servingStepLabel(multiple: number): string {
   const whole = Math.trunc(multiple);
-  const isHalf = multiple - whole === 0.5;
-  if (!isHalf) return `${whole}`;
-  return whole === 0 ? '½' : `${whole}½`;
+  const quarters = Math.round((multiple - whole) * 4);
+  const fraction = (['', '¼', '½', '¾'] as const)[quarters] ?? '';
+  if (!fraction) return `${whole}`;
+  return whole === 0 ? fraction : `${whole}${fraction}`;
 }
 
 /** The step in `steps` nearest `target` — how the strip picks what to scroll to and mark selected:
@@ -419,9 +438,9 @@ function SliderTrack({
 }
 
 /** Grows `prevRange` to fit `next` in whole `baseRange`-sized steps, never shrinks it. Issue #92: the
- * slider has no hard cap — `ExactControl` starts at `baseRange` (today, `interaction.sliderMaxServings`
- * worth of the food's serving; 8 servings per #91 once that lands) and this is what lets the value and
- * the visible range keep climbing past it instead of the old clamp-to-max jump-down. */
+ * slider has no hard cap — `ExactControl` starts at `baseRange` (the candidate's own preset max,
+ * `interaction.servingSteps[key].max` worth of its serving, since #93) and this is what lets the
+ * value and the visible range keep climbing past it instead of the old clamp-to-max jump-down. */
 function growRangeTo(next: number, prevRange: number, baseRange: number): number {
   if (next <= prevRange) return prevRange;
   const chunks = Math.ceil(next / baseRange);
@@ -447,8 +466,10 @@ function ExactControl({
   const fireHaptic = useHapticFeedback();
   const isGrams = candidate.kind === 'food' && candidate.servingGrams != null;
   const unitSize = isGrams ? (candidate as { servingGrams: number }).servingGrams : 1;
-  // The slider's starting range — not a cap. See `growRangeTo`.
-  const baseRange = unitSize * interaction.sliderMaxServings;
+  // The slider's starting range — not a cap. See `growRangeTo`. Issue #93: opens at the candidate's
+  // own preset max (`interaction.servingSteps[key].max`), not a flat `sliderMaxServings` for every
+  // serving kind — a 100 g food's Exact range starts wider than a teaspoon's.
+  const baseRange = unitSize * interaction.servingSteps[presetKeyOf(candidate)].max;
   const nudgeStep = isGrams ? interaction.sliderNudgeG : 0.5;
 
   const [amount, setAmount] = useState<number>(unitSize * initialPortions);

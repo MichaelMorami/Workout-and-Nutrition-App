@@ -1,6 +1,6 @@
 {
   "generated": "scripts/graph-gen.mjs — do not edit by hand",
-  "moduleCount": 87,
+  "moduleCount": 88,
   "modules": {
     "app/(tabs)/_layout.tsx": {
       "exports": [
@@ -410,11 +410,12 @@
         "react-native",
         "src/components/food-form/Stepper.tsx",
         "src/components/format/food.ts",
+        "src/components/serving-preset.ts",
         "src/db/index.ts",
         "src/hooks/useHapticFeedback.ts",
         "src/theme/tokens.ts"
       ],
-      "loc": 600
+      "loc": 575
     },
     "src/components/food-form/Stepper.tsx": {
       "exports": [
@@ -574,19 +575,20 @@
     "src/components/quick-add/PortionSheet.tsx": {
       "exports": [
         "function PortionSheet({\n  candidate,\n  theme,\n  locale,\n  onLog,\n  onClose,\n  initialMode = 'presets',\n  initialPortions = 1,\n  presentation = 'modal',\n  testID = 'portion-sheet',\n}: PortionSheetProps): import(\"react\").JSX.Element | null",
-        "function servingSteps(_candidate: Candidate): readonly number[]",
+        "function servingSteps(candidate: Candidate): readonly number[]",
         "type PortionSheetProps = {\n  /** `null` closes the sheet — there is deliberately no separate `visible` flag to fall out of sync with. */\n  readonly candidate: Candidate | null;\n  readonly theme: Theme;\n  /** Formatting locale, forwarded to every figure. Defaults to the device's. */\n  readonly locale?: string;\n  /** A step, or Exact's Log button — always a servings multiple of the candidate's ow..."
       ],
       "imports": [
         "react",
         "react-native",
         "src/components/format/food.ts",
+        "src/components/serving-preset.ts",
         "src/db/index.ts",
         "src/hooks/useEditableNumber.ts",
         "src/hooks/useHapticFeedback.ts",
         "src/theme/tokens.ts"
       ],
-      "loc": 778,
+      "loc": 799,
       "importedBy": [
         "src/components/day-log/DayLogList.tsx",
         "src/components/quick-add/QuickAddGrid.tsx",
@@ -740,6 +742,21 @@
       "loc": 3,
       "importedBy": [
         "app/(tabs)/index.tsx"
+      ]
+    },
+    "src/components/serving-preset.ts": {
+      "exports": [
+        "const PRESET_BY_KEY: Readonly<Record<\"100g\" | \"100ml\" | \"cup\" | \"tbsp\" | \"tsp\", ServingPreset>>",
+        "function matchingPresetKey(label: string, basis: FoodBasis, amount: number): ServingPresetKey | null"
+      ],
+      "imports": [
+        "src/db/index.ts",
+        "src/theme/tokens.ts"
+      ],
+      "loc": 40,
+      "importedBy": [
+        "src/components/food-form/FoodForm.tsx",
+        "src/components/quick-add/PortionSheet.tsx"
       ]
     },
     "src/components/settings/TargetsGroup.tsx": {
@@ -1089,6 +1106,7 @@
         "src/components/quick-add/UndoToast.tsx",
         "src/components/search/CreateFoodSheet.tsx",
         "src/components/search/SearchSheet.tsx",
+        "src/components/serving-preset.ts",
         "src/components/settings/TargetsGroup.tsx",
         "src/components/today/WeightChip.tsx",
         "src/hooks/deviceWhen.ts",
@@ -1738,6 +1756,7 @@
         "src/components/quick-add/UndoToast.tsx",
         "src/components/search/CreateFoodSheet.tsx",
         "src/components/search/SearchSheet.tsx",
+        "src/components/serving-preset.ts",
         "src/components/settings/TargetsGroup.tsx",
         "src/components/shared/SwipeToDelete.tsx",
         "src/components/theme/ThemeProvider.tsx",
