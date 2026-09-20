@@ -351,7 +351,7 @@ jq -r '.modules["src/db/queries/nutrition.ts"].exports[]' docs/graph/symbols.jso
 
 ## `src/components/food-form/`
 
-### `src/components/food-form/FoodForm.tsx`  <sub>313 lines</sub>
+### `src/components/food-form/FoodForm.tsx`  <sub>326 lines</sub>
 
 - `function FoodForm({ initial = null, onSave, onCancel, theme, testID = 'food-form' }: FoodFormProps): import("react").JSX.Element`
 - `type FoodFormProps = {
@@ -363,7 +363,7 @@ jq -r '.modules["src/db/queries/nutrition.ts"].exports[]' docs/graph/symbols.jso
   readonly theme: Theme;
   readonly testID?: str...`
 
-### `src/components/food-form/Stepper.tsx`  <sub>305 lines</sub>
+### `src/components/food-form/Stepper.tsx`  <sub>345 lines</sub>
 
 - `function Stepper({
   label,
@@ -1199,7 +1199,7 @@ _no exports_
 
 <sub>used by: `app/(tabs)/index.tsx`, `app/(tabs)/settings.tsx`, `app/foods/[id].tsx`, `app/foods/index.tsx`, `app/foods/new.tsx`, `app/meals/[id].tsx`, `app/meals/index.tsx`, `app/meals/new.tsx`, `src/components/day-log/DayLogList.tsx`, `src/components/quick-add/QuickAddGrid.tsx`, `src/components/quick-add/UndoToast.tsx`, `src/components/today/WeightChip.tsx`</sub>
 
-### `src/hooks/useEditableNumber.ts`  <sub>57 lines</sub>
+### `src/hooks/useEditableNumber.ts`  <sub>79 lines</sub>
 
 - `function useEditableNumber({ value, min = -Infinity, max = Infinity, onCommit, formatDraft }: UseEditableNumberOptions): UseEditableNumberResult`
 - `type UseEditableNumberOptions = {
