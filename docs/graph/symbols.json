@@ -582,10 +582,11 @@
         "react-native",
         "src/components/format/food.ts",
         "src/db/index.ts",
+        "src/hooks/useEditableNumber.ts",
         "src/hooks/useHapticFeedback.ts",
         "src/theme/tokens.ts"
       ],
-      "loc": 696,
+      "loc": 760,
       "importedBy": [
         "src/components/day-log/DayLogList.tsx",
         "src/components/quick-add/QuickAddGrid.tsx",
@@ -1479,7 +1480,8 @@
       ],
       "loc": 79,
       "importedBy": [
-        "src/components/food-form/Stepper.tsx"
+        "src/components/food-form/Stepper.tsx",
+        "src/components/quick-add/PortionSheet.tsx"
       ]
     },
     "src/hooks/useHapticFeedback.ts": {

@@ -28,12 +28,15 @@
  */
 import { useCallback, useMemo, useState } from 'react';
 import {
+  KeyboardAvoidingView,
   Modal,
   PanResponder,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   View,
   type GestureResponderEvent,
   type LayoutChangeEvent,
@@ -41,6 +44,7 @@ import {
 } from 'react-native';
 import type { Candidate } from '../../db';
 import { formatGrams } from '../format/food';
+import { useEditableNumber } from '../../hooks/useEditableNumber';
 import { useHapticFeedback } from '../../hooks/useHapticFeedback';
 import { haptics, interaction, radius, size, space, type, type Theme, type TypeStyle } from '../../theme/tokens';
 
@@ -439,7 +443,7 @@ function ExactControl({
   testID: string;
   initialPortions?: number;
 }) {
-  const { portionSheet } = theme.color;
+  const { portionSheet, foodForm } = theme.color;
   const fireHaptic = useHapticFeedback();
   const isGrams = candidate.kind === 'food' && candidate.servingGrams != null;
   const unitSize = isGrams ? (candidate as { servingGrams: number }).servingGrams : 1;
@@ -477,6 +481,20 @@ function ExactControl({
   );
   const onSnap = useCallback(() => fireHaptic(haptics.sliderDetent), [fireHaptic]);
 
+  // Issue #94: tap the readout to type the amount outright, sharing #87's tap-to-type mechanism
+  // rather than a second implementation. `amount` is already in the unit the reader types in — grams
+  // for a food, servings for a meal (`unitSize` is 1 there) — so no `formatDraft` override is needed;
+  // the hook's own `String(value)` default round-trips exactly. Rounding happens in `onCommit`, not
+  // via the hook's `min`/`max` clamp: whole grams for a food, the nearest 0.5 servings for a meal
+  // (`docs/decisions.md` ruling 11 keeps the 0.5 step — typing is not a way around it). `applyAbsolute`
+  // is reused for the commit itself, so a typed value grows `rangeMax` exactly as a drag or nudge
+  // already does (issue #92) — never clamped back down to the slider's starting range.
+  const { editing, draft, startEditing, setDraft, commit } = useEditableNumber({
+    value: amount,
+    min: 0,
+    onCommit: (parsed) => applyAbsolute(isGrams ? Math.round(parsed) : nearestHalfServing(parsed)),
+  });
+
   const portions = amount / unitSize;
   const kcalText = Math.round(candidate.kcal * portions).toLocaleString(locale);
   const proteinText = formatGrams(candidate.protein * portions, locale);
@@ -485,9 +503,36 @@ function ExactControl({
 
   return (
     <View testID={testID}>
-      <Text testID={`${testID}-readout`} style={textStyle(type.portionReadout, portionSheet.readoutText)}>
-        {readout}
-      </Text>
+      <Pressable
+        testID={`${testID}-readout`}
+        onPress={startEditing}
+        disabled={editing}
+        accessibilityRole="button"
+        accessibilityLabel={`Edit amount, currently ${readout}`}
+        style={[
+          styles.readout,
+          editing && { borderBottomWidth: size.foodForm.fieldBorderWidthFocus, borderColor: foodForm.fieldBorderFocus },
+        ]}
+      >
+        {editing ? (
+          <TextInput
+            testID={`${testID}-readout-input`}
+            style={textStyle(type.portionReadout, portionSheet.readoutText)}
+            value={draft}
+            onChangeText={setDraft}
+            onBlur={commit}
+            onSubmitEditing={commit}
+            keyboardType="decimal-pad"
+            selectTextOnFocus
+            autoFocus
+            accessibilityLabel="Amount value"
+          />
+        ) : (
+          <Text testID={`${testID}-readout-value`} style={textStyle(type.portionReadout, portionSheet.readoutText)}>
+            {readout}
+          </Text>
+        )}
+      </Pressable>
       <View style={styles.figuresRow}>
         <Text style={textStyle(type.numericLg, portionSheet.kcalText)}>{`${kcalText} kcal`}</Text>
         <Text style={textStyle(type.numericLg, portionSheet.proteinText)}>{`${proteinText} protein`}</Text>
@@ -561,7 +606,20 @@ export function PortionSheet({
   const unit = servingUnitLabel(candidate);
 
   const content = (
-    <>
+    // Issue #94: the keyboard must not cover the Log button once the Exact readout is tap-to-type.
+    // `KeyboardAvoidingView` is RN core — no new native dependency — and there is no earlier
+    // precedent for it in this codebase (`FoodForm.tsx`'s own header flags the same gap; issue #191
+    // tracks a general pinned keyboard-avoiding footer). This is scoped to this sheet only: wrapping
+    // the scrim + sheet together, `behavior="padding"` on iOS (the platform this repo ships to first;
+    // Android's own default resize behaviour already keeps a focused input on screen without this),
+    // shrinks the whole sheet up by the keyboard's height so its last child — the Log button — is
+    // never hidden behind it. If this becomes the shape #191 standardises on generally, that is a
+    // decision for whoever picks that issue up, not assumed here.
+    <KeyboardAvoidingView
+      testID={`${testID}-keyboard-avoider`}
+      style={styles.avoider}
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+    >
       <Pressable
         testID={`${testID}-scrim`}
         accessibilityLabel="Close"
@@ -610,7 +668,7 @@ export function PortionSheet({
           />
         )}
       </View>
-    </>
+    </KeyboardAvoidingView>
   );
 
   return presentation === 'overlay' ? (
@@ -625,6 +683,9 @@ export function PortionSheet({
 }
 
 const styles = StyleSheet.create({
+  avoider: {
+    flex: 1,
+  },
   scrim: {
     flex: 1,
   },
@@ -656,6 +717,9 @@ const styles = StyleSheet.create({
   step: {
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  readout: {
+    alignSelf: 'flex-start',
   },
   figuresRow: {
     flexDirection: 'row',
