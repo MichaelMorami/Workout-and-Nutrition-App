@@ -1,0 +1,169 @@
+{
+  "pages": [
+    {
+      "id": "page-1",
+      "name": "Form frame — dark + ruling"
+    },
+    {
+      "id": "page-2",
+      "name": "Form frame — light"
+    }
+  ],
+  "artboards": [
+    {
+      "file": "Anatomy.dc.html",
+      "title": "Anatomy — header · body · pinned footer · safe area",
+      "x": 0,
+      "y": 0,
+      "w": 390,
+      "h": 844,
+      "page": "page-1"
+    },
+    {
+      "file": "ScreenRest.dc.html",
+      "title": "Pushed screen — keyboard down, footer on the safe-area inset",
+      "x": 500,
+      "y": 0,
+      "w": 390,
+      "h": 844,
+      "page": "page-1"
+    },
+    {
+      "file": "ScreenTyping.dc.html",
+      "title": "Pushed screen — keyboard up, footer riding it, divider on",
+      "x": 1000,
+      "y": 0,
+      "w": 390,
+      "h": 844,
+      "page": "page-1"
+    },
+    {
+      "file": "EditNote.dc.html",
+      "title": "Edit — the note row, which is keyboard-down only",
+      "x": 1500,
+      "y": 0,
+      "w": 390,
+      "h": 844,
+      "page": "page-1"
+    },
+    {
+      "file": "SheetTyping.dc.html",
+      "title": "Create sheet — the sheet owns the avoider, the form owns none",
+      "x": 2000,
+      "y": 0,
+      "w": 390,
+      "h": 844,
+      "page": "page-1"
+    },
+    {
+      "file": "SmallScreen.dc.html",
+      "title": "Small screen — 375 × 667, keyboard up, footer and keyboard competing",
+      "x": 2500,
+      "y": 0,
+      "w": 375,
+      "h": 667,
+      "page": "page-1"
+    },
+    {
+      "file": "Spec.dc.html",
+      "title": "Ruling — pinned footer, the inset, sheets, mechanism, reduce motion, small screen",
+      "x": 0,
+      "y": 1144,
+      "w": 1240,
+      "h": 3180,
+      "page": "page-1"
+    },
+    {
+      "file": "AnatomyLight.dc.html",
+      "title": "Anatomy — header · body · pinned footer · safe area — light",
+      "x": 0,
+      "y": 0,
+      "w": 390,
+      "h": 844,
+      "page": "page-2"
+    },
+    {
+      "file": "ScreenRestLight.dc.html",
+      "title": "Pushed screen — keyboard down, footer on the safe-area inset — light",
+      "x": 500,
+      "y": 0,
+      "w": 390,
+      "h": 844,
+      "page": "page-2"
+    },
+    {
+      "file": "ScreenTypingLight.dc.html",
+      "title": "Pushed screen — keyboard up, footer riding it, divider on — light",
+      "x": 1000,
+      "y": 0,
+      "w": 390,
+      "h": 844,
+      "page": "page-2"
+    },
+    {
+      "file": "EditNoteLight.dc.html",
+      "title": "Edit — the note row, which is keyboard-down only — light",
+      "x": 1500,
+      "y": 0,
+      "w": 390,
+      "h": 844,
+      "page": "page-2"
+    },
+    {
+      "file": "SheetTypingLight.dc.html",
+      "title": "Create sheet — the sheet owns the avoider, the form owns none — light",
+      "x": 2000,
+      "y": 0,
+      "w": 390,
+      "h": 844,
+      "page": "page-2"
+    },
+    {
+      "file": "SmallScreenLight.dc.html",
+      "title": "Small screen — 375 × 667, keyboard up, footer and keyboard competing — light",
+      "x": 2500,
+      "y": 0,
+      "w": 375,
+      "h": 667,
+      "page": "page-2"
+    }
+  ],
+  "annotations": [
+    {
+      "id": "brief",
+      "page": "page-1",
+      "x": 0,
+      "y": -320,
+      "w": 1400,
+      "text": "ISSUE #207 — THE FORM FRAME\n\nEvery form in Vitals is one shape: an optional header, one scrolling body, and an action footer that never scrolls and rides the keyboard. FoodForm is the first adopter, not the subject — the ruling is the pattern.\n\nNothing is broken today: the #188 review confirmed Save is scroll-reachable on both platforms. This is the feel. With the keyboard up, the thing you are about to press is already under your thumb."
+    },
+    {
+      "id": "inset",
+      "page": "page-1",
+      "x": 1520,
+      "y": -320,
+      "w": 900,
+      "text": "THE INSET\n\nThe footer owns it; the body owns none. formFooterPaddingBottom(keyboardVisible, insets.bottom) in tokens.ts is the whole rule: the pad alone with the keyboard up, max(inset, pad) with it down. Adding the safe-area inset on top of the keyboard is the one mistake this pattern exists to prevent."
+    },
+    {
+      "id": "spec-note",
+      "page": "page-1",
+      "x": 0,
+      "y": 934,
+      "w": 1240,
+      "text": "The ruling below is the contract for step 2 (ui-engineer). Section 5 is what gets built; sections 2, 6 and 7 are what a reviewer checks it against."
+    },
+    {
+      "id": "light-note",
+      "page": "page-2",
+      "x": 0,
+      "y": -240,
+      "w": 1400,
+      "text": "The light theme — same markup, same tokens. Every footer pair is measured on both grounds, in both themes, at 4.5 : 1 or better (ruling section 9)."
+    }
+  ],
+  "launch": {
+    "view": "canvas",
+    "page": "page-1"
+  }
+}

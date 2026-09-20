@@ -1352,7 +1352,7 @@ _no exports_
 
 ## `src/theme/`
 
-### `src/theme/tokens.ts`  <sub>1619 lines</sub>
+### `src/theme/tokens.ts`  <sub>1667 lines</sub>
 
 - `const MIN_TEXT_CONTRAST: 4.5`
 - `const contrastPairs: readonly ContrastPair[]`
@@ -1360,7 +1360,7 @@ _no exports_
 - `const glyph: { readonly family: "Ionicons"; readonly tab: { readonly today: { readonly active: "today"; readonly inactive: "today-outline"; }; readonly workout: { readonly active: "barbell"; readonly inactive: "barbell-outline"; }; readonly charts: { readonly active: "stats-chart"; readonly inactive: "stats-chart-outline"; }; readonly settings: { readonly active: "settings"; readonly inactive: ...`
 - `const haptics: { readonly foodLogged: { readonly ios: "impactMedium"; readonly android: "EFFECT_HEAVY_CLICK"; }; readonly setLogged: { readonly ios: "impactLight"; readonly android: "EFFECT_TICK"; }; readonly undo: { readonly ios: "impactLight"; readonly android: "EFFECT_CLICK"; }; readonly sliderDetent: { readonly ios: "selection"; readonly android: "EFFECT_TICK"; }; readonly restFinished: { r...`
 - `const interaction: { readonly longPressMs: 220; readonly repeatWindowMs: 5000; readonly tileLoggedHoldMs: 900; readonly rowLoggedHoldMs: 240; readonly undoAutoDismissMs: 10000; readonly undoDismissedBy: readonly ["anotherLog", "sheetOpened", "tabChanged", "swipedAway"]; readonly undoSurvives: readonly ["scroll", "screenLock", "appBackgrounded"]; readonly stepperRepeatDelayMs: 400; readonly slid...`
-- `const layout: { readonly gutterToday: 20; readonly gutter: 16; readonly cardPadding: 16; readonly cardGap: 12; readonly tileGap: 10; readonly groupGap: 24; readonly floatAboveTabBar: 12; }`
+- `const layout: { readonly gutterToday: 20; readonly gutter: 16; readonly cardPadding: 16; readonly cardGap: 12; readonly tileGap: 10; readonly groupGap: 24; readonly floatAboveTabBar: 12; readonly formFooterPadTop: 10; readonly formFooterPadBottom: 10; readonly formFooterRowGap: 10; readonly formBodyPadBottom: 16; }`
 - `const motion: { readonly ceilingMs: 260; readonly easing: { readonly standard: readonly [0.2, 0, 0, 1]; readonly out: readonly [0, 0, 0.58, 1]; readonly inOut: readonly [0.42, 0, 0.58, 1]; readonly linear: readonly [0, 0, 1, 1]; }; readonly spring: { readonly sheet: { readonly dampingRatio: 0.82; readonly duration: 200; }; }; readonly events: { readonly tilePressIn: { readonly duration: 90; rea...`
 - `const radius: { readonly xs: 8; readonly sm: 10; readonly md: 14; readonly lg: 18; readonly xl: 22; readonly card: 24; readonly pill: 999; }`
 - `const servingPresetKeys: readonly ["100g", "100ml", "cup", "tbsp", "tsp"]`
@@ -1369,6 +1369,7 @@ _no exports_
 - `const themeNames: readonly ["dark", "light"]`
 - `const themes: { readonly dark: Theme; readonly light: Theme; }`
 - `const type: { readonly displayXl: { readonly fontFamily: "Archivo-DisplayXl"; readonly fontSize: 33; readonly lineHeight: 33; readonly letterSpacing: -0.73; readonly fontVariant: readonly ["tabular-nums"]; }; readonly displayLg: { readonly fontFamily: "Archivo-Display"; readonly fontSize: 25; readonly lineHeight: 27; readonly letterSpacing: -0.45; }; readonly statHero: { readonly fontFamily: "A...`
+- `function formFooterPaddingBottom(keyboardVisible: boolean, safeAreaBottom: number): number`
 - `function resolveThemeName(preference: ThemePreference, system: string | null | undefined): ThemeName`
 - `type BaseColors = Widen<typeof darkBase>`
 - `type Bezier = readonly [number, number, number, number]`
