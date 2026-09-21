@@ -42,19 +42,17 @@ import { computeMotionEventsReachability, type ReachabilityReport } from './test
  * see `PENDING_EXCEPTIONS_CEILING`.
  */
 const PENDING_EXCEPTIONS: readonly { readonly key: keyof typeof motion.events; readonly issue: number; readonly note: string }[] = [
-  { key: 'loggedWashIn', issue: 224, note: 'QuickAddTile logged wash — colour swap only today, no animated transition' },
-  { key: 'loggedWashOut', issue: 224, note: 'same — the wash leaving' },
-  { key: 'sheetIn', issue: 224, note: "PortionSheet's own doc: uses Modal's built-in slide, not this token, until a bottom-sheet dependency is raised" },
-  { key: 'sheetOut', issue: 224, note: 'same' },
-  { key: 'searchLift', issue: 224, note: 'no search bar/search sheet screen exists yet' },
+  { key: 'loggedWashIn', issue: 228, note: '#224 ruled WIRE: QuickAddTile swaps tile.bgLogged in one frame — the canvas specifies an animated wash' },
+  { key: 'loggedWashOut', issue: 228, note: 'same — the wash leaving' },
+  { key: 'sheetIn', issue: 231, note: "#224 ruled DEFER, blocked on a dependency: both sheets present through RN core Modal's animationType=slide (PortionSheet.tsx:24-27, SearchSheet.tsx:67); #231 decides the bottom-sheet dependency, then wires or retires this" },
+  { key: 'sheetOut', issue: 231, note: 'same — deferred on the same dependency' },
   { key: 'portionModeSwap', issue: 225, note: "the original trigger for #210 — PortionSheet's Presets/Exact cross-fade is not wired; wiring already decided" },
-  { key: 'sliderSnap', issue: 224, note: "PortionSheet's Exact slider has no detent-snap animation yet" },
-  { key: 'rowPress', issue: 224, note: 'no row/chip press-colour transition is wired yet' },
-  { key: 'setCollapse', issue: 224, note: 'workout set rows do not exist yet' },
-  { key: 'restPulse', issue: 224, note: 'the rest-ring pulse is not wired yet' },
-  { key: 'tabFade', issue: 224, note: 'tab cross-fade is not wired (#82 tracks tab carousel, not this token specifically)' },
-  { key: 'chartDraw', issue: 224, note: "ProgressArc's own doc: belongs to the Charts tab, which does not exist yet (charts-engineer)" },
-  { key: 'rangeMorph', issue: 224, note: 'same — the Charts tab range switch' },
+  { key: 'sliderSnap', issue: 230, note: "#224 ruled WIRE, not retire: SliderTrack already snaps the value and fires haptics.sliderDetent on release (PortionSheet.tsx:368-375) — only the 120 ms visual settle is missing" },
+  { key: 'rowPress', issue: 229, note: '#224 ruled WIRE: every row/chip press colour is a one-frame swap today (e.g. DayLogRow.tsx:107)' },
+  { key: 'setCollapse', issue: 232, note: '#224 ruled DEFER, blocked on a screen that does not exist: app/(tabs)/workout.tsx is a placeholder, so there is no set row to collapse' },
+  { key: 'restPulse', issue: 232, note: 'same — no rest ring exists until the Workout screen is built' },
+  { key: 'chartDraw', issue: 233, note: '#224 ruled DEFER, blocked on a screen that does not exist: app/(tabs)/charts.tsx is a placeholder (ProgressArc under charts/ is the Today ring, per its own doc)' },
+  { key: 'rangeMorph', issue: 233, note: 'same — the Charts tab range switch' },
 ];
 
 /**
@@ -66,7 +64,7 @@ const PENDING_EXCEPTIONS: readonly { readonly key: keyof typeof motion.events; r
  * pushes `PENDING_EXCEPTIONS.length` past this constant, and that failure names no key: it just
  * says the ceiling was not raised to match, forcing the append to be argued for as its own change.
  */
-const PENDING_EXCEPTIONS_CEILING = 13;
+const PENDING_EXCEPTIONS_CEILING = 11;
 
 function loadProductionProgram(): { program: ts.Program; sourceFiles: ts.SourceFile[]; root: string } {
   const root = path.resolve(__dirname, '../../..');
