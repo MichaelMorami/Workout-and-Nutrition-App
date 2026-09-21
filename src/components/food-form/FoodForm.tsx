@@ -85,12 +85,26 @@
  * its own avoider (the default); a sheet is already inside `CreateFoodSheet`'s own
  * `KeyboardAvoidingView` (this same issue), so this form's own avoider is off there.
  *
- * A FAILED SAVE SCROLLS TO THE FIELD IT IS ABOUT (PR #220 review, B2). With Save pinned in the
- * footer, an inline error further down the body can sit below the fold — a form opened at the top
- * with the keyboard up showed nothing at all when a blank-Name Save failed. `handleSave` now
- * scrolls the body to the offending field (`fieldOffsets`, measured by each field's own `onLayout`)
- * and focuses it, so the message, the error border and the caret all arrive together. Not a third
- * footer row: decision 13's footer is two rows with the keyboard up and never collapses or grows.
+ * A FAILED SAVE SCROLLS TO THE FIELD IT IS ABOUT (PR #220 review, B2; wording fixed, issue #222).
+ * With Save pinned in the footer, an inline error further down the body can sit below the fold — a
+ * form opened at the top with the keyboard up showed nothing at all when a blank-Name Save failed.
+ * `handleSave` scrolls the body to the offending field (`fieldOffsets`, measured by each field's own
+ * `onLayout`) and focuses it, so the red border and the caret land in view together. The message
+ * itself lives inside that same `Field` (its `errorMessage`/`errorTestID` props), directly under the
+ * input it is about — not a shared line at the end of the scrolling body, which would have arrived a
+ * beat after the border and caret, and for the Custom case (see "CUSTOM CASE SCROLLS TO THE SECTION"
+ * below) would have sat outside the section the scroll actually brings into view. Not a third footer
+ * row either: decision 13's footer is two rows with the keyboard up and never collapses or grows.
+ *
+ * CUSTOM CASE SCROLLS TO THE SECTION, NOT THE FIELD (PR #220 review follow-up, issue #222 item 3).
+ * `fieldOffsets.servingLabel` is `${testID}-serving-section`'s own offset, not the Label field's —
+ * a blank-Custom-label Save brings the whole Serving section (chips, the revealed Label/Measured
+ * by/Amount fields, all of it) to the top of the body rather than the Label field alone. That is a
+ * device-only check (does the section-level landing still put the Label field and its now-adjacent
+ * error message on screen with the keyboard up, on a real phone's viewport) — closed without one:
+ * the section is short enough, and the Label field is always its first child, that the field lands
+ * in the same place the section's own top would; revisit only if a future addition to the Custom
+ * reveal pushes the Label field far enough down the section to change that.
  */
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View, TextInput, type LayoutChangeEvent, type TextStyle } from 'react-native';
@@ -169,6 +183,8 @@ function Field({
   placeholder,
   testID,
   hasError,
+  errorMessage,
+  errorTestID,
   inputRef,
   onLayout,
 }: {
@@ -179,6 +195,12 @@ function Field({
   placeholder?: string;
   testID: string;
   hasError?: boolean;
+  /** Shown directly under this field's own input, never in the footer (decision 13) and never as a
+   * shared line elsewhere in the body (issue #222, item 1) — a failed Save already scrolls this
+   * field into view (`handleSave`, below), so the message arrives already on screen instead of
+   * waiting below the fold. */
+  errorMessage?: string;
+  errorTestID?: string;
   inputRef?: React.RefObject<TextInput | null>;
   onLayout?: (event: LayoutChangeEvent) => void;
 }) {
@@ -206,6 +228,11 @@ function Field({
           },
         ]}
       />
+      {errorMessage ? (
+        <Text testID={errorTestID} style={textStyle(type.label, foodForm.errorText)}>
+          {errorMessage}
+        </Text>
+      ) : null}
     </View>
   );
 }
@@ -474,7 +501,9 @@ export function FoodForm({ initial = null, onSave, onCancel, variant = 'screen',
   const [brand, setBrand] = useState(initial?.brand ?? '');
   const [kcalPer100, setKcalPer100] = useState(initial?.kcalPer100 ?? 0);
   const [proteinPer100, setProteinPer100] = useState(initial?.proteinPer100 ?? 0);
-  const [error, setError] = useState<string | null>(null);
+  // Which field a failed Save is about, alongside its message — rendered next to that field itself
+  // (`Field`'s own `errorMessage`, issue #222 item 1), never as a shared line elsewhere in the body.
+  const [problem, setProblem] = useState<FormProblem | null>(null);
 
   // Once Custom has been explicitly picked, further preset taps stop mirroring into its basis/amount
   // — "switching is never a reset" (issue #89, section 2). Starts `true` when editing already fell
@@ -484,9 +513,16 @@ export function FoodForm({ initial = null, onSave, onCancel, variant = 'screen',
   const labelInputRef = useRef<TextInput | null>(null);
   const mountedRef = useRef(false);
 
-  // Where a failed Save scrolls to. Both are direct children of the body's own content view, so the
-  // `y` their `onLayout` reports is already the scroll offset that puts them at the top of the
-  // body — no `measureLayout` round-trip, and no guess.
+  // Where a failed Save scrolls to. Both are direct children of the body's own content view
+  // (`styles.content`, testID `${testID}-content`), so the `y` their `onLayout` reports is already
+  // the scroll offset that puts them at the top of the body — no `measureLayout` round-trip, and no
+  // guess. That reading is exact only while this content wrapper and `<FormFrame>`'s own scroll
+  // content add no top padding above their children — true today, but PR #220 left it an unasserted
+  // coincidence: a later token change to either could silently mis-scroll every failed-Save focus
+  // with no test catching it (review follow-up, issue #222 item 2). Two tests now pin it down
+  // instead of a comment: this file's own "adds no top padding to its own content wrapper" and
+  // `FormFrame.test.tsx`'s "adds no top padding to the body content" — either fails loudly the
+  // moment the assumption breaks.
   const bodyRef = useRef<ScrollView | null>(null);
   const fieldOffsets = useRef<{ name: number; servingLabel: number }>({ name: 0, servingLabel: 0 });
 
@@ -536,21 +572,22 @@ export function FoodForm({ initial = null, onSave, onCancel, variant = 'screen',
     variant === 'sheet' ? `Save & log ${servingLabel}` : isEditing ? 'Save changes' : 'Save food';
 
   const handleSave = (): void => {
-    const problem = firstError(name, servingKey, customLabel);
-    if (problem) {
-      setError(problem.message);
+    const found = firstError(name, servingKey, customLabel);
+    if (found) {
+      setProblem(found);
       // A FAILED SAVE HAS TO COME TO THE USER (PR #220 review, B2). Save is pinned in the footer
-      // (decision 13) while the inline error renders next to the field it is about — so a form
-      // sitting at the top with the keyboard up would otherwise show nothing at all when Save
-      // fails. Scroll the offending field to the top of the body and put the caret in it: the
-      // error, the red field border and the cursor all land in the same place, the keyboard is
-      // already up, and fixing it costs no tap beyond typing. (The footer stays two rows —
-      // decision 13 says it never grows a third.)
-      bodyRef.current?.scrollTo({ y: fieldOffsets.current[problem.field], animated: true });
-      (problem.field === 'name' ? nameInputRef : labelInputRef).current?.focus();
+      // (decision 13), so a form sitting at the top with the keyboard up would otherwise show
+      // nothing at all when Save fails. Scroll the offending field to the top of the body and put
+      // the caret in it: the red border and the cursor land in the same place, the keyboard is
+      // already up. The message itself renders inside that field (`Field`'s `errorMessage`, set via
+      // `problem` above), so it arrives in view too rather than waiting below the fold (issue #222,
+      // item 1) — fixing it costs no tap beyond typing. (The footer stays two rows — decision 13
+      // says it never grows a third.)
+      bodyRef.current?.scrollTo({ y: fieldOffsets.current[found.field], animated: true });
+      (found.field === 'name' ? nameInputRef : labelInputRef).current?.focus();
       return;
     }
-    setError(null);
+    setProblem(null);
     onSave({
       name: name.trim(),
       brand: brand.trim().length > 0 ? brand.trim() : null,
@@ -608,7 +645,7 @@ export function FoodForm({ initial = null, onSave, onCancel, variant = 'screen',
       footer={footer}
       testID={testID}
     >
-      <View style={styles.content}>
+      <View testID={`${testID}-content`} style={styles.content}>
         <Field
           label="Name"
           value={name}
@@ -616,7 +653,9 @@ export function FoodForm({ initial = null, onSave, onCancel, variant = 'screen',
           theme={theme}
           placeholder="Greek yoghurt"
           testID={`${testID}-name`}
-          hasError={error !== null && name.trim().length === 0}
+          hasError={problem?.field === 'name'}
+          errorMessage={problem?.field === 'name' ? problem.message : undefined}
+          errorTestID={`${testID}-error`}
           inputRef={nameInputRef}
           onLayout={(event) => {
             fieldOffsets.current.name = event.nativeEvent.layout.y;
@@ -666,7 +705,9 @@ export function FoodForm({ initial = null, onSave, onCancel, variant = 'screen',
               theme={theme}
               placeholder="1 scoop"
               testID={`${testID}-serving-label`}
-              hasError={error !== null && customLabel.trim().length === 0}
+              hasError={problem?.field === 'servingLabel'}
+              errorMessage={problem?.field === 'servingLabel' ? problem.message : undefined}
+              errorTestID={`${testID}-error`}
               inputRef={labelInputRef}
             />
             <BasisToggle basis={customBasis} onChange={setCustomBasis} theme={theme} testID={`${testID}-basis`} />
@@ -736,12 +777,6 @@ export function FoodForm({ initial = null, onSave, onCancel, variant = 'screen',
             </View>
           </View>
         </View>
-
-        {error ? (
-          <Text testID={`${testID}-error`} style={textStyle(type.label, foodForm.errorText)}>
-            {error}
-          </Text>
-        ) : null}
       </View>
     </FormFrame>
   );
