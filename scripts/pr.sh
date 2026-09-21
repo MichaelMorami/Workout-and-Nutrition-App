@@ -1,25 +1,38 @@
 #!/usr/bin/env bash
 # Open a PR for the current branch, with test evidence filled in.
-#   scripts/pr.sh [issue]        issue defaults to the number in the branch name
+#   scripts/pr.sh [--no-close] [issue]   issue defaults to the number in the branch name
+#
+# --no-close: for a PR that must NOT close its issue on merge (e.g. step 1 of a multi-step issue).
+# GitHub parses closing keywords ("Closes #N", "Fixes #N", ...) anywhere in the body, and negating
+# them in prose ("does not close #N") or striking them through does not stop the link — GitHub
+# still closes the issue. So --no-close omits the closing-keyword line entirely and references the
+# issue with a plain, non-keyword mention ("Part of #N") instead. Verify with:
+#   gh pr view <n> --json closingIssuesReferences -q .closingIssuesReferences
+# which must print `[]`. Grepping the body for the absence of "Closes" only proves the string is
+# gone, not that GitHub isn't still linking the issue some other way — it is not proof.
 . "$(dirname "$0")/lib.sh"
 need gh
 
-ISSUE="${1:-$(issue_from_branch)}"
+NO_CLOSE=0
+ISSUE=""
+for arg in "$@"; do
+  case "$arg" in
+    --no-close) NO_CLOSE=1 ;;
+    *) ISSUE="$arg" ;;
+  esac
+done
+ISSUE="${ISSUE:-$(issue_from_branch)}"
 [ -n "$ISSUE" ] || die "cannot infer issue number from branch — pass it: scripts/pr.sh 12"
 
 BRANCH="$(git rev-parse --abbrev-ref HEAD)"
 [ "$BRANCH" != "main" ] || die "refusing to open a PR from main"
 
-# PROGRESS.md is derived from GitHub. Refresh it here so every PR carries the current picture and
-# `main` never drifts — main is protected, so this is the only way generated files get there.
-if "$ROOT/scripts/progress.sh" >/dev/null 2>&1; then
-  if ! git -C "$ROOT" diff --quiet -- PROGRESS.md 2>/dev/null; then
-    git -C "$ROOT" add PROGRESS.md
-    git -C "$ROOT" commit --quiet -m "docs: refresh PROGRESS.md" \
-      -m "Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>"
-    ok "PROGRESS.md refreshed and committed onto this branch"
-  fi
-fi
+# PROGRESS.md is derived from GitHub and tech-lead's exclusive path (CLAUDE.md). pr.sh used to
+# regenerate and commit it onto every branch here, which forced a disclosed ownership crossing on
+# every single PR and made any two branches cut in parallel conflict on that commit the moment one
+# merged (issue #211). merge.sh cannot push a refresh straight to `main` either — `main` requires a
+# PR — so PROGRESS.md is left alone on the branch and simply rides the next PR that touches it, same
+# as any other change to a file this script doesn't own.
 
 say "running checks before opening the PR"
 TEST_OUT="$(mktemp)"
@@ -31,17 +44,30 @@ ok "checks green"
 
 git push -u origin "$BRANCH" --quiet
 
-# The PR title is the branch's own work, never the `docs: refresh PROGRESS.md` commit above —
-# see pr_title_for_branch() in lib.sh for the exact rule and scripts/pr-title.test.sh for proof.
+# The PR title is the branch's own work. pr.sh no longer commits `docs: refresh PROGRESS.md` onto
+# the branch itself (issue #211), but pr_title_for_branch() still knows to skip that commit message
+# for the rare branch that carries one some other way — see lib.sh and scripts/pr-title.test.sh.
 TITLE="$(pr_title_for_branch origin/main "$BRANCH")"
-[ -n "$TITLE" ] || die "every commit on this branch is a PROGRESS.md refresh — nothing to title the PR with. Make a real commit first, or check you branched from an up-to-date origin/main."
+[ -n "$TITLE" ] || die "no describable commit found between origin/main and $BRANCH — commit your work first, or check you branched from an up-to-date origin/main."
+
+if [ "$NO_CLOSE" -eq 1 ]; then
+  ISSUE_LINE="Part of #$ISSUE"
+else
+  ISSUE_LINE="Closes #$ISSUE"
+fi
+
+# "What changed" below interpolates raw commit subjects. A subject that happens to contain a
+# closing keyword next to an issue reference (e.g. "fix: closes #99") would otherwise become a
+# live, GitHub-parsed closing link in the body regardless of --no-close or ISSUE_LINE above. GitHub
+# does not auto-link references inside inline code spans, so wrap any "#<digits>" in backticks to
+# neutralise it — see scripts/pr.test.sh's "commit subject with a stray closing keyword" scenario.
 
 BODY="$(cat <<PRBODY
-Closes #$ISSUE
+$ISSUE_LINE
 
 ## What changed
 
-$(git log --pretty='- %s' origin/main.."$BRANCH")
+$(git log --pretty='- %s' origin/main.."$BRANCH" | sed -E 's/#([0-9]+)/`#\1`/g')
 
 ## Test evidence
 
