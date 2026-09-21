@@ -351,7 +351,7 @@ jq -r '.modules["src/db/queries/nutrition.ts"].exports[]' docs/graph/symbols.jso
 
 ## `src/components/food-form/`
 
-### `src/components/food-form/FoodForm.tsx`  <sub>770 lines</sub>
+### `src/components/food-form/FoodForm.tsx`  <sub>824 lines</sub>
 
 - `function FoodForm({ initial = null, onSave, onCancel, variant = 'screen', theme, testID = 'food-form' }: FoodFormProps): import("react").JSX.Element`
 - `type FoodFormProps = {
@@ -487,30 +487,29 @@ jq -r '.modules["src/db/queries/nutrition.ts"].exports[]' docs/graph/symbols.jso
 
 ## `src/components/form/`
 
-### `src/components/form/FormFrame.tsx`  <sub>198 lines</sub>
+### `src/components/form/FormFrame.tsx`  <sub>212 lines</sub>
 
 - `function FormFrame({
-  theme,
   footerBg,
+  dividerColor,
   avoidsKeyboard = true,
-  headerOffset = 0,
+  bodyRef,
   footer,
   children,
   testID = 'form-frame',
 }: FormFrameProps): import("react").JSX.Element`
 - `type FormFrameProps = {
-  readonly theme: Theme;
   /** The footer's own background — a sheet's ground vs. a screen's canvas, `FoodForm`'s own two
    * `foodForm.footerBg`/`footerBgScreen` tokens being the first example. */
   readonly footerBg: string;
-  /** `true` (default): this frame owns a `KeyboardAvoidingView`. `false`: the host already has one
-   * (a sheet) — see the module note above. *...`
+  /** The hairline between body and footer. Required, and never defaulted to a raw
+   * `theme.color.line.hairline` read here: design-lead publishes a semantic token for ...`
 
 <sub>used by: `src/components/food-form/FoodForm.tsx`</sub>
 
 ## `src/components/form/test-support/`
 
-### `src/components/form/test-support/reanimated-mock.tsx`  <sub>84 lines</sub>
+### `src/components/form/test-support/reanimated-mock.tsx`  <sub>86 lines</sub>
 
 - `const Easing: { bezier: (x1: number, y1: number, x2: number, y2: number) => MockEasing; }`
 - `const __timingCalls: { toValue: unknown; config: TimingConfig | undefined; }[]`
@@ -730,7 +729,7 @@ jq -r '.modules["src/db/queries/nutrition.ts"].exports[]' docs/graph/symbols.jso
 
 ## `src/components/search/`
 
-### `src/components/search/CreateFoodSheet.tsx`  <sub>214 lines</sub>
+### `src/components/search/CreateFoodSheet.tsx`  <sub>219 lines</sub>
 
 - `function CreateFoodSheet({ db, query, onLogged, onClose, locale, presentation = 'modal', theme, testID = 'create-food-sheet' }: CreateFoodSheetProps): import("react").JSX.Element | null`
 - `type CreateFoodSheetProps = {

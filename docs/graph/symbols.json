@@ -419,7 +419,7 @@
         "src/hooks/useKeyboardVisible.ts",
         "src/theme/tokens.ts"
       ],
-      "loc": 770
+      "loc": 824
     },
     "src/components/food-form/Stepper.tsx": {
       "exports": [
@@ -507,8 +507,8 @@
     },
     "src/components/form/FormFrame.tsx": {
       "exports": [
-        "function FormFrame({\n  theme,\n  footerBg,\n  avoidsKeyboard = true,\n  headerOffset = 0,\n  footer,\n  children,\n  testID = 'form-frame',\n}: FormFrameProps): import(\"react\").JSX.Element",
-        "type FormFrameProps = {\n  readonly theme: Theme;\n  /** The footer's own background — a sheet's ground vs. a screen's canvas, `FoodForm`'s own two\n   * `foodForm.footerBg`/`footerBgScreen` tokens being the first example. */\n  readonly footerBg: string;\n  /** `true` (default): this frame owns a `KeyboardAvoidingView`. `false`: the host already has one\n   * (a sheet) — see the module note above. *..."
+        "function FormFrame({\n  footerBg,\n  dividerColor,\n  avoidsKeyboard = true,\n  bodyRef,\n  footer,\n  children,\n  testID = 'form-frame',\n}: FormFrameProps): import(\"react\").JSX.Element",
+        "type FormFrameProps = {\n  /** The footer's own background — a sheet's ground vs. a screen's canvas, `FoodForm`'s own two\n   * `foodForm.footerBg`/`footerBgScreen` tokens being the first example. */\n  readonly footerBg: string;\n  /** The hairline between body and footer. Required, and never defaulted to a raw\n   * `theme.color.line.hairline` read here: design-lead publishes a semantic token for ..."
       ],
       "imports": [
         "react",
@@ -518,7 +518,7 @@
         "src/hooks/useKeyboardVisible.ts",
         "src/theme/tokens.ts"
       ],
-      "loc": 198,
+      "loc": 212,
       "importedBy": [
         "src/components/food-form/FoodForm.tsx"
       ]
@@ -541,7 +541,7 @@
         "react",
         "react-native"
       ],
-      "loc": 84
+      "loc": 86
     },
     "src/components/format/food.ts": {
       "exports": [
@@ -771,7 +771,7 @@
         "src/store/undoToast.ts",
         "src/theme/tokens.ts"
       ],
-      "loc": 214
+      "loc": 219
     },
     "src/components/search/SearchSheet.tsx": {
       "exports": [
