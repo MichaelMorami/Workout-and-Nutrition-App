@@ -351,7 +351,7 @@ jq -r '.modules["src/db/queries/nutrition.ts"].exports[]' docs/graph/symbols.jso
 
 ## `src/components/food-form/`
 
-### `src/components/food-form/FoodForm.tsx`  <sub>824 lines</sub>
+### `src/components/food-form/FoodForm.tsx`  <sub>859 lines</sub>
 
 - `function FoodForm({ initial = null, onSave, onCancel, variant = 'screen', theme, testID = 'food-form' }: FoodFormProps): import("react").JSX.Element`
 - `type FoodFormProps = {
