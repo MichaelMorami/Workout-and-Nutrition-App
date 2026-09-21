@@ -12,7 +12,7 @@ type Listener = (event: unknown) => void;
  */
 function mockKeyboardListeners() {
   const listeners = new Map<string, Listener[]>();
-  const removeSpies: jest.Mock[] = [];
+  const removeSpies: ReturnType<typeof jest.fn>[] = [];
   jest.spyOn(Keyboard, 'addListener').mockImplementation((eventType, listener) => {
     const existing = listeners.get(eventType) ?? [];
     existing.push(listener as Listener);

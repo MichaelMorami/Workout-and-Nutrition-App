@@ -11,8 +11,10 @@
  * has not landed a stable `key` field on `SERVING_PRESETS` yet (issue #185), so this is a documented
  * fallback, not a re-implementation of the preset table itself.
  */
-import { act, fireEvent, render, screen } from '@testing-library/react-native';
+import { act, fireEvent, render as testingLibraryRender, screen } from '@testing-library/react-native';
+import type { ReactElement } from 'react';
 import { StyleSheet, TextInput } from 'react-native';
+import { initialWindowMetrics, SafeAreaProvider } from 'react-native-safe-area-context';
 import type { FoodInput } from '../../db';
 import { motion, themes } from '../../theme/tokens';
 import { FoodForm } from './FoodForm';
@@ -24,6 +26,14 @@ import { __resetAnimations, __setReducedMotion, __timingCalls } from './test-sup
 jest.mock('react-native-reanimated', () => jest.requireActual('./test-support/reanimated-mock'));
 
 const theme = themes.dark;
+
+// `<FormFrame>` (issue #207) reads `useSafeAreaInsets()`, which throws with no ancestor provider —
+// a fixed `initialMetrics` here, never a mocked module (`FormFrame.test.tsx`'s own instruction).
+const metrics = { ...initialWindowMetrics, insets: { top: 0, left: 0, right: 0, bottom: 34 } } as typeof initialWindowMetrics;
+
+function render(ui: ReactElement) {
+  return testingLibraryRender(<SafeAreaProvider initialMetrics={metrics}>{ui}</SafeAreaProvider>);
+}
 
 afterEach(() => {
   __resetAnimations();
@@ -333,12 +343,15 @@ describe('FoodForm — Save’s label and the edit-screen history note', () => {
 });
 
 describe('FoodForm — accessibility, keyboard and other unchanged behaviour', () => {
-  it('keeps Save reachable with the keyboard up — taps persist and the scroll view insets for the keyboard (issue #79)', async () => {
+  it('keeps Save reachable with the keyboard up — the body persists taps and Save lives in the pinned footer, not the scroll view (issue #79, #207)', async () => {
     await render(<FoodForm theme={theme} onSave={jest.fn()} onCancel={jest.fn()} testID="food-form" />);
 
-    const form = screen.getByTestId('food-form');
-    expect(form.props.keyboardShouldPersistTaps).toBe('handled');
-    expect(form.props.automaticallyAdjustKeyboardInsets).toBe(true);
+    // `<FormFrame>` (issue #207) pins the footer clear of the keyboard instead — the body no longer
+    // needs `automaticallyAdjustKeyboardInsets` to keep Save reachable.
+    const body = screen.getByTestId('food-form-body');
+    expect(body.props.keyboardShouldPersistTaps).toBe('handled');
+    expect(body.props.automaticallyAdjustKeyboardInsets).toBeUndefined();
+    expect(screen.getByTestId('food-form-save')).toBeTruthy();
   });
 
   it('calls onCancel from the Cancel button', async () => {

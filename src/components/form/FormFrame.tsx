@@ -109,7 +109,7 @@ export function FormFrame({
 
   const dividerEvent = motion.events.footerDividerFade;
   const duration = reducedMotion ? dividerEvent.reduced.duration : dividerEvent.duration;
-  const curve = motion.easing[dividerEvent.easing as keyof typeof motion.easing];
+  const curve = motion.easing[dividerEvent.easing];
   const opacity = useSharedValue(canScroll ? 1 : 0);
 
   useEffect(() => {

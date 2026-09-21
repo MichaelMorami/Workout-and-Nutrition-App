@@ -25,7 +25,7 @@ jest.mock('../src/components/theme/font-assets', () => ({ fontAssetMap: {} }));
 // that one constant with a fixed frame; `SafeAreaProvider` and `useSafeAreaInsets` stay the real
 // implementation, per the design spec's own instruction not to mock the module wholesale.
 jest.mock('react-native-safe-area-context', () => ({
-  ...jest.requireActual('react-native-safe-area-context'),
+  ...jest.requireActual<typeof import('react-native-safe-area-context')>('react-native-safe-area-context'),
   initialWindowMetrics: { insets: { top: 0, left: 0, right: 0, bottom: 0 }, frame: { x: 0, y: 0, width: 390, height: 844 } },
 }));
 
