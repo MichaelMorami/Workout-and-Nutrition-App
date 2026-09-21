@@ -1472,8 +1472,12 @@ export const motion = {
    *
    * A key lives here only while the design language still calls for it. Issue #210's audit found
    * which keys no production code reaches; issue #224 ruled on each one (wire / retire / defer),
-   * and a key ruled **retire** is deleted outright rather than left to rot — `searchLift` and
-   * `tabFade` went that way. A key that is designed but not yet wired says so in its own doc below
+   * and a key ruled **retire** is deleted outright rather than left to rot. Two went that way:
+   * `searchLift` (the shipped search presents the sheet and *then* takes focus, issue #79 — the
+   * bar never lifts into the field, and reviving that is a new design decision, not a dead token)
+   * and `tabFade` (issue #82 makes the tab change a finger-tracked carousel; a 140 ms cross-fade
+   * is a different transition, and the carousel's own motion gets its own token when it lands).
+   * A key that is designed but not yet wired says so in its own doc below
    * and names the issue that will wire it, so "unreached" is never a silent state. The guard that
    * keeps this honest is `src/components/quick-add/motionEventsReachability.audit.test.tsx`: add a
    * key here with neither a consumer nor a tracked exception and the suite goes red.
@@ -1485,9 +1489,13 @@ export const motion = {
     tilePressOut: { duration: 130, easing: 'out', reduced: { kind: 'instant', duration: 0 } },
     /** A ring sweeping to its new length after a log. Retargets if interrupted, never queues. */
     arcSweep: { duration: 260, easing: 'standard', reduced: { kind: 'instant', duration: 0 } },
-    /** The amber wash arriving across a logged tile (then holds `interaction.tileLoggedHoldMs`). */
+    /**
+     * The amber wash arriving across a logged tile (then holds `interaction.tileLoggedHoldMs`).
+     * #224 ruled **wire** — `QuickAddTile` swaps `tile.bgLogged` in one frame today, and the tile's
+     * logged state is the product's only confirmation that a log happened. Issue #228 wires it.
+     */
     loggedWashIn: { duration: 120, easing: 'out', reduced: { kind: 'instant', duration: 0 } },
-    /** The wash leaving. */
+    /** The wash leaving. Wired with `loggedWashIn` by #228. */
     loggedWashOut: { duration: 200, easing: 'out', reduced: { kind: 'instant', duration: 0 } },
     /** The ×2 badge popping in on a second tap inside the repeat window. */
     repeatBadge: { duration: 160, easing: 'standard', reduced: { kind: 'fade', duration: 120 } },
@@ -1495,21 +1503,34 @@ export const motion = {
     toastIn: { duration: 180, easing: 'out', reduced: { kind: 'fade', duration: 180 } },
     /** Undo toast leaving. */
     toastOut: { duration: 140, easing: 'out', reduced: { kind: 'fade', duration: 140 } },
-    /** Portion or search sheet rising from the bottom edge, screen dimming behind. */
+    /**
+     * Portion or search sheet rising from the bottom edge, screen dimming behind.
+     * #224 ruled **defer**, blocked on a dependency: both sheets present through React Native
+     * core's `Modal animationType="slide"` because adding a native bottom-sheet module has to be
+     * raised first (`CLAUDE.md`), so this spring is the specification that slide approximates.
+     * Issue #231 decides the dependency and then either wires these two or retires them.
+     */
     sheetIn: { duration: 200, easing: 'spring', reduced: { kind: 'fade', duration: 120 } },
-    /** Sheet leaving (including after a row logs). */
+    /** Sheet leaving (including after a row logs). Deferred with `sheetIn` — see #231. */
     sheetOut: { duration: 160, easing: 'standard', reduced: { kind: 'fade', duration: 120 } },
-    /** The search bar lifting into the field docked above the keyboard. */
-    searchLift: { duration: 220, easing: 'standard', reduced: { kind: 'fade', duration: 120 } },
     /** Presets ↔ Exact: the preset steps and the slider cross-fade in place; sheet height animates. */
     portionModeSwap: { duration: 160, easing: 'standard', reduced: { kind: 'instant', duration: 0 } },
     /** Food form: picking Custom… opens the label / basis / amount fields in place of the locked
      * read-out (height + fade); picking a preset closes them. Interruptible: a second chip tap
      * mid-animation reverses it from where it is. */
     customReveal: { duration: 200, easing: 'standard', reduced: { kind: 'instant', duration: 0 } },
-    /** The slider thumb settling onto a detent it was released near. */
+    /**
+     * The slider thumb settling onto a detent it was released near.
+     * #224 ruled **wire**, not retire: `PortionSheet`'s slider already snaps the *value* on release
+     * and fires `haptics.sliderDetent` — only the visual settle is missing, so the thumb teleports
+     * while the haptic says something physical happened. Issue #230 wires it.
+     */
     sliderSnap: { duration: 120, easing: 'out', reduced: { kind: 'instant', duration: 0 } },
-    /** A row or chip background changing to its pressed colour. */
+    /**
+     * A row or chip background changing to its pressed colour.
+     * #224 ruled **wire** — every press colour in the app is a one-frame swap today. Issue #229
+     * puts this token behind them. Reduce motion keeps it: a colour change is not vestibular.
+     */
     rowPress: { duration: 90, easing: 'out', reduced: { kind: 'same', duration: 90 } },
     /**
      * Form frame (issue #207): the pinned footer's divider hairline fading in while body content
@@ -1519,15 +1540,22 @@ export const motion = {
      * a Vitals duration laid over it would only desync the two.
      */
     footerDividerFade: { duration: 120, easing: 'out', reduced: { kind: 'same', duration: 120 } },
-    /** The active set collapsing 102 → 44 pt as the next set expands. */
+    /**
+     * The active set collapsing 102 → 44 pt as the next set expands.
+     * #224 ruled **defer**, blocked on a screen that does not exist: `app/(tabs)/workout.tsx` is a
+     * placeholder, so there is no set row to collapse. Issue #232 tracks both Workout keys.
+     */
     setCollapse: { duration: 220, easing: 'inOut', reduced: { kind: 'instant', duration: 0 } },
-    /** The rest ring's last-three-seconds pulse. */
+    /** The rest ring's last-three-seconds pulse (the depletion itself is `continuous.restRing`).
+     * Deferred with `setCollapse` on the Workout screen — see #232. */
     restPulse: { duration: 240, easing: 'inOut', reduced: { kind: 'instant', duration: 0 } },
-    /** Screens cross-fading on a tab change. */
-    tabFade: { duration: 140, easing: 'out', reduced: { kind: 'same', duration: 140 } },
-    /** Trend and average lines stroking on, points fading in behind. Once per screen entry. */
+    /**
+     * Trend and average lines stroking on, points fading in behind. Once per screen entry.
+     * #224 ruled **defer**, blocked on a screen that does not exist: `app/(tabs)/charts.tsx` is a
+     * placeholder. Issue #233 tracks both Charts keys.
+     */
     chartDraw: { duration: 420, easing: 'out', reduced: { kind: 'instant', duration: 0 }, staggerMs: 12 },
-    /** Axis rescale and path morph on a range switch. */
+    /** Axis rescale and path morph on a range switch. Deferred with `chartDraw` — see #233. */
     rangeMorph: { duration: 260, easing: 'inOut', reduced: { kind: 'instant', duration: 0 } },
   },
   continuous: {

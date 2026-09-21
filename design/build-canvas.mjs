@@ -939,12 +939,12 @@ ${col(screenFrame(portionPhone(T, 'Exact'), 'Exact · any amount', 'Swaps the st
     callout('The sheet remembers the last mode per food, so someone who weighs their rice never taps Exact twice.'),
   ])}
 ${col(screenFrame(todayScreen(T, { tiles: ['rest', 'repeat', 'rest', 'rest', 'rest', 'rest'], toastData }), 'Undo · after a second tap', 'The toast names what was logged, and stays until your next action.'), 'Decision: no 4-second timer', [
-    callout('A timer guesses when you will look back. On a bench you look back when the set ends, not after 4 s — so the toast is dismissed by your next action, not by a clock.'),
+    callout(`A 4-second timer guesses when you will look back. On a bench you look back when the set ends — so the toast is dismissed by your next action first, and only falls back on a clock (${interaction.undoAutoDismissMs / 1000} s) if you do nothing at all.`),
     callout(`Gone when you: log again (it updates — “×2”), open a sheet, change tab, or swipe it away. ${hl('Not')} gone when you scroll, lock the phone or leave the app.`),
-    callout(`A ${interaction.undoCeilingMs / 60000}-minute ceiling, wall-clock from the log — one full rest for a heavy lift — so a stale undo never carries into the next meal.`),
+    callout(`${interaction.undoAutoDismissMs / 1000} s wall-clock from the log, restarted by a new log (client ruling, 2026-09-20) — long enough to read what was logged and reach Undo one-handed, gone before it is in the way of the next thing. The older minutes-long ceiling this said instead was retired in issue #201.`),
     callout('It says what was logged. The haptic tells you something logged; only words tell you it was the rice and not the chicken beside it.'),
     callout('It sits above the tab bar, clear of the grid and the search bar, so it is never in the way of the next log. Once it is gone, the log row still swipes to delete.'),
-    callout(`${hl('Checkpoint 2:')} try it on a real bench. Is ${interaction.undoCeilingMs / 60000} minutes right? Should scrolling Today dismiss it?`, DARK.body),
+    callout(`${hl('Checkpoint 2:')} try it on a real bench. Is ${interaction.undoAutoDismissMs / 1000} seconds right? Should scrolling Today dismiss it?`, DARK.body),
   ])}
 </div>
 </div>`;
@@ -1160,16 +1160,16 @@ const MOTION = [
   ['Quick-add tap', 'The tile scales 1 → 0.972 → 1. Nothing else on the screen moves.', `${EV.tilePressIn.duration} ms down / ${EV.tilePressOut.duration} ms up · ease-out`, 'No scale. The tick and the haptic still fire.'],
   ['Food logged', 'The calorie arc sweeps to its new length; the amber wash arrives across the tile and leaves.', `arc ${ms('arcSweep')} · cubic-bezier(.2,0,0,1)<br>wash ${EV.loggedWashIn.duration} in / ${interaction.tileLoggedHoldMs} hold / ${EV.loggedWashOut.duration} out`, 'Arc jumps to the new value. The wash is a static state for its hold.'],
   [`Second tap within ${interaction.repeatWindowMs / 1000} s`, 'The same food again — from the tile or from search — adds a portion to the same entry. The ×2 badge pops on, the arc sweeps again, the toast updates.', `badge ${ms('repeatBadge')} · standard<br>window ${interaction.repeatWindowMs / 1000} s`, 'Badge fades in over 120 ms; arc jumps.'],
-  ['Undo toast', 'Rises 16 pt above the tab bar and fades in. Stays until your next action, with a 3-minute ceiling.', `${ms('toastIn')} in / ${ms('toastOut')} out · ease-out`, 'Fade only, no rise. Dismissal rules unchanged.'],
+  ['Undo toast', `Rises 16 pt above the tab bar and fades in. Stays until your next action, or ${interaction.undoAutoDismissMs / 1000} s, whichever comes first.`, `${ms('toastIn')} in / ${ms('toastOut')} out · ease-out`, 'Fade only, no rise. Dismissal rules unchanged.'],
   ['Long-press → portion sheet', 'After the hold, the sheet rises from the bottom edge and the screen behind dims.', `hold ${interaction.longPressMs} ms · sheet ${ms('sheetIn')} · spring, damping ${motion.spring.sheet.dampingRatio}`, 'Cross-fade, 120 ms.'],
   ['Presets ↔ Exact', 'The preset steps cross-fade into the slider in place; the sheet grows to fit.', `${ms('portionModeSwap')} · standard`, 'Instant swap.'],
   ['Slider detent', `Released within ${interaction.sliderDetentSnapG} g of a preset, the thumb settles onto it with a selection tick.`, `${ms('sliderSnap')} · ease-out`, 'The thumb jumps; the haptic tick stays.'],
-  ['Search bar → sheet', 'The bar lifts into the field docked above the keyboard; the sheet rises behind it and the keyboard comes up.', `${ms('searchLift')} · standard`, 'Cross-fade, 120 ms. The keyboard is the phone’s own.'],
+  ['Search bar → sheet', 'The sheet rises from the bottom edge with its own field already in it; the field takes focus once the sheet has arrived, and the keyboard comes up behind it. The bar itself does not travel — a lift would have to hand first responder over mid-transition (issue #79).', `sheet ${ms('sheetIn')} · spring, damping ${motion.spring.sheet.dampingRatio}<br>focus after the sheet lands`, 'Cross-fade, 120 ms. The keyboard is the phone’s own.'],
   ['Result row tap', 'Pressed colour on touch, a Logged beat, then the sheet closes and the undo toast appears on Today.', `press ${ms('rowPress')} · hold ${interaction.rowLoggedHoldMs} ms · sheet out ${ms('sheetOut')}`, 'Colour changes kept; the sheet fades out.'],
   ['Result row long-press', 'The portion sheet rises over the search sheet. Logging from it closes both.', `hold ${interaction.longPressMs} ms · sheet ${ms('sheetIn')}`, 'Cross-fade, 120 ms.'],
   ['Set logged', 'The active set row collapses 102 → 44 pt and the next set expands into its place.', `${ms('setCollapse')} · ease-in-out`, 'Instant swap. The rest timer still starts.'],
   ['Rest timer', 'The ring depletes continuously; the last three seconds pulse.', `1 s per tick · linear · pulse ${ms('restPulse')}`, 'Ring still depletes — it is information, not decoration. The pulse is dropped.'],
-  ['Tab change', 'Screens cross-fade; the tab icon thickens from 1.7 to 2.0 stroke.', `${ms('tabFade')} · ease-out`, 'Kept as-is: a cross-fade under 150 ms triggers nothing vestibular.'],
+  ['Tab change', 'The screen swaps and the tab icon thickens from 1.7 to 2.0 stroke. No cross-fade: the swipe-between-tabs carousel (issue #82) moves screens with the finger, and a fade laid over a tracked gesture only blurs it. The carousel brings its own motion token when it lands.', 'icon stroke only · carousel motion pending #82', 'Icon state change only — nothing vestibular either way.'],
   ['Chart draw-in', 'Trend and average lines stroke on left-to-right; the daily points fade in behind them.', `${ms('chartDraw')} · ${EV.chartDraw.staggerMs} ms stagger · ease-out<br>once per screen entry`, 'Charts render complete. No draw-on.'],
   ['Range switch', 'Axis rescales and the path morphs between the two ranges.', `${ms('rangeMorph')} · ease-in-out`, 'Instant redraw.'],
   ['Sync', 'A 2 pt progress hairline runs under the header while a push/pull is in flight.', 'continuous · indeterminate', 'Replaced by a static “Syncing…” label. Never blocks anything.'],
@@ -1182,6 +1182,7 @@ const HAPTIC_WHY = {
   sliderDetent: ['Slider detent', 'A tick on arrival at a preset, so you can land on “1 pot” without looking.'],
   restFinished: ['Rest finished', 'Fires even when the screen is off.'],
   ringCompleted: ['Ring completed', 'Once per ring per day. Earned, so it stays special.'],
+  servingPicked: ['Serving picked', 'Choosing a serving chip in the food form — a selection change, like a picker detent.'],
   destructiveConfirm: ['Destructive confirm', 'Delete a food, discard a session.'],
 };
 const TARGETS = [
