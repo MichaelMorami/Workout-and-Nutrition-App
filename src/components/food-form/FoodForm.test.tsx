@@ -502,6 +502,44 @@ describe('FoodForm — accessibility, keyboard and other unchanged behaviour', (
     expect(instances.at(-1)?.props.testID).toBe('food-form-serving-label');
   });
 
+  // Issue #222 item 1: the module doc used to claim the message arrived in view together with the
+  // border and the caret, but the message itself lived in a shared `Text` at the very end of the
+  // scrolling body — with the keyboard up that line stayed below the fold even once the scroll
+  // landed. It now renders inside the field's own wrapper instead.
+  it('renders the blank-Name error message inside the Name field, not as a trailing line in the body', async () => {
+    await render(<FoodForm theme={theme} onSave={jest.fn()} onCancel={jest.fn()} testID="food-form" />);
+
+    await fireEvent.press(screen.getByTestId('food-form-save'));
+
+    const nameField = screen.getByTestId('food-form-name-field');
+    expect(within(nameField).getByTestId('food-form-error')).toHaveTextContent(/name/i);
+  });
+
+  it('renders the blank-Custom-label error message inside the Label field, not as a trailing line in the body', async () => {
+    await render(<FoodForm theme={theme} onSave={jest.fn()} onCancel={jest.fn()} testID="food-form" />);
+
+    await fireEvent.changeText(screen.getByTestId('food-form-name'), 'Whey');
+    await fireEvent.press(screen.getByTestId('food-form-serving-custom'));
+    await fireEvent.press(screen.getByTestId('food-form-save'));
+
+    const labelField = screen.getByTestId('food-form-serving-label-field');
+    expect(within(labelField).getByTestId('food-form-error')).toHaveTextContent(/serving/i);
+  });
+
+  // Issue #222 item 2: `fieldOffsets` treats each field's own `onLayout` `y` as an absolute scroll
+  // offset, which is only true while this wrapper adds no top padding/margin above its first field
+  // — `FormFrame.test.tsx`'s "adds no top padding to the body content" is the other half of the same
+  // assumption. Either test fails loudly the moment a token change breaks it, instead of the scroll
+  // silently landing a fixed amount short of every field.
+  it('adds no top padding or margin to its own content wrapper, above FormFrame (issue #222)', async () => {
+    await render(<FoodForm theme={theme} onSave={jest.fn()} onCancel={jest.fn()} testID="food-form" />);
+
+    const content = screen.getByTestId('food-form-content');
+    const style = StyleSheet.flatten(content.props.style) as { paddingTop?: number; marginTop?: number };
+    expect(style.paddingTop).toBeUndefined();
+    expect(style.marginTop).toBeUndefined();
+  });
+
   it('saves brand null when left blank', async () => {
     const onSave = jest.fn();
     await render(<FoodForm theme={theme} onSave={onSave} onCancel={jest.fn()} testID="food-form" />);

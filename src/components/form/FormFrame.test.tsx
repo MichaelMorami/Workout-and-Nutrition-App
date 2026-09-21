@@ -152,6 +152,22 @@ describe('FormFrame', () => {
     expect(footerStyle.paddingHorizontal).toBe(layout.gutter);
   });
 
+  // `<FoodForm>`'s `fieldOffsets` (issue #207 review B2) treats each field's own `onLayout` `y` as
+  // an absolute scroll offset — exact only while this content container adds no top padding above
+  // its children. A token change that added one would silently mis-scroll every failed-Save focus
+  // by that amount, and nothing else would catch it (review follow-up, issue #222 item 2). This
+  // fails loudly instead the moment that stops being true.
+  it('adds no top padding to the body content — FoodForm assumes flush-top scroll content (issue #222)', async () => {
+    await renderFrame(
+      <FormFrame footerBg={theme.color.bg.surface} dividerColor={dividerColor} footer={<Text>Save</Text>} testID="frame">
+        <Text>A field</Text>
+      </FormFrame>,
+    );
+    const body = screen.getByTestId('frame-body');
+    const bodyPadding = [body.props.contentContainerStyle].flat().reduce((acc, s) => ({ ...acc, ...s }), {});
+    expect(bodyPadding.paddingTop).toBeUndefined();
+  });
+
   it('pads the footer with the safe-area inset when the keyboard is down', async () => {
     await renderFrame(
       <FormFrame footerBg={theme.color.bg.surface} dividerColor={dividerColor} footer={<Text>Save</Text>} testID="frame">
