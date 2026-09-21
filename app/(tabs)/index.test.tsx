@@ -4,7 +4,9 @@
  * with every section mounted — not a placeholder — and a tile tap moves the rings without a
  * second database read.
  */
-import { act, configure, fireEvent, render, screen, within } from '@testing-library/react-native';
+import { act, configure, fireEvent, render as testingLibraryRender, screen, within } from '@testing-library/react-native';
+import type { ReactElement } from 'react';
+import { initialWindowMetrics, SafeAreaProvider } from 'react-native-safe-area-context';
 import { DbProvider } from '../../src/components/db/DbProvider';
 import { ThemeContext } from '../../src/components/theme/theme-context';
 import {
@@ -154,6 +156,15 @@ beforeEach(() => {
   // earlier test in this file still looks like a double-tap to `logTracker`'s repeat window.
   __resetLogTracker();
 });
+
+// The create sheet's `<FoodForm variant="sheet">` now renders through `<FormFrame>` (issue #207),
+// which calls `useSafeAreaInsets()` — a real `<SafeAreaProvider>` ancestor is required, not a
+// mocked module (`FormFrame`'s own module doc).
+const metrics = { ...initialWindowMetrics, insets: { top: 0, left: 0, right: 0, bottom: 34 } } as typeof initialWindowMetrics;
+
+function render(ui: ReactElement) {
+  return testingLibraryRender(<SafeAreaProvider initialMetrics={metrics}>{ui}</SafeAreaProvider>);
+}
 
 const renderScreen = () =>
   render(
