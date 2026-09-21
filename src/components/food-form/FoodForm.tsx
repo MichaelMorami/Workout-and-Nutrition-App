@@ -84,9 +84,16 @@
  * (`useKeyboardVisible`, `src/hooks`). `avoidsKeyboard={variant !== 'sheet'}`: a pushed screen owns
  * its own avoider (the default); a sheet is already inside `CreateFoodSheet`'s own
  * `KeyboardAvoidingView` (this same issue), so this form's own avoider is off there.
+ *
+ * A FAILED SAVE SCROLLS TO THE FIELD IT IS ABOUT (PR #220 review, B2). With Save pinned in the
+ * footer, an inline error further down the body can sit below the fold — a form opened at the top
+ * with the keyboard up showed nothing at all when a blank-Name Save failed. `handleSave` now
+ * scrolls the body to the offending field (`fieldOffsets`, measured by each field's own `onLayout`)
+ * and focuses it, so the message, the error border and the caret all arrive together. Not a third
+ * footer row: decision 13's footer is two rows with the keyboard up and never collapses or grows.
  */
 import { useEffect, useRef, useState, type ReactNode } from 'react';
-import { Pressable, StyleSheet, Text, View, TextInput, type LayoutChangeEvent, type TextStyle } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View, TextInput, type LayoutChangeEvent, type TextStyle } from 'react-native';
 import Animated, { Easing, useAnimatedStyle, useReducedMotion, useSharedValue, withTiming } from 'react-native-reanimated';
 import { SERVING_PRESETS, UNIT_OF_BASIS, servingOf, servingPresetByKey, type FoodBasis, type FoodInput, type ServingPresetKey } from '../../db';
 import { formatGrams, formatMl, formatPreviewProtein } from '../format/food';
@@ -138,12 +145,19 @@ function textStyle(token: TypeStyle, color: string): TextStyle {
   };
 }
 
+/** Which field a failed Save is about, alongside its message — the message alone cannot be steered
+ * to, and since #207 pinned Save in the footer the form has to bring the offending field to the
+ * user rather than assume they are already looking at it (module note, "A FAILED SAVE"). */
+type FormProblem = { readonly field: 'name' | 'servingLabel'; readonly message: string };
+
 /** `null`/empty checks the way `validateFoodInput` does, so this form's own gate agrees with the
  * database's — see the module note on why this is a courtesy, not the source of truth. Only Custom
  * has a typed label to check; a preset's label is never blank. */
-function firstError(name: string, servingKey: ServingKey, customLabel: string): string | null {
-  if (name.trim().length === 0) return 'Name is required.';
-  if (servingKey === 'custom' && customLabel.trim().length === 0) return 'Name the serving, e.g. 1 scoop.';
+function firstError(name: string, servingKey: ServingKey, customLabel: string): FormProblem | null {
+  if (name.trim().length === 0) return { field: 'name', message: 'Name is required.' };
+  if (servingKey === 'custom' && customLabel.trim().length === 0) {
+    return { field: 'servingLabel', message: 'Name the serving, e.g. 1 scoop.' };
+  }
   return null;
 }
 
@@ -156,6 +170,7 @@ function Field({
   testID,
   hasError,
   inputRef,
+  onLayout,
 }: {
   label: string;
   value: string;
@@ -165,10 +180,11 @@ function Field({
   testID: string;
   hasError?: boolean;
   inputRef?: React.RefObject<TextInput | null>;
+  onLayout?: (event: LayoutChangeEvent) => void;
 }) {
   const { foodForm } = theme.color;
   return (
-    <View style={styles.field}>
+    <View testID={`${testID}-field`} style={styles.field} onLayout={onLayout}>
       <Text style={textStyle(type.label, foodForm.fieldLabelText)}>{label}</Text>
       <TextInput
         ref={inputRef}
@@ -464,8 +480,15 @@ export function FoodForm({ initial = null, onSave, onCancel, variant = 'screen',
   // — "switching is never a reset" (issue #89, section 2). Starts `true` when editing already fell
   // back to Custom, so an immediate preset tap there does not silently overwrite what `initial` set.
   const customTouchedRef = useRef(matched === null);
+  const nameInputRef = useRef<TextInput | null>(null);
   const labelInputRef = useRef<TextInput | null>(null);
   const mountedRef = useRef(false);
+
+  // Where a failed Save scrolls to. Both are direct children of the body's own content view, so the
+  // `y` their `onLayout` reports is already the scroll offset that puts them at the top of the
+  // body — no `measureLayout` round-trip, and no guess.
+  const bodyRef = useRef<ScrollView | null>(null);
+  const fieldOffsets = useRef<{ name: number; servingLabel: number }>({ name: 0, servingLabel: 0 });
 
   useEffect(() => {
     if (!mountedRef.current) {
@@ -515,7 +538,16 @@ export function FoodForm({ initial = null, onSave, onCancel, variant = 'screen',
   const handleSave = (): void => {
     const problem = firstError(name, servingKey, customLabel);
     if (problem) {
-      setError(problem);
+      setError(problem.message);
+      // A FAILED SAVE HAS TO COME TO THE USER (PR #220 review, B2). Save is pinned in the footer
+      // (decision 13) while the inline error renders next to the field it is about — so a form
+      // sitting at the top with the keyboard up would otherwise show nothing at all when Save
+      // fails. Scroll the offending field to the top of the body and put the caret in it: the
+      // error, the red field border and the cursor all land in the same place, the keyboard is
+      // already up, and fixing it costs no tap beyond typing. (The footer stays two rows —
+      // decision 13 says it never grows a third.)
+      bodyRef.current?.scrollTo({ y: fieldOffsets.current[problem.field], animated: true });
+      (problem.field === 'name' ? nameInputRef : labelInputRef).current?.focus();
       return;
     }
     setError(null);
@@ -569,17 +601,39 @@ export function FoodForm({ initial = null, onSave, onCancel, variant = 'screen',
 
   return (
     <FormFrame
-      theme={theme}
       footerBg={variant === 'sheet' ? foodForm.footerBg : foodForm.footerBgScreen}
+      dividerColor={foodForm.footerDivider}
       avoidsKeyboard={variant !== 'sheet'}
+      bodyRef={bodyRef}
       footer={footer}
       testID={testID}
     >
       <View style={styles.content}>
-        <Field label="Name" value={name} onChangeText={setName} theme={theme} placeholder="Greek yoghurt" testID={`${testID}-name`} />
+        <Field
+          label="Name"
+          value={name}
+          onChangeText={setName}
+          theme={theme}
+          placeholder="Greek yoghurt"
+          testID={`${testID}-name`}
+          hasError={error !== null && name.trim().length === 0}
+          inputRef={nameInputRef}
+          onLayout={(event) => {
+            fieldOffsets.current.name = event.nativeEvent.layout.y;
+          }}
+        />
         <Field label="Brand" value={brand} onChangeText={setBrand} theme={theme} placeholder="Optional" testID={`${testID}-brand`} />
 
-        <View style={styles.section}>
+        <View
+          testID={`${testID}-serving-section`}
+          style={styles.section}
+          onLayout={(event) => {
+            // Custom's Label field lives inside this section, so the section's own offset is what
+            // brings it into view — the reveal itself is nested too deep for its `y` to be a scroll
+            // offset on its own.
+            fieldOffsets.current.servingLabel = event.nativeEvent.layout.y;
+          }}
+        >
           <View style={styles.eyebrowRow}>
             <Text style={textStyle(type.micro, foodForm.sectionText)}>Serving</Text>
             <Text style={textStyle(type.label, foodForm.sectionMetaText)}>{basis === 'weight' ? 'Weight · grams' : 'Volume · millilitres'}</Text>

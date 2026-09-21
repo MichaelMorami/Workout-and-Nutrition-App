@@ -153,6 +153,9 @@ export function CreateFoodSheet({ db, query, onLogged, onClose, locale, presenta
         style={[styles.topScrim, { height: size.searchSheet.topInset, backgroundColor: theme.color.bg.scrim }]}
       />
       <KeyboardAvoidingView
+        // `-avoider`, the same suffix `<FormFrame>` gives its own: decision 13 allows exactly one
+        // per presentation, and the shared name is what lets a test count them (PR #220 review).
+        testID={`${testID}-avoider`}
         behavior="padding"
         style={[
           styles.sheet,
@@ -195,9 +198,11 @@ const styles = StyleSheet.create({
     width: '100%',
   },
   sheet: {
+    // No `paddingBottom`/`paddingHorizontal` here — `<FormFrame>` (issue #207, inside
+    // `<FoodForm variant="sheet">`) owns both the bottom inset and the side gutter. See the
+    // module note.
     flex: 1,
     paddingTop: space[3],
-    paddingBottom: space[7],
     gap: space[4],
   },
   header: {

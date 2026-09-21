@@ -27,14 +27,22 @@
  * mount-guarded `useEffect`-keyed-`withTiming` shape `<FoodForm>`'s own `CustomReveal` and every
  * other `motion.events.*` consumer in this codebase already uses.
  *
+ * COLOURS COME FROM THE CALLER, NOT FROM THE THEME (PR #220 review). This frame takes `footerBg`
+ * and `dividerColor` and paints nothing else, so each adopter hands over the semantic tokens
+ * design-lead published for *its* surface (`foodForm.footerBg`/`footerBgScreen`,
+ * `foodForm.footerDivider`) instead of the frame reaching past them into `color.line.hairline` and
+ * leaving those tokens orphaned.
+ *
  * THE GUTTER (spec section 5): this frame owns the side gutter — `layout.gutter` — on both the body
- * and the footer. A host screen must not add its own `paddingHorizontal` around a `<FormFrame>`.
+ * and the footer. A host screen must not add its own `paddingHorizontal` around a `<FormFrame>`,
+ * and none of its own `paddingBottom` either: the footer owns the bottom inset (decision 13), so a
+ * host that pads below the frame stacks a second band on top of it.
  *
  * TESTING (spec section 5's own instruction): `useSafeAreaInsets()` throws with no ancestor
  * provider — a test wraps in a real `<SafeAreaProvider initialMetrics={…}>`, never a mocked module,
  * so the footer's bottom-padding math runs against a real (if fixed) inset.
  */
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode, type RefObject } from 'react';
 import {
   KeyboardAvoidingView,
   ScrollView,
@@ -47,29 +55,34 @@ import {
 import Animated, { Easing, useAnimatedStyle, useReducedMotion, useSharedValue, withTiming } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useKeyboardVisible } from '../../hooks/useKeyboardVisible';
-import { formFooterPaddingBottom, layout, motion, type Theme } from '../../theme/tokens';
+import { formFooterPaddingBottom, layout, motion } from '../../theme/tokens';
 
 export type FormFrameProps = {
-  readonly theme: Theme;
   /** The footer's own background — a sheet's ground vs. a screen's canvas, `FoodForm`'s own two
    * `foodForm.footerBg`/`footerBgScreen` tokens being the first example. */
   readonly footerBg: string;
+  /** The hairline between body and footer. Required, and never defaulted to a raw
+   * `theme.color.line.hairline` read here: design-lead publishes a semantic token for this exact line
+   * (`foodForm.footerDivider` is the first), and a frame that reached past it would leave that
+   * token an orphan the next palette change forgets (PR #220 review). */
+  readonly dividerColor: string;
   /** `true` (default): this frame owns a `KeyboardAvoidingView`. `false`: the host already has one
    * (a sheet) — see the module note above. */
   readonly avoidsKeyboard?: boolean;
-  /** Extra `keyboardVerticalOffset` for the avoider — a pushed screen under a header that sits
-   * outside this frame. Ignored when `avoidsKeyboard` is `false`. */
-  readonly headerOffset?: number;
+  /** The scrolling body itself, for a caller that has to move it — `FoodForm` scrolls the first
+   * invalid field into view when a pinned-footer Save fails, since the inline error it sets may be
+   * far below the fold (PR #220 review, B2). Read-only otherwise: the frame owns the scrolling. */
+  readonly bodyRef?: RefObject<ScrollView | null>;
   readonly footer: ReactNode;
   readonly children: ReactNode;
   readonly testID?: string;
 };
 
 export function FormFrame({
-  theme,
   footerBg,
+  dividerColor,
   avoidsKeyboard = true,
-  headerOffset = 0,
+  bodyRef,
   footer,
   children,
   testID = 'form-frame',
@@ -128,6 +141,7 @@ export function FormFrame({
   const frame = (
     <View testID={`${testID}-frame`} style={styles.frame}>
       <ScrollView
+        ref={bodyRef}
         testID={`${testID}-body`}
         style={styles.body}
         contentContainerStyle={[styles.bodyContent, { paddingHorizontal: layout.gutter, paddingBottom: layout.formBodyPadBottom }]}
@@ -143,7 +157,7 @@ export function FormFrame({
       </ScrollView>
       <Animated.View
         testID={`${testID}-footer-divider`}
-        style={[styles.divider, { backgroundColor: theme.color.line.hairline }, dividerStyle]}
+        style={[styles.divider, { backgroundColor: dividerColor }, dividerStyle]}
         pointerEvents="none"
       />
       <View
@@ -167,7 +181,7 @@ export function FormFrame({
   if (!avoidsKeyboard) return frame;
 
   return (
-    <KeyboardAvoidingView testID={`${testID}-avoider`} style={styles.avoider} behavior="padding" keyboardVerticalOffset={headerOffset}>
+    <KeyboardAvoidingView testID={`${testID}-avoider`} style={styles.avoider} behavior="padding">
       {frame}
     </KeyboardAvoidingView>
   );

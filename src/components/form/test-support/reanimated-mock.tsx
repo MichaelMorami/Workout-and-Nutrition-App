@@ -9,7 +9,9 @@
  * (`src/components/food-form/test-support/reanimated-mock.tsx` solves the identical problem for
  * `<FoodForm>`'s own `customReveal`. Not reused here for the same reason that file gives for not
  * reusing `src/components/quick-add/test-support/reanimated-mock.tsx`: a copy this small is cheaper
- * than a shared dependency across a folder boundary. Delete all three when #45 lands.)
+ * than a shared dependency across a folder boundary. This is the **fifth** such copy — `charts`,
+ * `food-form`, `form`, `quick-add`, `today` — so #45 deletes five files, not the three an earlier
+ * version of this line claimed (PR #220 review).)
  *
  * `useSharedValue` returns one value per component instance and re-renders on write, so a test sees
  * the geometry the component actually lands on after a state change — not a value frozen at mount.
