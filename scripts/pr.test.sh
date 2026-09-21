@@ -94,10 +94,24 @@ exit 0
 FAKE_CHECK
 chmod +x "$WORK/repo/scripts/check.sh"
 
+# A throwaway scripts/progress.sh that genuinely mutates PROGRESS.md every time it runs (no `gh`
+# calls — the real one shells out to `gh api`, which this fake `gh` doesn't answer). This is the
+# piece a prior version of this test was missing: without a `progress.sh` that actually produces a
+# diff, the *old* pr.sh's guard `if "$ROOT/scripts/progress.sh" >/dev/null 2>&1; then` fails
+# ("not found") and silently no-ops, making old and new pr.sh indistinguishable to every assertion
+# below. With a real mutation here, the old code's `git diff --quiet -- PROGRESS.md` genuinely goes
+# false and it genuinely commits — so these assertions can actually fail against the bug.
+cat >"$WORK/repo/scripts/progress.sh" <<'FAKE_PROGRESS'
+#!/usr/bin/env bash
+set -euo pipefail
+echo "refreshed $(date +%s%N)-$$" >>"$(dirname "$0")/../PROGRESS.md"
+FAKE_PROGRESS
+chmod +x "$WORK/repo/scripts/progress.sh"
+
 echo "# Progress" >"$WORK/repo/PROGRESS.md"
 echo "placeholder" >"$WORK/repo/widget-a.txt"
 echo "placeholder" >"$WORK/repo/widget-b.txt"
-git -C "$WORK/repo" add PROGRESS.md scripts/check.sh widget-a.txt widget-b.txt
+git -C "$WORK/repo" add PROGRESS.md scripts/check.sh scripts/progress.sh widget-a.txt widget-b.txt
 git -C "$WORK/repo" commit --quiet -m "chore: repo init"
 git -C "$WORK/repo" push --quiet origin main
 BASE_PROGRESS="$(cat "$WORK/repo/PROGRESS.md")"
