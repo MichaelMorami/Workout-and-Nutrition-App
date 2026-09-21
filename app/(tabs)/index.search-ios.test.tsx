@@ -17,8 +17,10 @@
  *    is why the report is iPhone-only. So the portion and create sheets must render inside the one
  *    presented search `Modal`, never as a second one.
  */
-import { act, fireEvent, render, screen } from '@testing-library/react-native';
+import { act, fireEvent, render as testingLibraryRender, screen } from '@testing-library/react-native';
 import { DeviceEventEmitter } from 'react-native';
+import { initialWindowMetrics, SafeAreaProvider } from 'react-native-safe-area-context';
+import type { ReactElement } from 'react';
 import type { TestInstance } from 'test-renderer';
 import { DbProvider } from '../../src/components/db/DbProvider';
 import { ThemeContext } from '../../src/components/theme/theme-context';
@@ -119,6 +121,15 @@ const receiptFor = (id: string, kcal: number, protein: number): LogReceipt => ({
   portions: 1,
   undo: { kind: 'unlog', logIds: [`log-${id}`] },
 });
+
+// The create sheet's `<FoodForm variant="sheet">` now renders through `<FormFrame>` (issue #207),
+// which calls `useSafeAreaInsets()` — a real `<SafeAreaProvider>` ancestor is required, not a
+// mocked module (`FormFrame`'s own module doc).
+const metrics = { ...initialWindowMetrics, insets: { top: 0, left: 0, right: 0, bottom: 34 } } as typeof initialWindowMetrics;
+
+function render(ui: ReactElement) {
+  return testingLibraryRender(<SafeAreaProvider initialMetrics={metrics}>{ui}</SafeAreaProvider>);
+}
 
 const renderScreen = () =>
   render(

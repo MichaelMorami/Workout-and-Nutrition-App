@@ -35,8 +35,9 @@ export default function NewFoodScreen(): React.JSX.Element {
 
 const styles = StyleSheet.create({
   screen: {
+    // No `paddingHorizontal` here — `<FormFrame>` (issue #207, inside `<FoodForm>`) owns the side
+    // gutter on its own body and footer now, so this screen stays edge-to-edge.
     flex: 1,
-    paddingHorizontal: layout.gutter,
     paddingTop: layout.gutter,
   },
 });

@@ -196,10 +196,13 @@ const styles = StyleSheet.create({
   },
   sheet: {
     flex: 1,
-    paddingHorizontal: layout.gutter,
     paddingTop: space[3],
     paddingBottom: space[7],
     gap: space[4],
+  },
+  header: {
+    paddingHorizontal: layout.gutter,
+    gap: space[3],
   },
   grabber: {
     alignSelf: 'center',

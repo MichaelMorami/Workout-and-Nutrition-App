@@ -9,9 +9,10 @@
  *     screen's own save path (not just `updateFood` in isolation, already covered by
  *     `src/db/queries/catalog.test.ts`) leaves an already-logged entry's stored figures untouched.
  */
-import { fireEvent, render, screen } from '@testing-library/react-native';
+import { fireEvent, render as testingLibraryRender, screen } from '@testing-library/react-native';
 import { eq } from 'drizzle-orm';
-import React from 'react';
+import React, { type ReactElement } from 'react';
+import { initialWindowMetrics, SafeAreaProvider } from 'react-native-safe-area-context';
 import { makeTestDb } from '../../test/db';
 import { DbProvider } from '../../src/components/db/DbProvider';
 import { ThemeContext } from '../../src/components/theme/theme-context';
@@ -19,6 +20,15 @@ import { createFood, logFood } from '../../src/db';
 import * as schema from '../../src/db/schema';
 import { themes } from '../../src/theme/tokens';
 import EditFoodScreen from './[id]';
+
+// `<FoodForm>` now renders through `<FormFrame>` (issue #207), which calls `useSafeAreaInsets()` —
+// a real `<SafeAreaProvider>` ancestor is required, not a mocked module (`FormFrame`'s own module
+// doc). This shadows the `render` call inside `renderScreen` below with no further changes needed.
+const metrics = { ...initialWindowMetrics, insets: { top: 0, left: 0, right: 0, bottom: 34 } } as typeof initialWindowMetrics;
+
+function render(ui: ReactElement) {
+  return testingLibraryRender(<SafeAreaProvider initialMetrics={metrics}>{ui}</SafeAreaProvider>);
+}
 
 // This screen renders `<FoodForm>`, which drives its Custom reveal through
 // `react-native-reanimated` (issue #191). Reanimated 4 loads `react-native-worklets`, which

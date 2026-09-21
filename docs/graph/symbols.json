@@ -1,6 +1,6 @@
 {
   "generated": "scripts/graph-gen.mjs — do not edit by hand",
-  "moduleCount": 89,
+  "moduleCount": 92,
   "modules": {
     "app/(tabs)/_layout.tsx": {
       "exports": [
@@ -102,6 +102,7 @@
         "expo-router",
         "react",
         "react-native",
+        "react-native-safe-area-context",
         "src/components/db/DbProvider.tsx",
         "src/components/theme/ThemeProvider.tsx",
         "src/components/theme/font-assets.ts",
@@ -109,7 +110,7 @@
         "src/hooks/useTheme.ts",
         "src/theme/tokens.ts"
       ],
-      "loc": 80
+      "loc": 88
     },
     "app/foods/[id].tsx": {
       "exports": [
@@ -126,7 +127,7 @@
         "src/hooks/useTheme.ts",
         "src/theme/tokens.ts"
       ],
-      "loc": 87
+      "loc": 90
     },
     "app/foods/index.tsx": {
       "exports": [
@@ -159,7 +160,7 @@
         "src/hooks/useTheme.ts",
         "src/theme/tokens.ts"
       ],
-      "loc": 43
+      "loc": 44
     },
     "app/meals/[id].tsx": {
       "exports": [
@@ -410,13 +411,15 @@
         "react-native",
         "react-native-reanimated",
         "src/components/food-form/Stepper.tsx",
+        "src/components/form/FormFrame.tsx",
         "src/components/format/food.ts",
         "src/components/serving-preset.ts",
         "src/db/index.ts",
         "src/hooks/useHapticFeedback.ts",
+        "src/hooks/useKeyboardVisible.ts",
         "src/theme/tokens.ts"
       ],
-      "loc": 790
+      "loc": 770
     },
     "src/components/food-form/Stepper.tsx": {
       "exports": [
@@ -501,6 +504,44 @@
       "importedBy": [
         "app/foods/index.tsx"
       ]
+    },
+    "src/components/form/FormFrame.tsx": {
+      "exports": [
+        "function FormFrame({\n  theme,\n  footerBg,\n  avoidsKeyboard = true,\n  headerOffset = 0,\n  footer,\n  children,\n  testID = 'form-frame',\n}: FormFrameProps): import(\"react\").JSX.Element",
+        "type FormFrameProps = {\n  readonly theme: Theme;\n  /** The footer's own background — a sheet's ground vs. a screen's canvas, `FoodForm`'s own two\n   * `foodForm.footerBg`/`footerBgScreen` tokens being the first example. */\n  readonly footerBg: string;\n  /** `true` (default): this frame owns a `KeyboardAvoidingView`. `false`: the host already has one\n   * (a sheet) — see the module note above. *..."
+      ],
+      "imports": [
+        "react",
+        "react-native",
+        "react-native-reanimated",
+        "react-native-safe-area-context",
+        "src/hooks/useKeyboardVisible.ts",
+        "src/theme/tokens.ts"
+      ],
+      "loc": 198,
+      "importedBy": [
+        "src/components/food-form/FoodForm.tsx"
+      ]
+    },
+    "src/components/form/test-support/reanimated-mock.tsx": {
+      "exports": [
+        "const Easing: { bezier: (x1: number, y1: number, x2: number, y2: number) => MockEasing; }",
+        "const __timingCalls: { toValue: unknown; config: TimingConfig | undefined; }[]",
+        "const default: { View: typeof AnimatedView; }",
+        "const useAnimatedStyle: <T>(updater: () => T) => T",
+        "const useReducedMotion: () => boolean",
+        "function __resetAnimations(): void",
+        "function __setReducedMotion(value: boolean): void",
+        "function useSharedValue(initial: T): SharedValue<T>",
+        "function withTiming(toValue: T, config?: TimingConfig): T",
+        "type MockEasing = { readonly factory: () => (t: number) => number; readonly points: readonly number[] }",
+        "type TimingConfig = { readonly duration?: number; readonly easing?: MockEasing }"
+      ],
+      "imports": [
+        "react",
+        "react-native"
+      ],
+      "loc": 84
     },
     "src/components/format/food.ts": {
       "exports": [
@@ -730,7 +771,7 @@
         "src/store/undoToast.ts",
         "src/theme/tokens.ts"
       ],
-      "loc": 200
+      "loc": 214
     },
     "src/components/search/SearchSheet.tsx": {
       "exports": [
@@ -1551,6 +1592,20 @@
         "src/components/search/SearchSheet.tsx"
       ]
     },
+    "src/hooks/useKeyboardVisible.ts": {
+      "exports": [
+        "function useKeyboardVisible(): boolean"
+      ],
+      "imports": [
+        "react",
+        "react-native"
+      ],
+      "loc": 37,
+      "importedBy": [
+        "src/components/food-form/FoodForm.tsx",
+        "src/components/form/FormFrame.tsx"
+      ]
+    },
     "src/hooks/useTheme.ts": {
       "exports": [
         "function useTheme(): Theme"
@@ -1776,6 +1831,7 @@
         "src/components/food-form/FoodForm.tsx",
         "src/components/food-form/Stepper.tsx",
         "src/components/food-list/FoodList.tsx",
+        "src/components/form/FormFrame.tsx",
         "src/components/meals/MealForm.tsx",
         "src/components/meals/MealList.tsx",
         "src/components/quick-add/PortionSheet.tsx",

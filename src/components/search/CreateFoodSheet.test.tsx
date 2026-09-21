@@ -4,8 +4,9 @@
  * one write removes the log while keeping the food (`receipt.undo` is `'unlog'`, wired straight
  * into the same generic `<UndoToast>`/`undo()` every other write uses).
  */
-import { fireEvent, render, screen } from '@testing-library/react-native';
-import type { ComponentProps } from 'react';
+import { fireEvent, render as testingLibraryRender, screen } from '@testing-library/react-native';
+import type { ComponentProps, ReactElement } from 'react';
+import { initialWindowMetrics, SafeAreaProvider } from 'react-native-safe-area-context';
 import type { FoodLogRow, FoodRow, LogReceipt } from '../../db';
 import { createFoodAndLog, VitalsDbError, withServing } from '../../db';
 import { DbProvider } from '../db/DbProvider';
@@ -14,6 +15,16 @@ import { ThemeContext } from '../theme/theme-context';
 import { themes } from '../../theme/tokens';
 import { UndoToast } from '../quick-add/UndoToast';
 import { CreateFoodSheet } from './CreateFoodSheet';
+
+// `<FoodForm variant="sheet">` now renders through `<FormFrame>` (issue #207), which calls
+// `useSafeAreaInsets()` — a real `<SafeAreaProvider>` ancestor is required, not a mocked module
+// (`FormFrame`'s own module doc). This shadows every pre-existing `render(...)` call site below
+// with no further changes needed at each call.
+const metrics = { ...initialWindowMetrics, insets: { top: 0, left: 0, right: 0, bottom: 34 } } as typeof initialWindowMetrics;
+
+function render(ui: ReactElement) {
+  return testingLibraryRender(<SafeAreaProvider initialMetrics={metrics}>{ui}</SafeAreaProvider>);
+}
 
 jest.mock('react-native-reanimated', () => jest.requireActual('../quick-add/test-support/reanimated-mock'));
 jest.mock('../../db', () => ({
