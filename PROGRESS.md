@@ -120,3 +120,6 @@ For the sprint-by-sprint plan see [`README.md`](README.md); for open work see th
 - 2026-09-20  feat: consume the db serving-preset key, retire matchingPresetKey (issue #198)  (PR #203)
 - 2026-09-20  docs: retire ceiling wording in UndoToast comments (issue #201)  (PR #206 closes #201)
 - 2026-09-20  test: pin baseRange's value in the two #92 slider-growth assertions (issue #195)  (PR #208 closes #195)
+- 2026-09-20  feat: name the form-frame tokens and the pinned-footer inset rule (issue #207)  (PR #212)
+- 2026-09-20  docs: record the form-frame ruling as decision 13 (issue #207)  (PR #213)
+- 2026-09-20  feat: drive FoodForm's Custom reveal through motion.events.customReveal (issue #191)  (PR #209 closes #191)
