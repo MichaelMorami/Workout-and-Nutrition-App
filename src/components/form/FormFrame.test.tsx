@@ -8,10 +8,14 @@ import { act, render, screen } from '@testing-library/react-native';
 import type { ReactElement } from 'react';
 import { Keyboard, Text, type EmitterSubscription } from 'react-native';
 import { initialWindowMetrics, SafeAreaProvider } from 'react-native-safe-area-context';
-import { motion, themes } from '../../theme/tokens';
+import { formFooterPaddingBottom, layout, motion, themes } from '../../theme/tokens';
 import { FormFrame } from './FormFrame';
 import { __resetAnimations, __setReducedMotion, __timingCalls } from './test-support/reanimated-mock';
 
+// jest hoists `jest.mock` above every import in this file (babel-plugin-jest-hoist), so the factory
+// cannot reference the `./test-support/reanimated-mock` import above — only a `require` inside the
+// factory itself resolves at the point jest actually calls it.
+// eslint-disable-next-line @typescript-eslint/no-require-imports
 jest.mock('react-native-reanimated', () => require('./test-support/reanimated-mock'));
 
 const theme = themes.dark;
@@ -95,7 +99,6 @@ describe('FormFrame', () => {
   });
 
   it('applies layout.gutter as the side padding on the body content and the footer', async () => {
-    const { layout } = require('../../theme/tokens');
     await renderFrame(
       <FormFrame theme={theme} footerBg={theme.color.bg.surface} footer={<Text>Save</Text>} testID="frame">
         <Text>A field</Text>
@@ -111,7 +114,6 @@ describe('FormFrame', () => {
   });
 
   it('pads the footer with the safe-area inset when the keyboard is down', async () => {
-    const { formFooterPaddingBottom } = require('../../theme/tokens');
     await renderFrame(
       <FormFrame theme={theme} footerBg={theme.color.bg.surface} footer={<Text>Save</Text>} testID="frame">
         <Text>A field</Text>
@@ -123,7 +125,6 @@ describe('FormFrame', () => {
   });
 
   it('drops to the bare pad once the keyboard shows', async () => {
-    const { formFooterPaddingBottom } = require('../../theme/tokens');
     const keyboard = mockKeyboardListeners();
     await renderFrame(
       <FormFrame theme={theme} footerBg={theme.color.bg.surface} footer={<Text>Save</Text>} testID="frame">
