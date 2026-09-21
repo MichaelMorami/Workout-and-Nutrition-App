@@ -1,15 +1,21 @@
 /**
  * Type-driven reachability for `motion.events` (issue #210).
  *
- * WHY THIS EXISTS. `QuickAddTile` (this directory) is the one place in the app that looks a motion
- * event up dynamically — `motion.events[eventName]` at `QuickAddTile.tsx:112` — so a plain
- * `grep 'motion\.events\.<key>'` cannot prove a key is dead: it never sees that call site at all,
- * and it is fooled the other way too (a key's name can appear in a doc *comment* — see
+ * WHY THIS EXISTS. `QuickAddTile` (one level up, `../QuickAddTile.tsx`) is the one place in the app
+ * that looks a motion event up dynamically — `motion.events[eventName]` at `QuickAddTile.tsx:112`
+ * — so a plain `grep 'motion\.events\.<key>'` cannot prove a key is dead: it never sees that call
+ * site at all, and it is fooled the other way too (a key's name can appear in a doc *comment* — see
  * `QuickAddTile.tsx:28` mentioning `tilePressIn`/`tilePressOut` — with no real access nearby, and a
  * key genuinely consumed only through a `Record` lookup elsewhere reads as unconsumed). A
  * name-based allowlist has the same blind spot with an extra failure mode: it silently accepts any
  * key someone remembers to type into it, which is the exact invisibility issue #210 was filed to
  * fix.
+ *
+ * LIVES IN `test-support/`, NOT NEXT TO THE COMPONENTS. This module `import`s `typescript`, a
+ * devDependency — it must never end up in the Metro bundle. `quick-add/index.ts` (the barrel a
+ * production screen would import from) does not, and must not, re-export it; nothing outside a
+ * test file should ever import this module. Keeping it in `test-support/` makes that mistake
+ * structurally harder, the same way `reanimated-mock.tsx` already does for this directory.
  *
  * THE MECHANISM. This module walks the real TypeScript AST and asks the type checker, not a
  * string, two questions:
@@ -33,6 +39,26 @@
  *
  * This is why `computeMotionEventsReachability` takes a `ts.Program` rather than a set of globs: it
  * needs real type information, which only the checker has.
+ *
+ * TWO KNOWN LIMITATIONS (PR #223 review), both fail safe rather than silently:
+ *
+ *   - A destructured or re-bound `events` object — `const { events } = motion` or `const e =
+ *     motion.events`, then `events.someKey` / `e.someKey` — is NOT recognised: the matcher below
+ *     only looks at `X.events.someKey` / `X.events[expr]` shapes, where the `.events` access is
+ *     the immediate parent. A destructure produces zero sites for every key it touches, which reads
+ *     as those keys being dead. That is the *safe* direction (a false "dead" fails loudly in the
+ *     audit; a false "reachable" would not), but it is a real blind spot: nothing in this codebase
+ *     destructures `motion.events` today (confirmed by grep across `app/`+`src/` when this note was
+ *     written), so it has not bitten yet. A future consumer that destructures will see the audit go
+ *     red for a key it does consume — the fix then is to widen the matcher, not to add a
+ *     `PENDING_EXCEPTIONS` entry.
+ *   - A dynamic index typed exactly `MotionEventName` (`tokens.ts:1535`) — rather than a call
+ *     site's own narrower literal union — resolves to *every* key in `motion.events` at once,
+ *     since `MotionEventName` is `keyof typeof motion.events`. No call site does this today (the
+ *     one dynamic site, `QuickAddTile.tsx:112`, narrows to its own two-literal union instead). If
+ *     one ever did, every currently-unreachable key would flip to "reachable" simultaneously —
+ *     loud (the `PENDING_EXCEPTIONS` staleness check in `motionEventsReachability.audit.test.tsx`
+ *     would fail for all 13 entries at once, not silently), but worth knowing before it happens.
  */
 import ts from 'typescript';
 
@@ -75,11 +101,15 @@ function lineOf(sourceFile: ts.SourceFile, node: ts.Node): number {
 /**
  * The canonical `events` property symbol on `tokens.ts`'s `motion` export — resolved once, by
  * walking the module's exports, never by matching the text "motion". Every candidate access site
- * is compared against this exact symbol (by its declaration node, which is stable across however
- * the checker reaches it — through an alias, a destructure, or the plain identifier), so a second,
- * unrelated object that also happens to have an `events` property — even one declared in the same
- * file — is not mistaken for it. Returns `undefined` if `tokens.ts` is not part of `program`, or
- * does not export a `motion` value shaped the way this module expects.
+ * is compared against this exact symbol by declaration-node identity, so a second, unrelated
+ * object that also happens to have an `events` property — even one declared in the same file — is
+ * not mistaken for it, and a renamed import (`import { motion as m }`, then `m.events.someKey`)
+ * still resolves correctly, since only the final `X.events` property access is inspected, never
+ * the identifier text before it. It does NOT survive a destructure (`const { events } = motion`)
+ * or a re-bound intermediate (`const e = motion.events`) — see the module doc's "known
+ * limitations" for why that is a safe-direction gap, not a silent one. Returns `undefined` if
+ * `tokens.ts` is not part of `program`, or does not export a `motion` value shaped the way this
+ * module expects.
  */
 function findMotionEventsSymbol(program: ts.Program, checker: ts.TypeChecker): ts.Symbol | undefined {
   const tokensFile = program.getSourceFiles().find((sf) => !sf.isDeclarationFile && sf.fileName.endsWith(TOKENS_FILE_SUFFIX));

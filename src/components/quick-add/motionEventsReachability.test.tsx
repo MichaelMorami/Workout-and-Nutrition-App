@@ -12,7 +12,7 @@
  * rather than by giving it a plausible-looking variable name.
  */
 import ts from 'typescript';
-import { computeMotionEventsReachability } from './motionEventsReachability';
+import { computeMotionEventsReachability } from './test-support/motionEventsReachability';
 
 const SYNTHETIC_TOKENS_FILE = '/virtual/src/theme/tokens.ts';
 
@@ -132,5 +132,29 @@ describe('computeMotionEventsReachability — the mechanism (issue #210)', () =>
     );
     const report = computeMotionEventsReachability(program, [sourceFile]);
     expect(report.reachableKeys.has('aliased')).toBe(true);
+  });
+
+  it('KNOWN LIMITATION (PR #223 review): a destructured `events` object is NOT recognised — reads as dead, not unresolved', () => {
+    // `resolvesToMotionEvents` only matches `X.events.someKey` / `X.events[expr]` shapes, where
+    // the `.events` access is the immediate parent of the key access. `const { events } = motion`
+    // breaks that shape entirely, so `events.destructured` below produces neither a literal site
+    // nor a dynamic one — the key simply never appears anywhere in the report, indistinguishable
+    // from a key nobody wrote any code for at all.
+    //
+    // This is pinned deliberately, not fixed: the failure direction is safe (a real consumer that
+    // destructures makes its key read as *dead*, and the real audit goes red loudly — the wrong
+    // grep-shaped fix for that red is appending to `PENDING_EXCEPTIONS`, not widening this
+    // matcher, which the module doc now says explicitly) rather than silently marking something
+    // reachable that is not. If this test ever fails, the matcher has started recognising
+    // destructures — update this test and the module doc's "known limitations" section together.
+    const { program, sourceFile } = createSingleFileProgram(
+      SYNTHETIC_TOKENS_FILE,
+      `export const motion = { events: { destructured: { duration: 1 } } } as const;
+       const { events } = motion;
+       const x = events.destructured;`,
+    );
+    const report = computeMotionEventsReachability(program, [sourceFile]);
+    expect(report.reachableKeys.has('destructured')).toBe(false);
+    expect(report.unresolvedDynamicSites).toHaveLength(0); // not even flagged as unresolved — invisible, not loud
   });
 });

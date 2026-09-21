@@ -712,7 +712,9 @@ jq -r '.modules["src/db/queries/nutrition.ts"].exports[]' docs/graph/symbols.jso
 
 <sub>used by: `app/(tabs)/index.tsx`, `app/foods/index.tsx`, `app/meals/index.tsx`</sub>
 
-### `src/components/quick-add/motionEventsReachability.ts`  <sub>168 lines</sub>
+## `src/components/quick-add/test-support/`
+
+### `src/components/quick-add/test-support/motionEventsReachability.ts`  <sub>198 lines</sub>
 
 - `function computeMotionEventsReachability(program: ts.Program, sourceFiles: readonly ts.SourceFile[]): ReachabilityReport`
 - `type DynamicSite = {
@@ -735,8 +737,6 @@ jq -r '.modules["src/db/queries/nutrition.ts"].exports[]' docs/graph/symbols.jso
   readonly dynamicSites: readonly DynamicSite[];
   /** Dynamic sites the checker could not narrow — these need fixing, not allowlisting. */
   readonly unresolvedDynamicSites: readonly Dynam...`
-
-## `src/components/quick-add/test-support/`
 
 ### `src/components/quick-add/test-support/reanimated-mock.tsx`  <sub>79 lines</sub>
 

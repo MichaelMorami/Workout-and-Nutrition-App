@@ -736,7 +736,7 @@
         "app/meals/index.tsx"
       ]
     },
-    "src/components/quick-add/motionEventsReachability.ts": {
+    "src/components/quick-add/test-support/motionEventsReachability.ts": {
       "exports": [
         "function computeMotionEventsReachability(program: ts.Program, sourceFiles: readonly ts.SourceFile[]): ReachabilityReport",
         "type DynamicSite = {\n  readonly file: string;\n  readonly line: number;\n  /** The index expression's resolved literal keys — empty when `resolved` is false. */\n  readonly keys: readonly string[];\n  /** `false` means the index type did not narrow to a string-literal union: the checker cannot\n   * name which keys this site reaches, so none of them count as proven-reachable. */\n  readonly resolved:...",
@@ -746,7 +746,7 @@
       "imports": [
         "typescript"
       ],
-      "loc": 168
+      "loc": 198
     },
     "src/components/quick-add/test-support/reanimated-mock.tsx": {
       "exports": [
