@@ -56,12 +56,18 @@ else
   ISSUE_LINE="Closes #$ISSUE"
 fi
 
+# "What changed" below interpolates raw commit subjects. A subject that happens to contain a
+# closing keyword next to an issue reference (e.g. "fix: closes #99") would otherwise become a
+# live, GitHub-parsed closing link in the body regardless of --no-close or ISSUE_LINE above. GitHub
+# does not auto-link references inside inline code spans, so wrap any "#<digits>" in backticks to
+# neutralise it — see scripts/pr.test.sh's "commit subject with a stray closing keyword" scenario.
+
 BODY="$(cat <<PRBODY
 $ISSUE_LINE
 
 ## What changed
 
-$(git log --pretty='- %s' origin/main.."$BRANCH")
+$(git log --pretty='- %s' origin/main.."$BRANCH" | sed -E 's/#([0-9]+)/`#\1`/g')
 
 ## Test evidence
 

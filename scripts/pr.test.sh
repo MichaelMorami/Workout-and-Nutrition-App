@@ -213,6 +213,26 @@ assert "no leftover conflict markers in widget-b.txt" "0" \
 assert "PROGRESS.md is still exactly what it was before either branch" "$BASE_PROGRESS" \
   "$(cat "$WORK/repo/PROGRESS.md")"
 
+# --- Scenario 4: a commit subject with a stray closing keyword must not become a live reference --
+# "What changed" interpolates raw commit subjects. A subject like "fix: closes #99" would otherwise
+# read to GitHub as a second, unintended closing link regardless of --no-close or the real
+# ISSUE_LINE above. pr.sh defuses this by wrapping any #<digits> in backticks (inline code spans
+# are excluded from GitHub's reference/keyword auto-linking).
+git -C "$WORK/repo" checkout --quiet main
+git -C "$WORK/repo" checkout --quiet -b chore/82-widget-d
+echo "v1" >"$WORK/repo/widget-a.txt"
+git -C "$WORK/repo" commit --quiet -am "fix: closes #99 by accident"
+
+run_pr_script --no-close
+assert "commit-subject-keyword run succeeds" "0" "$STATUS"
+# The commit subject ("fix: closes #99 by accident") also becomes the PR title verbatim via
+# pr_title_for_branch, and GitHub only parses closing keywords out of the PR *body* — so extract
+# just the --body argument (the last flag gh pr create receives) rather than the whole args dump,
+# which would otherwise false-positive on the untouched title.
+body_d="$(awk '/^--body$/{p=1; next} p' "$WORK/gh-args.txt")"
+assert_contains "stray keyword in commit subject is wrapped in a code span" "$body_d" '`#99`'
+assert_not_contains "stray keyword in commit subject is not a live closing keyword" "$body_d" "closes #99 by accident"
+
 say "pr.test.sh: $pass passed, $fail failed"
 if [ "$fail" -gt 0 ]; then
   die "pr.sh's PROGRESS.md / --no-close behaviour regressed — see scripts/pr.sh"
