@@ -51,7 +51,9 @@
  * the row logs, a second screen between Create and the form, a Save that stops short of logging —
  * fails the test that owns that step, not a silent pass.
  */
-import { fireEvent, render, screen, within } from '@testing-library/react-native';
+import { fireEvent, render as testingLibraryRender, screen, within } from '@testing-library/react-native';
+import type { ReactElement } from 'react';
+import { initialWindowMetrics, SafeAreaProvider } from 'react-native-safe-area-context';
 import TodayScreen from '../app/(tabs)/index';
 import { DbProvider } from '../src/components/db/DbProvider';
 import { ThemeContext } from '../src/components/theme/theme-context';
@@ -273,6 +275,16 @@ beforeEach(() => {
   // module-level zustand singleton, not something `render`'s auto-cleanup touches.
   useUndoToastStore.getState().dismiss();
 });
+
+// The create sheet's `<FoodForm variant="sheet">` now renders through `<FormFrame>` (issue #207),
+// which calls `useSafeAreaInsets()` — a real `<SafeAreaProvider>` ancestor is required, not a
+// mocked module (`FormFrame`'s own module doc). Same shadowed-`render` pattern as
+// `app/(tabs)/index.test.tsx` and `src/components/food-form/FoodForm.test.tsx`.
+const metrics = { ...initialWindowMetrics, insets: { top: 0, left: 0, right: 0, bottom: 34 } } as typeof initialWindowMetrics;
+
+function render(ui: ReactElement) {
+  return testingLibraryRender(<SafeAreaProvider initialMetrics={metrics}>{ui}</SafeAreaProvider>);
+}
 
 const renderToday = () =>
   render(

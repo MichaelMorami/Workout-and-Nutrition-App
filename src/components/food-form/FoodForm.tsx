@@ -75,31 +75,33 @@
  *  - The locked read-out's padlock glyph has a colour token (`foodForm.lockIcon`) but no icon *name*
  *    token — `glyph` (`src/theme/tokens.ts`) has no lock entry. Rendered without an icon rather than
  *    hard-coding an Ionicons name design-lead never published.
- *  - The footer is the last item inside the form's own `ScrollView`, not a true pinned/keyboard-
- *    avoiding footer — `PortionSheet.tsx` already has a `KeyboardAvoidingView` precedent, but this
- *    form does not follow it yet (tracked separately as issue #207, out of scope for #191 — see that
- *    issue for why). Not changed here. `footerDivider` still appears once the content has scrolled,
- *    via a plain `onScroll` check.
+ *
+ * THE PINNED FOOTER (issue #207, decision 13). `<FormFrame>` (`src/components/form/FormFrame.tsx`)
+ * now owns the scrolling body / pinned footer split, the `KeyboardAvoidingView` and the footer's own
+ * safe-area padding + divider fade — this form only supplies the footer's own content (the preview
+ * strip and the action row, always present with the keyboard up) and the one row that is its own
+ * caller-side branch: the edit history note, shown only once the keyboard is down
+ * (`useKeyboardVisible`, `src/hooks`). `avoidsKeyboard={variant !== 'sheet'}`: a pushed screen owns
+ * its own avoider (the default); a sheet is already inside `CreateFoodSheet`'s own
+ * `KeyboardAvoidingView` (this same issue), so this form's own avoider is off there.
+ *
+ * A FAILED SAVE SCROLLS TO THE FIELD IT IS ABOUT (PR #220 review, B2). With Save pinned in the
+ * footer, an inline error further down the body can sit below the fold — a form opened at the top
+ * with the keyboard up showed nothing at all when a blank-Name Save failed. `handleSave` now
+ * scrolls the body to the offending field (`fieldOffsets`, measured by each field's own `onLayout`)
+ * and focuses it, so the message, the error border and the caret all arrive together. Not a third
+ * footer row: decision 13's footer is two rows with the keyboard up and never collapses or grows.
  */
 import { useEffect, useRef, useState, type ReactNode } from 'react';
-import {
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  View,
-  TextInput,
-  type LayoutChangeEvent,
-  type NativeSyntheticEvent,
-  type NativeScrollEvent,
-  type TextStyle,
-} from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View, TextInput, type LayoutChangeEvent, type TextStyle } from 'react-native';
 import Animated, { Easing, useAnimatedStyle, useReducedMotion, useSharedValue, withTiming } from 'react-native-reanimated';
 import { SERVING_PRESETS, UNIT_OF_BASIS, servingOf, servingPresetByKey, type FoodBasis, type FoodInput, type ServingPresetKey } from '../../db';
 import { formatGrams, formatMl, formatPreviewProtein } from '../format/food';
 import { useHapticFeedback } from '../../hooks/useHapticFeedback';
+import { useKeyboardVisible } from '../../hooks/useKeyboardVisible';
 import { resolvePresetKey } from '../serving-preset';
 import { haptics, motion, radius, size, space, type, type Theme, type TypeStyle } from '../../theme/tokens';
+import { FormFrame } from '../form/FormFrame';
 import { Stepper } from './Stepper';
 
 type ServingKey = ServingPresetKey | 'custom';
@@ -143,12 +145,19 @@ function textStyle(token: TypeStyle, color: string): TextStyle {
   };
 }
 
+/** Which field a failed Save is about, alongside its message — the message alone cannot be steered
+ * to, and since #207 pinned Save in the footer the form has to bring the offending field to the
+ * user rather than assume they are already looking at it (module note, "A FAILED SAVE"). */
+type FormProblem = { readonly field: 'name' | 'servingLabel'; readonly message: string };
+
 /** `null`/empty checks the way `validateFoodInput` does, so this form's own gate agrees with the
  * database's — see the module note on why this is a courtesy, not the source of truth. Only Custom
  * has a typed label to check; a preset's label is never blank. */
-function firstError(name: string, servingKey: ServingKey, customLabel: string): string | null {
-  if (name.trim().length === 0) return 'Name is required.';
-  if (servingKey === 'custom' && customLabel.trim().length === 0) return 'Name the serving, e.g. 1 scoop.';
+function firstError(name: string, servingKey: ServingKey, customLabel: string): FormProblem | null {
+  if (name.trim().length === 0) return { field: 'name', message: 'Name is required.' };
+  if (servingKey === 'custom' && customLabel.trim().length === 0) {
+    return { field: 'servingLabel', message: 'Name the serving, e.g. 1 scoop.' };
+  }
   return null;
 }
 
@@ -161,6 +170,7 @@ function Field({
   testID,
   hasError,
   inputRef,
+  onLayout,
 }: {
   label: string;
   value: string;
@@ -170,10 +180,11 @@ function Field({
   testID: string;
   hasError?: boolean;
   inputRef?: React.RefObject<TextInput | null>;
+  onLayout?: (event: LayoutChangeEvent) => void;
 }) {
   const { foodForm } = theme.color;
   return (
-    <View style={styles.field}>
+    <View testID={`${testID}-field`} style={styles.field} onLayout={onLayout}>
       <Text style={textStyle(type.label, foodForm.fieldLabelText)}>{label}</Text>
       <TextInput
         ref={inputRef}
@@ -443,6 +454,7 @@ export function FoodForm({ initial = null, onSave, onCancel, variant = 'screen',
   const { button, foodForm } = theme.color;
   const fireHaptic = useHapticFeedback();
   const reducedMotion = useReducedMotion();
+  const keyboardVisible = useKeyboardVisible();
   const isEditing = initial !== null;
 
   const matched = initial ? resolvePresetKey(initial.servingLabel, initial.basis, initial.servingAmount) : '100g';
@@ -463,14 +475,20 @@ export function FoodForm({ initial = null, onSave, onCancel, variant = 'screen',
   const [kcalPer100, setKcalPer100] = useState(initial?.kcalPer100 ?? 0);
   const [proteinPer100, setProteinPer100] = useState(initial?.proteinPer100 ?? 0);
   const [error, setError] = useState<string | null>(null);
-  const [scrolled, setScrolled] = useState(false);
 
   // Once Custom has been explicitly picked, further preset taps stop mirroring into its basis/amount
   // — "switching is never a reset" (issue #89, section 2). Starts `true` when editing already fell
   // back to Custom, so an immediate preset tap there does not silently overwrite what `initial` set.
   const customTouchedRef = useRef(matched === null);
+  const nameInputRef = useRef<TextInput | null>(null);
   const labelInputRef = useRef<TextInput | null>(null);
   const mountedRef = useRef(false);
+
+  // Where a failed Save scrolls to. Both are direct children of the body's own content view, so the
+  // `y` their `onLayout` reports is already the scroll offset that puts them at the top of the
+  // body — no `measureLayout` round-trip, and no guess.
+  const bodyRef = useRef<ScrollView | null>(null);
+  const fieldOffsets = useRef<{ name: number; servingLabel: number }>({ name: 0, servingLabel: 0 });
 
   useEffect(() => {
     if (!mountedRef.current) {
@@ -520,7 +538,16 @@ export function FoodForm({ initial = null, onSave, onCancel, variant = 'screen',
   const handleSave = (): void => {
     const problem = firstError(name, servingKey, customLabel);
     if (problem) {
-      setError(problem);
+      setError(problem.message);
+      // A FAILED SAVE HAS TO COME TO THE USER (PR #220 review, B2). Save is pinned in the footer
+      // (decision 13) while the inline error renders next to the field it is about — so a form
+      // sitting at the top with the keyboard up would otherwise show nothing at all when Save
+      // fails. Scroll the offending field to the top of the body and put the caret in it: the
+      // error, the red field border and the cursor all land in the same place, the keyboard is
+      // already up, and fixing it costs no tap beyond typing. (The footer stays two rows —
+      // decision 13 says it never grows a third.)
+      bodyRef.current?.scrollTo({ y: fieldOffsets.current[problem.field], animated: true });
+      (problem.field === 'name' ? nameInputRef : labelInputRef).current?.focus();
       return;
     }
     setError(null);
@@ -535,185 +562,196 @@ export function FoodForm({ initial = null, onSave, onCancel, variant = 'screen',
     });
   };
 
-  const handleScroll = (e: NativeSyntheticEvent<NativeScrollEvent>): void => {
-    setScrolled(e.nativeEvent.contentOffset.y > 0);
-  };
-
-  return (
-    // `handled`: with a field's keyboard up, a tap on a chip, a stepper or Save must land on the
-    // first try — the default (`'never'`) spends that tap dismissing the keyboard (issue #79).
-    <ScrollView
-      testID={testID}
-      contentContainerStyle={styles.content}
-      keyboardShouldPersistTaps="handled"
-      // …and the content insets for the keyboard, so Save can still be scrolled to when the
-      // keyboard covers the bottom of the form (issue #79). iOS only; a no-op on Android.
-      automaticallyAdjustKeyboardInsets
-      onScroll={handleScroll}
-      scrollEventThrottle={16}
-    >
-      <Field label="Name" value={name} onChangeText={setName} theme={theme} placeholder="Greek yoghurt" testID={`${testID}-name`} />
-      <Field label="Brand" value={brand} onChangeText={setBrand} theme={theme} placeholder="Optional" testID={`${testID}-brand`} />
-
-      <View style={styles.section}>
-        <View style={styles.eyebrowRow}>
-          <Text style={textStyle(type.micro, foodForm.sectionText)}>Serving</Text>
-          <Text style={textStyle(type.label, foodForm.sectionMetaText)}>{basis === 'weight' ? 'Weight · grams' : 'Volume · millilitres'}</Text>
-        </View>
-        <View style={styles.chipGrid}>
-          {SERVING_PRESETS.map((p) => (
-            <Chip
-              key={p.key}
-              testID={`${testID}-serving-${p.key}`}
-              label={p.label}
-              selected={servingKey === p.key}
-              onPress={() => selectPreset(p.key)}
-              theme={theme}
-            />
-          ))}
-          <Chip
-            testID={`${testID}-serving-custom`}
-            label={servingKey === 'custom' ? 'Custom' : 'Custom…'}
-            selected={servingKey === 'custom'}
-            onPress={selectCustom}
-            theme={theme}
-          />
-        </View>
-
-        <CustomReveal visible={servingKey === 'custom'} reducedMotion={reducedMotion} testID={`${testID}-custom-reveal`}>
-          <Field
-            label="Label"
-            value={customLabel}
-            onChangeText={setCustomLabel}
-            theme={theme}
-            placeholder="1 scoop"
-            testID={`${testID}-serving-label`}
-            hasError={error !== null && customLabel.trim().length === 0}
-            inputRef={labelInputRef}
-          />
-          <BasisToggle basis={customBasis} onChange={setCustomBasis} theme={theme} testID={`${testID}-basis`} />
-          <Stepper
-            label={`Amount ${unit}`}
-            value={customAmount}
-            step={1}
-            min={1}
-            max={2000}
-            onChange={setCustomAmount}
-            theme={theme}
-            testID={`${testID}-serving-amount`}
-          />
-        </CustomReveal>
-        {servingKey !== 'custom' ? (
-          <View
-            testID={`${testID}-locked-amount`}
-            style={[styles.lockedRow, { minHeight: size.foodForm.lockedRowHeight }]}
-            accessibilityLabel={`${preset?.label} — ${servingAmountText}, locked`}
-          >
-            <Text style={textStyle(type.numericLg, foodForm.lockedAmountText)}>{servingAmountText}</Text>
-            <Text style={textStyle(type.label, foodForm.lockedMetaText)}>
-              per {preset?.label} · {basis}
-            </Text>
-          </View>
-        ) : null}
-      </View>
-
-      <View style={styles.section}>
-        <View style={styles.eyebrowRow}>
-          <Text style={textStyle(type.micro, foodForm.sectionText)}>{per100Heading(basis)}</Text>
-          <Text style={textStyle(type.label, foodForm.sectionMetaText)}>as printed on the pack</Text>
-        </View>
-        <View style={[styles.nutritionRow, { gap: size.foodForm.nutritionGap }]}>
-          <View style={styles.nutritionCell}>
-            <Stepper
-              label="Calories kcal"
-              value={kcalPer100}
-              step={1}
-              max={5000}
-              onChange={setKcalPer100}
-              theme={theme}
-              testID={`${testID}-kcal`}
-              buttonWidth={size.foodForm.nutritionButtonWidth}
-              buttonHit={size.foodForm.nutritionHit}
-              gap={size.foodForm.stepperGap}
-              valueTextColor={foodForm.kcalValueText}
-            />
-          </View>
-          <View style={styles.nutritionCell}>
-            <Stepper
-              label={`Protein ${UNIT_OF_BASIS.weight}`}
-              value={proteinPer100}
-              step={0.1}
-              max={500}
-              onChange={setProteinPer100}
-              // One decimal place, matching the 0.1 step's own granularity — the default
-              // `Math.round` display would otherwise show "0" for a fresh 0.1 tap.
-              formatValue={(v) => v.toLocaleString(undefined, { maximumFractionDigits: 1 })}
-              theme={theme}
-              testID={`${testID}-protein`}
-              buttonWidth={size.foodForm.nutritionButtonWidth}
-              buttonHit={size.foodForm.nutritionHit}
-              gap={size.foodForm.stepperGap}
-              valueTextColor={foodForm.proteinValueText}
-            />
-          </View>
-        </View>
-      </View>
-
+  // The footer's own content (issue #207, decision 13): the preview strip and the action row stay
+  // present with the keyboard up either way; the history note is this form's own keyboard-down-only
+  // branch.
+  const footer = (
+    <>
       <View testID={`${testID}-preview`} style={[styles.preview, { minHeight: size.foodForm.previewHeight, borderRadius: radius.md, backgroundColor: foodForm.previewBg }]}>
         <Text style={textStyle(type.body, foodForm.previewServingText)}>{previewText}</Text>
       </View>
-
-      {error ? (
-        <Text testID={`${testID}-error`} style={textStyle(type.label, foodForm.errorText)}>
-          {error}
-        </Text>
+      <View style={styles.actions}>
+        <Pressable
+          testID={`${testID}-cancel`}
+          onPress={onCancel}
+          accessibilityRole="button"
+          accessibilityLabel="Cancel"
+          style={[
+            styles.actionButton,
+            { minHeight: size.button.primaryHit, borderRadius: radius.md, borderWidth: StyleSheet.hairlineWidth, borderColor: button.secondaryBorder },
+          ]}
+        >
+          <Text style={textStyle(type.button, button.secondaryText)}>Cancel</Text>
+        </Pressable>
+        <Pressable
+          testID={`${testID}-save`}
+          onPress={handleSave}
+          accessibilityRole="button"
+          accessibilityLabel={saveLabel}
+          style={[styles.actionButton, { minHeight: size.button.primaryHit, borderRadius: radius.md, backgroundColor: button.kcalBg }]}
+        >
+          <Text style={textStyle(type.button, button.kcalText)}>{saveLabel}</Text>
+        </Pressable>
+      </View>
+      {variant === 'screen' && isEditing && !keyboardVisible ? (
+        <Text style={textStyle(type.label, foodForm.historyNoteText)}>Changes apply from now on. Past logs keep their numbers.</Text>
       ) : null}
+    </>
+  );
 
-      <View
-        style={[
-          styles.footer,
-          {
-            backgroundColor: variant === 'sheet' ? foodForm.footerBg : foodForm.footerBgScreen,
-            borderTopWidth: scrolled ? StyleSheet.hairlineWidth : 0,
-            borderTopColor: foodForm.footerDivider,
-          },
-        ]}
-      >
-        <View style={styles.actions}>
-          <Pressable
-            testID={`${testID}-cancel`}
-            onPress={onCancel}
-            accessibilityRole="button"
-            accessibilityLabel="Cancel"
-            style={[
-              styles.actionButton,
-              { minHeight: size.button.primaryHit, borderRadius: radius.md, borderWidth: StyleSheet.hairlineWidth, borderColor: button.secondaryBorder },
-            ]}
-          >
-            <Text style={textStyle(type.button, button.secondaryText)}>Cancel</Text>
-          </Pressable>
-          <Pressable
-            testID={`${testID}-save`}
-            onPress={handleSave}
-            accessibilityRole="button"
-            accessibilityLabel={saveLabel}
-            style={[styles.actionButton, { minHeight: size.button.primaryHit, borderRadius: radius.md, backgroundColor: button.kcalBg }]}
-          >
-            <Text style={textStyle(type.button, button.kcalText)}>{saveLabel}</Text>
-          </Pressable>
+  return (
+    <FormFrame
+      footerBg={variant === 'sheet' ? foodForm.footerBg : foodForm.footerBgScreen}
+      dividerColor={foodForm.footerDivider}
+      avoidsKeyboard={variant !== 'sheet'}
+      bodyRef={bodyRef}
+      footer={footer}
+      testID={testID}
+    >
+      <View style={styles.content}>
+        <Field
+          label="Name"
+          value={name}
+          onChangeText={setName}
+          theme={theme}
+          placeholder="Greek yoghurt"
+          testID={`${testID}-name`}
+          hasError={error !== null && name.trim().length === 0}
+          inputRef={nameInputRef}
+          onLayout={(event) => {
+            fieldOffsets.current.name = event.nativeEvent.layout.y;
+          }}
+        />
+        <Field label="Brand" value={brand} onChangeText={setBrand} theme={theme} placeholder="Optional" testID={`${testID}-brand`} />
+
+        <View
+          testID={`${testID}-serving-section`}
+          style={styles.section}
+          onLayout={(event) => {
+            // Custom's Label field lives inside this section, so the section's own offset is what
+            // brings it into view — the reveal itself is nested too deep for its `y` to be a scroll
+            // offset on its own.
+            fieldOffsets.current.servingLabel = event.nativeEvent.layout.y;
+          }}
+        >
+          <View style={styles.eyebrowRow}>
+            <Text style={textStyle(type.micro, foodForm.sectionText)}>Serving</Text>
+            <Text style={textStyle(type.label, foodForm.sectionMetaText)}>{basis === 'weight' ? 'Weight · grams' : 'Volume · millilitres'}</Text>
+          </View>
+          <View style={styles.chipGrid}>
+            {SERVING_PRESETS.map((p) => (
+              <Chip
+                key={p.key}
+                testID={`${testID}-serving-${p.key}`}
+                label={p.label}
+                selected={servingKey === p.key}
+                onPress={() => selectPreset(p.key)}
+                theme={theme}
+              />
+            ))}
+            <Chip
+              testID={`${testID}-serving-custom`}
+              label={servingKey === 'custom' ? 'Custom' : 'Custom…'}
+              selected={servingKey === 'custom'}
+              onPress={selectCustom}
+              theme={theme}
+            />
+          </View>
+
+          <CustomReveal visible={servingKey === 'custom'} reducedMotion={reducedMotion} testID={`${testID}-custom-reveal`}>
+            <Field
+              label="Label"
+              value={customLabel}
+              onChangeText={setCustomLabel}
+              theme={theme}
+              placeholder="1 scoop"
+              testID={`${testID}-serving-label`}
+              hasError={error !== null && customLabel.trim().length === 0}
+              inputRef={labelInputRef}
+            />
+            <BasisToggle basis={customBasis} onChange={setCustomBasis} theme={theme} testID={`${testID}-basis`} />
+            <Stepper
+              label={`Amount ${unit}`}
+              value={customAmount}
+              step={1}
+              min={1}
+              max={2000}
+              onChange={setCustomAmount}
+              theme={theme}
+              testID={`${testID}-serving-amount`}
+            />
+          </CustomReveal>
+          {servingKey !== 'custom' ? (
+            <View
+              testID={`${testID}-locked-amount`}
+              style={[styles.lockedRow, { minHeight: size.foodForm.lockedRowHeight }]}
+              accessibilityLabel={`${preset?.label} — ${servingAmountText}, locked`}
+            >
+              <Text style={textStyle(type.numericLg, foodForm.lockedAmountText)}>{servingAmountText}</Text>
+              <Text style={textStyle(type.label, foodForm.lockedMetaText)}>
+                per {preset?.label} · {basis}
+              </Text>
+            </View>
+          ) : null}
         </View>
-        {variant === 'screen' && isEditing ? (
-          <Text style={textStyle(type.label, foodForm.historyNoteText)}>Changes apply from now on. Past logs keep their numbers.</Text>
+
+        <View style={styles.section}>
+          <View style={styles.eyebrowRow}>
+            <Text style={textStyle(type.micro, foodForm.sectionText)}>{per100Heading(basis)}</Text>
+            <Text style={textStyle(type.label, foodForm.sectionMetaText)}>as printed on the pack</Text>
+          </View>
+          <View style={[styles.nutritionRow, { gap: size.foodForm.nutritionGap }]}>
+            <View style={styles.nutritionCell}>
+              <Stepper
+                label="Calories kcal"
+                value={kcalPer100}
+                step={1}
+                max={5000}
+                onChange={setKcalPer100}
+                theme={theme}
+                testID={`${testID}-kcal`}
+                buttonWidth={size.foodForm.nutritionButtonWidth}
+                buttonHit={size.foodForm.nutritionHit}
+                gap={size.foodForm.stepperGap}
+                valueTextColor={foodForm.kcalValueText}
+              />
+            </View>
+            <View style={styles.nutritionCell}>
+              <Stepper
+                label={`Protein ${UNIT_OF_BASIS.weight}`}
+                value={proteinPer100}
+                step={0.1}
+                max={500}
+                onChange={setProteinPer100}
+                // One decimal place, matching the 0.1 step's own granularity — the default
+                // `Math.round` display would otherwise show "0" for a fresh 0.1 tap.
+                formatValue={(v) => v.toLocaleString(undefined, { maximumFractionDigits: 1 })}
+                theme={theme}
+                testID={`${testID}-protein`}
+                buttonWidth={size.foodForm.nutritionButtonWidth}
+                buttonHit={size.foodForm.nutritionHit}
+                gap={size.foodForm.stepperGap}
+                valueTextColor={foodForm.proteinValueText}
+              />
+            </View>
+          </View>
+        </View>
+
+        {error ? (
+          <Text testID={`${testID}-error`} style={textStyle(type.label, foodForm.errorText)}>
+            {error}
+          </Text>
         ) : null}
       </View>
-    </ScrollView>
+    </FormFrame>
   );
 }
 
 const styles = StyleSheet.create({
   content: {
+    // `<FormFrame>` (issue #207) owns the body's own side gutter and bottom padding — this is only
+    // the gap between this form's own fields.
     gap: space[6],
-    paddingBottom: space[9],
   },
   reveal: {
     overflow: 'hidden',
@@ -772,10 +810,6 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
     justifyContent: 'center',
     paddingHorizontal: space[5],
-  },
-  footer: {
-    gap: space[2],
-    paddingTop: space[4],
   },
   actions: {
     flexDirection: 'row',

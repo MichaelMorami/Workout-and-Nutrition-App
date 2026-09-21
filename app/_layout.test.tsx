@@ -10,6 +10,7 @@ import { act, render, screen } from '@testing-library/react-native';
 import { useFonts } from 'expo-font';
 import React from 'react';
 import { Text } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { migrateVitalsDb, openVitalsDb } from '../src/db/client';
 import { AppShell } from './_layout';
 
@@ -18,6 +19,16 @@ jest.mock('../src/db/client');
 // The real font-assets module `require()`s `assets/fonts/*.ttf`, which don't exist yet (blocked —
 // see the comment on that file). Mocking it here means this test never touches those paths.
 jest.mock('../src/components/theme/font-assets', () => ({ fontAssetMap: {} }));
+// `initialWindowMetrics` is populated by a synchronous native call at real app startup — under
+// jest there is no native side to call, so it resolves to `null`, and `SafeAreaProvider` without a
+// usable `initialMetrics` waits forever for an `onInsetsChange` event this environment never fires
+// (every render then shows nothing, `AppShell`'s own gating notwithstanding). This overrides only
+// that one constant with a fixed frame; `SafeAreaProvider` and `useSafeAreaInsets` stay the real
+// implementation, per the design spec's own instruction not to mock the module wholesale.
+jest.mock('react-native-safe-area-context', () => ({
+  ...jest.requireActual<typeof import('react-native-safe-area-context')>('react-native-safe-area-context'),
+  initialWindowMetrics: { insets: { top: 47, left: 0, right: 0, bottom: 34 }, frame: { x: 0, y: 0, width: 390, height: 844 } },
+}));
 
 const mockUseFonts = jest.mocked(useFonts);
 const mockOpenVitalsDb = jest.mocked(openVitalsDb);
@@ -79,6 +90,33 @@ describe('AppShell', () => {
     );
 
     expect(screen.queryByText('ready')).toBeNull();
+  });
+
+  // PR #220 review, B1.3. Issue #207's `<FormFrame>` calls `useSafeAreaInsets()`, which throws
+  // ("No safe area value available") with no `<SafeAreaProvider>` above it — so every form screen
+  // in the app crashes if this shell stops providing one. Nothing asserted that before: a child
+  // that reads an inset does, because rendering it is what throws.
+  it('provides the safe-area insets every FormFrame screen reads, from initialWindowMetrics', async () => {
+    mockUseFonts.mockReturnValue([true, null]);
+    mockMigrateVitalsDb.mockResolvedValue(undefined);
+
+    function InsetProbe(): React.JSX.Element {
+      const insets = useSafeAreaInsets();
+      return <Text>{`bottom inset ${insets.bottom}`}</Text>;
+    }
+
+    await act(async () => {
+      render(
+        <AppShell>
+          <InsetProbe />
+        </AppShell>,
+      );
+    });
+
+    // The real frame the native side measured before JS ran (`initialWindowMetrics`), not a
+    // `{0,0,0,0}` guess — that is what keeps the first paint of a pinned footer off the home
+    // indicator.
+    expect(screen.getByText('bottom inset 34')).toBeTruthy();
   });
 
   it('renders its children only once both fonts and migration are ready', async () => {

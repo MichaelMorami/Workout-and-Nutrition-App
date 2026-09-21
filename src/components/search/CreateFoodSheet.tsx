@@ -26,6 +26,12 @@
  * exactly as `FoodForm`'s own no-`initial` default; only the title swaps `Create "‹query›"` for the
  * plain "Create new food" so nothing renders a dangling `Create ""`.
  *
+ * OWNS THE KEYBOARD AVOIDER (issue #207, decision 13). `<FoodForm variant="sheet">`'s own
+ * `avoidsKeyboard` is off — a second `KeyboardAvoidingView` nested inside this one would fight it
+ * over how much to lift — so this sheet's own `KeyboardAvoidingView` (`behavior="padding"` on both
+ * platforms, same reasoning as `<FormFrame>`'s own module doc: Expo SDK 57 is edge-to-edge on
+ * Android too) is the one that lifts the whole sheet clear of the keyboard.
+ *
  * TAP COUNT (issue #89, `Spec.dc.html` section 4): open the search bar (1) + tap Create (2) + tap
  * Save (3) are the three fixed taps every path shares; a brand-new food already opens on the 100 g
  * preset, so a pack measured that way needs no serving tap at all — kcal + protein are the only two
@@ -38,7 +44,7 @@
  * keyboard.
  */
 import { useEffect } from 'react';
-import { Modal, Pressable, StyleSheet, Text, View, type TextStyle } from 'react-native';
+import { KeyboardAvoidingView, Modal, Pressable, StyleSheet, Text, View, type TextStyle } from 'react-native';
 import { createFoodAndLog, VitalsDbError, type FoodInput, type LogReceipt, type VitalsDb } from '../../db';
 import { deviceWhen } from '../../hooks/deviceWhen';
 import { useHapticFeedback } from '../../hooks/useHapticFeedback';
@@ -146,25 +152,33 @@ export function CreateFoodSheet({ db, query, onLogged, onClose, locale, presenta
         onPress={onClose}
         style={[styles.topScrim, { height: size.searchSheet.topInset, backgroundColor: theme.color.bg.scrim }]}
       />
-      <View
+      <KeyboardAvoidingView
+        // `-avoider`, the same suffix `<FormFrame>` gives its own: decision 13 allows exactly one
+        // per presentation, and the shared name is what lets a test count them (PR #220 review).
+        testID={`${testID}-avoider`}
+        behavior="padding"
         style={[
           styles.sheet,
           { backgroundColor: portionSheet.bg, borderTopLeftRadius: radius.xl, borderTopRightRadius: radius.xl, boxShadow: theme.shadow.sheet },
         ]}
       >
-        <View
-          style={[
-            styles.grabber,
-            { width: size.searchSheet.grabberWidth, height: size.searchSheet.grabberHeight, backgroundColor: portionSheet.grabber, borderRadius: radius.pill },
-          ]}
-        />
-        <Text testID={`${testID}-title`} style={textStyle(type.title, portionSheet.titleText)}>
-          {query.length > 0 ? `Create "${query}"` : 'Create new food'}
-        </Text>
+        <View style={styles.header}>
+          <View
+            style={[
+              styles.grabber,
+              { width: size.searchSheet.grabberWidth, height: size.searchSheet.grabberHeight, backgroundColor: portionSheet.grabber, borderRadius: radius.pill },
+            ]}
+          />
+          <Text testID={`${testID}-title`} style={textStyle(type.title, portionSheet.titleText)}>
+            {query.length > 0 ? `Create "${query}"` : 'Create new food'}
+          </Text>
+        </View>
+        {/* `<FormFrame>` (issue #207, inside `<FoodForm variant="sheet">`) owns its own side gutter —
+         * `formArea` stays edge-to-edge so the form's gutter is the only one applied. */}
         <View style={styles.formArea}>
           <FoodForm initial={initial} onSave={handleSave} onCancel={onClose} variant="sheet" theme={theme} testID={`${testID}-form`} />
         </View>
-      </View>
+      </KeyboardAvoidingView>
     </>
   );
 
@@ -184,11 +198,16 @@ const styles = StyleSheet.create({
     width: '100%',
   },
   sheet: {
+    // No `paddingBottom`/`paddingHorizontal` here — `<FormFrame>` (issue #207, inside
+    // `<FoodForm variant="sheet">`) owns both the bottom inset and the side gutter. See the
+    // module note.
     flex: 1,
-    paddingHorizontal: layout.gutter,
     paddingTop: space[3],
-    paddingBottom: space[7],
     gap: space[4],
+  },
+  header: {
+    paddingHorizontal: layout.gutter,
+    gap: space[3],
   },
   grabber: {
     alignSelf: 'center',

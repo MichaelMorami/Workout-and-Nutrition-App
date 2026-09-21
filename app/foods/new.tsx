@@ -26,7 +26,7 @@ export default function NewFoodScreen(): React.JSX.Element {
   };
 
   return (
-    <View style={[styles.screen, { backgroundColor: theme.color.bg.canvas }]}>
+    <View testID="new-food-screen" style={[styles.screen, { backgroundColor: theme.color.bg.canvas }]}>
       <Stack.Screen options={{ title: 'Add food' }} />
       <FoodForm onSave={handleSave} onCancel={() => router.back()} theme={theme} testID="food-form" />
     </View>
@@ -35,8 +35,9 @@ export default function NewFoodScreen(): React.JSX.Element {
 
 const styles = StyleSheet.create({
   screen: {
+    // No `paddingHorizontal` here — `<FormFrame>` (issue #207, inside `<FoodForm>`) owns the side
+    // gutter on its own body and footer now, so this screen stays edge-to-edge.
     flex: 1,
-    paddingHorizontal: layout.gutter,
     paddingTop: layout.gutter,
   },
 });

@@ -4,16 +4,28 @@
  * one write removes the log while keeping the food (`receipt.undo` is `'unlog'`, wired straight
  * into the same generic `<UndoToast>`/`undo()` every other write uses).
  */
-import { fireEvent, render, screen } from '@testing-library/react-native';
-import type { ComponentProps } from 'react';
+import { fireEvent, render as testingLibraryRender, screen } from '@testing-library/react-native';
+import type { ComponentProps, ReactElement } from 'react';
+import { StyleSheet } from 'react-native';
+import { initialWindowMetrics, SafeAreaProvider } from 'react-native-safe-area-context';
 import type { FoodLogRow, FoodRow, LogReceipt } from '../../db';
 import { createFoodAndLog, VitalsDbError, withServing } from '../../db';
 import { DbProvider } from '../db/DbProvider';
 import { useUndoToastStore } from '../../store/undoToast';
 import { ThemeContext } from '../theme/theme-context';
-import { themes } from '../../theme/tokens';
+import { formFooterPaddingBottom, themes } from '../../theme/tokens';
 import { UndoToast } from '../quick-add/UndoToast';
 import { CreateFoodSheet } from './CreateFoodSheet';
+
+// `<FoodForm variant="sheet">` now renders through `<FormFrame>` (issue #207), which calls
+// `useSafeAreaInsets()` — a real `<SafeAreaProvider>` ancestor is required, not a mocked module
+// (`FormFrame`'s own module doc). This shadows every pre-existing `render(...)` call site below
+// with no further changes needed at each call.
+const metrics = { ...initialWindowMetrics, insets: { top: 0, left: 0, right: 0, bottom: 34 } } as typeof initialWindowMetrics;
+
+function render(ui: ReactElement) {
+  return testingLibraryRender(<SafeAreaProvider initialMetrics={metrics}>{ui}</SafeAreaProvider>);
+}
 
 jest.mock('react-native-reanimated', () => jest.requireActual('../quick-add/test-support/reanimated-mock'));
 jest.mock('../../db', () => ({
@@ -26,6 +38,13 @@ const mockCreateFoodAndLog = jest.mocked(createFoodAndLog);
 const mockUndo = jest.mocked((jest.requireMock('../../db') as typeof import('../../db')).undo);
 
 const theme = themes.dark;
+
+/** Every keyboard avoider currently mounted. Both of this codebase's avoiders — `<FormFrame>`'s and
+ * this sheet's — carry a `…-avoider` testID precisely so decision 13's "one per presentation" is
+ * countable from the outside. */
+function avoiders() {
+  return screen.queryAllByTestId(/-avoider$/);
+}
 
 function entry(overrides: Partial<FoodLogRow> = {}): FoodLogRow {
   return {
@@ -182,6 +201,41 @@ describe('<CreateFoodSheet>', () => {
 
     expect(mockUndo).toHaveBeenCalledTimes(1);
     expect(mockUndo.mock.calls[0]?.[1]).toMatchObject({ token: { kind: 'unlog', logIds: ['log-1'] } });
+  });
+
+  // PR #220 review, B1.2 — decision 13's first portability rule. The sheet owns the single keyboard
+  // avoider for this presentation (the scrim has to rise with it), and `<FoodForm variant="sheet">`
+  // adds none. Counting them is what catches both halves: deleting this sheet's avoider leaves 0,
+  // and flipping the form's `avoidsKeyboard` back on makes 2, which fight over how far to lift.
+  it('renders exactly one keyboard avoider — the sheet owns it, the form inside adds none', async () => {
+    await renderSheet({ query: 'boiled eggs' });
+
+    expect(avoiders()).toHaveLength(1);
+    // Specifically: this sheet's own, and not the form's (`<FoodForm variant="sheet">` passes
+    // `avoidsKeyboard={false}`).
+    expect(screen.getByTestId('create-sheet-avoider')).toBeTruthy();
+    expect(screen.queryByTestId('create-sheet-form-avoider')).toBeNull();
+  });
+
+  // PR #220 review, B3 + B1.4. `<FormFrame>`'s footer owns the bottom inset through
+  // `formFooterPaddingBottom()` and its body owns the side gutter (decision 13) — so this sheet
+  // declares neither. Note the slice: `KeyboardAvoidingView` with `behavior="padding"` composes its
+  // own `{paddingBottom: bottomHeight}` *over* whatever style it was handed (RN's own
+  // `StyleSheet.compose(style, …)`), so the flattened host style reads 0 whether or not the sheet
+  // declares a pad of its own. Dropping that last, injected entry is what makes a re-added
+  // `paddingBottom` visible to this assertion instead of silently masked — and a pad that only
+  // looks harmless because the avoider overwrites it is exactly the kind decision 13 rules out.
+  it('declares no bottom pad and no side gutter of its own — the form frame owns both axes', async () => {
+    await renderSheet({ query: 'boiled eggs' });
+
+    const composed = [screen.getByTestId('create-sheet-avoider').props.style].flat(Infinity) as object[];
+    const declared = StyleSheet.flatten(composed.slice(0, -1)) as { paddingBottom?: number; paddingHorizontal?: number };
+    expect(declared.paddingBottom).toBeUndefined();
+    expect(declared.paddingHorizontal).toBeUndefined();
+
+    // …so the only bottom padding under Save is the footer's own, straight from the token function.
+    const footerStyle = StyleSheet.flatten(screen.getByTestId('create-sheet-form-footer').props.style) as { paddingBottom?: number };
+    expect(footerStyle.paddingBottom).toBe(formFooterPaddingBottom(false, 34));
   });
 
   it("presentation='overlay' draws the same form without a native Modal of its own — for use inside the search Modal (issue #79)", async () => {

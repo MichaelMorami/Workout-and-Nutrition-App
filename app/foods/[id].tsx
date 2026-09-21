@@ -74,13 +74,16 @@ export default function EditFoodScreen(): React.JSX.Element {
 
 const styles = StyleSheet.create({
   screen: {
+    // No `paddingHorizontal` here — `<FormFrame>` (issue #207, inside `<FoodForm>`) owns the side
+    // gutter on its own body and footer now, so this screen stays edge-to-edge. The not-found state
+    // below has no `<FormFrame>` of its own, so it keeps its own gutter on `notFound`.
     flex: 1,
-    paddingHorizontal: layout.gutter,
     paddingTop: layout.gutter,
   },
   notFound: {
     alignItems: 'center',
     justifyContent: 'center',
+    paddingHorizontal: layout.gutter,
     gap: space[2],
   },
 });
