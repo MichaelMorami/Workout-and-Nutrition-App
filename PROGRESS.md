@@ -124,3 +124,4 @@ For the sprint-by-sprint plan see [`README.md`](README.md); for open work see th
 - 2026-09-20  docs: record the form-frame ruling as decision 13 (issue #207)  (PR #213)
 - 2026-09-20  feat: drive FoodForm's Custom reveal through motion.events.customReveal (issue #191)  (PR #209 closes #191)
 - 2026-09-20  test: assert serving-preset key parity between theme and db (issue #204)  (PR #214 closes #204)
+- 2026-09-21  feat: stop pr.sh committing PROGRESS.md onto the branch, add --no-close (issue #211)  (PR #216 closes #211)
