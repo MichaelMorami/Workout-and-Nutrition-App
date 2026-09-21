@@ -1,8 +1,10 @@
 # Progress
 
-Always current. Every merged pull request appends a line here automatically via `scripts/merge.sh`.
-For the sprint-by-sprint plan see [`README.md`](README.md); for open work see the
-[issues](../../issues) and milestones.
+**Generated — never edit this file by hand.** It is derived from GitHub milestones and merged PRs by
+`scripts/progress.sh`, and lands through a PR like any other change (`main` is protected, so nothing
+can write it directly). No script refreshes it automatically today: tech-lead regenerates it
+periodically until #221 automates it, so it can lag `main` by a few merges. For the sprint-by-sprint
+plan see [`README.md`](README.md); for open work see the [issues](../../issues) and milestones.
 
 ## Current sprint
 
@@ -123,3 +125,7 @@ For the sprint-by-sprint plan see [`README.md`](README.md); for open work see th
 - 2026-09-20  feat: name the form-frame tokens and the pinned-footer inset rule (issue #207)  (PR #212)
 - 2026-09-20  docs: record the form-frame ruling as decision 13 (issue #207)  (PR #213)
 - 2026-09-20  feat: drive FoodForm's Custom reveal through motion.events.customReveal (issue #191)  (PR #209 closes #191)
+- 2026-09-20  test: assert serving-preset key parity between theme and db (issue #204)  (PR #214 closes #204)
+- 2026-09-21  feat: stop pr.sh committing PROGRESS.md onto the branch, add --no-close (issue #211)  (PR #216 closes #211)
+- 2026-09-21  feat: add useKeyboardVisible hook (issue #207)  (PR #220 closes #207)
+- 2026-09-21  feat: add type-driven motion.events reachability analyzer (issue #210)  (PR #223 closes #210)
