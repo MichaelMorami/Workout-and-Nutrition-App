@@ -1466,6 +1466,18 @@ export const motion = {
     /** Bottom sheets rising (portion, search). */
     sheet: { dampingRatio: 0.82, duration: 200 },
   },
+  /**
+   * Every named animation in the app, by the *event* that causes it — never by the component that
+   * happens to play it, so two surfaces reacting to the same event cannot drift apart.
+   *
+   * A key lives here only while the design language still calls for it. Issue #210's audit found
+   * which keys no production code reaches; issue #224 ruled on each one (wire / retire / defer),
+   * and a key ruled **retire** is deleted outright rather than left to rot — `searchLift` and
+   * `tabFade` went that way. A key that is designed but not yet wired says so in its own doc below
+   * and names the issue that will wire it, so "unreached" is never a silent state. The guard that
+   * keeps this honest is `src/components/quick-add/motionEventsReachability.audit.test.tsx`: add a
+   * key here with neither a consumer nor a tracked exception and the suite goes red.
+   */
   events: {
     /** Quick-add tile finger-down: scale 1 → 0.972. The only thing that moves. */
     tilePressIn: { duration: 90, easing: 'out', reduced: { kind: 'instant', duration: 0 } },
