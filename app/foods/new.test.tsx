@@ -5,11 +5,12 @@
  */
 import { fireEvent, render as testingLibraryRender, screen } from '@testing-library/react-native';
 import React, { type ReactElement } from 'react';
+import { StyleSheet } from 'react-native';
 import { initialWindowMetrics, SafeAreaProvider } from 'react-native-safe-area-context';
 import { DbProvider } from '../../src/components/db/DbProvider';
 import { ThemeContext } from '../../src/components/theme/theme-context';
 import { createFood, type FoodRow } from '../../src/db';
-import { themes } from '../../src/theme/tokens';
+import { layout, themes } from '../../src/theme/tokens';
 import NewFoodScreen from './new';
 
 // `<FoodForm>` now renders through `<FormFrame>` (issue #207), which calls `useSafeAreaInsets()` —
@@ -71,6 +72,32 @@ describe('NewFoodScreen', () => {
       }),
     );
     expect(mockBack).toHaveBeenCalledTimes(1);
+  });
+
+  // PR #220 review, B1.4 — the double-gutter fix this branch is named for. `<FormFrame>` (inside
+  // `<FoodForm>`) owns the side gutter on both its body and its footer, so a `paddingHorizontal`
+  // here would indent the form twice; and the footer owns the bottom inset (decision 13), so a
+  // `paddingBottom` here would stack a second band under Save. Three source comments warn a future
+  // author off exactly this — this is the test that stops them.
+  it('adds no side gutter and no bottom pad of its own — the form frame owns both', async () => {
+    await renderScreen();
+
+    const screenStyle = StyleSheet.flatten(screen.getByTestId('new-food-screen').props.style) as {
+      paddingHorizontal?: number;
+      paddingBottom?: number;
+      padding?: number;
+    };
+    expect(screenStyle.paddingHorizontal).toBeUndefined();
+    expect(screenStyle.paddingBottom).toBeUndefined();
+    expect(screenStyle.padding).toBeUndefined();
+
+    // …and the one gutter that does apply is the frame's own, so "no gutter here" did not leave the
+    // form flush against the edge.
+    const body = screen.getByTestId('food-form-body');
+    const bodyPadding = [body.props.contentContainerStyle].flat().reduce((acc, style) => ({ ...acc, ...style }), {}) as {
+      paddingHorizontal?: number;
+    };
+    expect(bodyPadding.paddingHorizontal).toBe(layout.gutter);
   });
 
   it('cancelling writes nothing and returns', async () => {

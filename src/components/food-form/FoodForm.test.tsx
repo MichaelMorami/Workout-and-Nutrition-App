@@ -11,9 +11,9 @@
  * has not landed a stable `key` field on `SERVING_PRESETS` yet (issue #185), so this is a documented
  * fallback, not a re-implementation of the preset table itself.
  */
-import { act, fireEvent, render as testingLibraryRender, screen } from '@testing-library/react-native';
+import { act, fireEvent, render as testingLibraryRender, screen, within } from '@testing-library/react-native';
 import type { ReactElement } from 'react';
-import { StyleSheet, TextInput } from 'react-native';
+import { Keyboard, ScrollView, StyleSheet, TextInput, type EmitterSubscription } from 'react-native';
 import { initialWindowMetrics, SafeAreaProvider } from 'react-native-safe-area-context';
 import type { FoodInput } from '../../db';
 import { motion, themes } from '../../theme/tokens';
@@ -35,8 +35,46 @@ function render(ui: ReactElement) {
   return testingLibraryRender(<SafeAreaProvider initialMetrics={metrics}>{ui}</SafeAreaProvider>);
 }
 
+// Mirrors `src/hooks/useKeyboardVisible.test.tsx`'s and `FormFrame.test.tsx`'s own helper —
+// `Keyboard` has no way to fire a fake event on it, so this stubs `addListener` and hands the test
+// a `fire`.
+function mockKeyboardListeners() {
+  const listeners = new Map<string, ((event: unknown) => void)[]>();
+  jest.spyOn(Keyboard, 'addListener').mockImplementation((eventType, listener) => {
+    const existing = listeners.get(eventType) ?? [];
+    existing.push(listener as (event: unknown) => void);
+    listeners.set(eventType, existing);
+    return { remove: jest.fn() } as unknown as EmitterSubscription;
+  });
+  return {
+    fire: (eventType: string) => {
+      (listeners.get(eventType) ?? []).forEach((listener) => listener({}));
+    },
+  };
+}
+
+/** RNTL never fires `onLayout` itself, so a test hands a measured frame to the same prop RN would
+ * call — this is what gives `FoodForm`'s failed-Save scroll a real offset to aim at. */
+async function measure(testID: string, y: number): Promise<void> {
+  const node = screen.getByTestId(testID) as unknown as { props: { onLayout: (e: unknown) => void } };
+  await act(async () => {
+    node.props.onLayout({ nativeEvent: { layout: { x: 0, y, width: 320, height: 60 } } });
+  });
+}
+
+const editInitial: FoodInput = {
+  name: 'Greek yoghurt',
+  brand: 'Fage',
+  servingLabel: '1 pot',
+  basis: 'weight',
+  servingAmount: 170,
+  kcalPer100: 70,
+  proteinPer100: 12,
+};
+
 afterEach(() => {
   __resetAnimations();
+  jest.restoreAllMocks();
 });
 
 describe('FoodForm — serving picker', () => {
@@ -351,7 +389,56 @@ describe('FoodForm — accessibility, keyboard and other unchanged behaviour', (
     const body = screen.getByTestId('food-form-body');
     expect(body.props.keyboardShouldPersistTaps).toBe('handled');
     expect(body.props.automaticallyAdjustKeyboardInsets).toBeUndefined();
+    // PR #220 review, B1.1: `getByTestId('food-form-save')` alone is equally true of the pre-#207
+    // shape, where Save was the scroll view's last child. `within` is what goes red if `{footer}`
+    // moves back inside the body — "without scrolling" is the acceptance criterion, and this is the
+    // line that holds it.
+    expect(within(screen.getByTestId('food-form-footer')).getByTestId('food-form-save')).toBeTruthy();
+    expect(within(body).queryByTestId('food-form-save')).toBeNull();
+    // The body still holds the form, so the split was not won by emptying it.
+    expect(within(body).getByTestId('food-form-name')).toBeTruthy();
+  });
+
+  // PR #220 review, B1.2 — decision 13's first portability rule: exactly one `KeyboardAvoidingView`
+  // per presentation. A pushed screen's form owns it; inside a sheet, `<CreateFoodSheet>`'s own
+  // avoider does, and a second one nested here would fight it over how far to lift.
+  it('owns the keyboard avoider on a pushed screen', async () => {
+    await render(<FoodForm theme={theme} onSave={jest.fn()} onCancel={jest.fn()} testID="food-form" variant="screen" />);
+
+    expect(screen.getByTestId('food-form-avoider')).toBeTruthy();
+  });
+
+  it('adds no avoider of its own inside a sheet — the sheet already has one', async () => {
+    await render(<FoodForm theme={theme} onSave={jest.fn()} onCancel={jest.fn()} testID="food-form" variant="sheet" />);
+
+    expect(screen.queryByTestId('food-form-avoider')).toBeNull();
+    // Still the same form, just without an avoider of its own.
     expect(screen.getByTestId('food-form-save')).toBeTruthy();
+  });
+
+  // PR #220 review, B1.5 — decision 13: "the footer never collapses. Two rows whenever the keyboard
+  // is up; any note row is keyboard-down only." The preview strip and the action row stay put; the
+  // history note is the one row that goes.
+  it('drops the edit history note while the keyboard is up, and keeps the two footer rows', async () => {
+    const keyboard = mockKeyboardListeners();
+    await render(<FoodForm initial={editInitial} theme={theme} onSave={jest.fn()} onCancel={jest.fn()} testID="food-form" variant="screen" />);
+
+    expect(screen.getByText(/past logs keep their numbers/i)).toBeTruthy();
+
+    await act(async () => {
+      keyboard.fire('keyboardWillShow');
+    });
+
+    expect(screen.queryByText(/past logs keep their numbers/i)).toBeNull();
+    const footer = within(screen.getByTestId('food-form-footer'));
+    expect(footer.getByTestId('food-form-preview')).toBeTruthy();
+    expect(footer.getByTestId('food-form-save')).toBeTruthy();
+
+    await act(async () => {
+      keyboard.fire('keyboardWillHide');
+    });
+
+    expect(screen.getByText(/past logs keep their numbers/i)).toBeTruthy();
   });
 
   it('calls onCancel from the Cancel button', async () => {
@@ -371,6 +458,48 @@ describe('FoodForm — accessibility, keyboard and other unchanged behaviour', (
 
     expect(onSave).not.toHaveBeenCalled();
     expect(screen.getByTestId('food-form-error')).toHaveTextContent(/name/i);
+  });
+
+  // PR #220 review, B2. Save is pinned in the footer now, so a form sitting at the top with the
+  // keyboard up cannot see an error rendered further down the body — the user taps Save and
+  // nothing appears to happen. The fix is to bring the field to the user: scroll the body to it,
+  // focus it, and mark it. No extra tap, and no third footer row (decision 13).
+  it('a blank-Name Save scrolls the body to the Name field, focuses it and marks it', async () => {
+    const scrollSpy = jest.spyOn(ScrollView.prototype as unknown as { scrollTo: (options: unknown) => void }, 'scrollTo');
+    const focusSpy = jest.spyOn(TextInput.prototype, 'focus');
+    const onSave = jest.fn();
+    await render(<FoodForm theme={theme} onSave={onSave} onCancel={jest.fn()} testID="food-form" />);
+    await measure('food-form-name-field', 0);
+
+    await fireEvent.press(screen.getByTestId('food-form-save'));
+
+    expect(onSave).not.toHaveBeenCalled();
+    expect(scrollSpy).toHaveBeenCalledWith({ y: 0, animated: true });
+    const instances = focusSpy.mock.instances as unknown as { props: { testID?: string } }[];
+    expect(instances.at(-1)?.props.testID).toBe('food-form-name');
+    const nameStyle = StyleSheet.flatten(screen.getByTestId('food-form-name').props.style) as { borderColor?: string };
+    expect(nameStyle.borderColor).toBe(theme.color.foodForm.fieldBorderError);
+  });
+
+  it("a blank Custom label Save scrolls to the serving section that field lives in, and focuses the Label field", async () => {
+    const scrollSpy = jest.spyOn(ScrollView.prototype as unknown as { scrollTo: (options: unknown) => void }, 'scrollTo');
+    const onSave = jest.fn();
+    await render(<FoodForm theme={theme} onSave={onSave} onCancel={jest.fn()} testID="food-form" />);
+
+    await fireEvent.changeText(screen.getByTestId('food-form-name'), 'Whey');
+    await fireEvent.press(screen.getByTestId('food-form-serving-custom'));
+    // A real measured offset, not 0 — this is what proves the scroll aims at the field rather than
+    // snapping to the top of the form whatever went wrong.
+    await measure('food-form-serving-section', 420);
+
+    const focusSpy = jest.spyOn(TextInput.prototype, 'focus');
+    await fireEvent.press(screen.getByTestId('food-form-save'));
+
+    expect(onSave).not.toHaveBeenCalled();
+    expect(screen.getByTestId('food-form-error')).toHaveTextContent(/serving/i);
+    expect(scrollSpy).toHaveBeenCalledWith({ y: 420, animated: true });
+    const instances = focusSpy.mock.instances as unknown as { props: { testID?: string } }[];
+    expect(instances.at(-1)?.props.testID).toBe('food-form-serving-label');
   });
 
   it('saves brand null when left blank', async () => {
