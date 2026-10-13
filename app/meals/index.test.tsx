@@ -36,7 +36,7 @@ jest.mock('expo-router', () => {
 
 const mockListMeals = jest.mocked(listMeals);
 
-const breakfast: MealSummary = { id: 'meal-1', name: 'Breakfast bowl', itemCount: 3, kcal: 420, protein: 30 };
+const breakfast: MealSummary = { id: 'meal-1', name: 'Breakfast bowl', itemCount: 3, archivedItemCount: 0, kcal: 420, protein: 30 };
 
 afterEach(() => {
   mockPush.mockClear();

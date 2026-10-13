@@ -479,7 +479,103 @@ describe('listMeals', () => {
     const meal = makeMeal({ name: 'Empty now' });
     db.insert(schema.meals).values(meal).run();
 
-    expect(listMeals(db)).toEqual([{ id: meal.id, name: 'Empty now', itemCount: 0, kcal: 0, protein: 0 }]);
+    expect(listMeals(db)).toEqual([
+      { id: meal.id, name: 'Empty now', itemCount: 0, archivedItemCount: 0, kcal: 0, protein: 0 },
+    ]);
+  });
+});
+
+// -------------------------------------------------------------------------------------------
+// listMeals — archivedItemCount (issue #240, the data slice of #102). Foods are archived, not
+// deleted (`setFoodArchived`), so the row — and the meal item referencing it — survives; this is
+// a join against `foods.archived`, not a new column anywhere.
+// -------------------------------------------------------------------------------------------
+
+describe('listMeals — archivedItemCount', () => {
+  it('every ingredient live: 0', () => {
+    const { db } = setup();
+    const food = makeFood({ kcalPerServing: 100, proteinPerServing: 10 });
+    db.insert(schema.foods).values(food).run();
+    const meal = makeMeal({ name: 'All live' });
+    db.insert(schema.meals).values(meal).run();
+    db.insert(schema.mealItems).values(makeMealItem({ mealId: meal.id, foodId: food.id })).run();
+
+    expect(listMeals(db)).toEqual([
+      { id: meal.id, name: 'All live', itemCount: 1, archivedItemCount: 0, kcal: 100, protein: 10 },
+    ]);
+  });
+
+  it('one archived ingredient of several: 1', () => {
+    const { db } = setup();
+    const live = makeFood({ kcalPerServing: 100, proteinPerServing: 10 });
+    const gone = makeFood({ kcalPerServing: 50, proteinPerServing: 5, archived: 1 });
+    db.insert(schema.foods).values([live, gone]).run();
+    const meal = makeMeal({ name: 'One archived' });
+    db.insert(schema.meals).values(meal).run();
+    db.insert(schema.mealItems)
+      .values([makeMealItem({ mealId: meal.id, foodId: live.id }), makeMealItem({ mealId: meal.id, foodId: gone.id })])
+      .run();
+
+    const [summary] = listMeals(db);
+    // Archiving never hides a food from a meal it belongs to, or changes the meal's live totals —
+    // the archived item's kcal/protein still count (ruling, issue #102).
+    expect(summary).toMatchObject({ itemCount: 2, archivedItemCount: 1, kcal: 150, protein: 15 });
+  });
+
+  it('two archived ingredients: 2', () => {
+    const { db } = setup();
+    const goneA = makeFood({ archived: 1 });
+    const goneB = makeFood({ archived: 1 });
+    db.insert(schema.foods).values([goneA, goneB]).run();
+    const meal = makeMeal({ name: 'Two archived' });
+    db.insert(schema.meals).values(meal).run();
+    db.insert(schema.mealItems)
+      .values([makeMealItem({ mealId: meal.id, foodId: goneA.id }), makeMealItem({ mealId: meal.id, foodId: goneB.id })])
+      .run();
+
+    expect(listMeals(db)[0]).toMatchObject({ itemCount: 2, archivedItemCount: 2 });
+  });
+
+  it('archived then restored: back to 0', () => {
+    const { db } = setup();
+    const food = makeFood();
+    db.insert(schema.foods).values(food).run();
+    const meal = makeMeal({ name: 'Restored' });
+    db.insert(schema.meals).values(meal).run();
+    db.insert(schema.mealItems).values(makeMealItem({ mealId: meal.id, foodId: food.id })).run();
+
+    setFoodArchived(db, { at: 1_000, id: food.id, archived: true });
+    expect(listMeals(db)[0]).toMatchObject({ archivedItemCount: 1 });
+
+    setFoodArchived(db, { at: 2_000, id: food.id, archived: false });
+    expect(listMeals(db)[0]).toMatchObject({ archivedItemCount: 0 });
+  });
+
+  it('a food appearing twice in the same meal, once archived, counts both items — not distinct foods', () => {
+    const { db } = setup();
+    const food = makeFood({ archived: 1 });
+    db.insert(schema.foods).values(food).run();
+    const meal = makeMeal({ name: 'Duplicate ingredient' });
+    db.insert(schema.meals).values(meal).run();
+    db.insert(schema.mealItems)
+      .values([
+        makeMealItem({ mealId: meal.id, foodId: food.id, qty: 1 }),
+        makeMealItem({ mealId: meal.id, foodId: food.id, qty: 2 }),
+      ])
+      .run();
+
+    expect(listMeals(db)[0]).toMatchObject({ itemCount: 2, archivedItemCount: 2 });
+  });
+
+  it('a soft-deleted item referencing an archived food is not counted', () => {
+    const { db } = setup();
+    const food = makeFood({ archived: 1 });
+    db.insert(schema.foods).values(food).run();
+    const meal = makeMeal({ name: 'Mixed' });
+    db.insert(schema.meals).values(meal).run();
+    db.insert(schema.mealItems).values(makeMealItem({ mealId: meal.id, foodId: food.id, deleted: 1 })).run();
+
+    expect(listMeals(db)[0]).toMatchObject({ itemCount: 0, archivedItemCount: 0 });
   });
 });
 

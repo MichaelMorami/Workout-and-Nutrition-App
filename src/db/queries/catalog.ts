@@ -155,11 +155,13 @@ function liveMealItemsWithFood(db: VitalsDb, mealId: string): MealItemWithFood[]
 function summaryOf(meal: MealRow, items: readonly MealItemWithFood[]): MealSummary {
   let kcal = 0;
   let protein = 0;
+  let archivedItemCount = 0;
   for (const { item, food } of items) {
     kcal += item.qty * food.kcalPerServing;
     protein += item.qty * food.proteinPerServing;
+    if (food.archived === 1) archivedItemCount += 1;
   }
-  return { id: meal.id, name: meal.name, itemCount: items.length, kcal, protein };
+  return { id: meal.id, name: meal.name, itemCount: items.length, archivedItemCount, kcal, protein };
 }
 
 /** Creates a meal and its items in one transaction. Throws `empty_meal` for an empty item list and
@@ -213,26 +215,35 @@ export function listMeals(db: VitalsDb): MealSummary[] {
       servingAmount: foods.servingAmount,
       kcalPer100: foods.kcalPer100,
       proteinPer100: foods.proteinPer100,
+      archived: foods.archived,
     })
     .from(mealItems)
     .innerJoin(foods, eq(mealItems.foodId, foods.id))
     .where(and(eq(mealItems.deleted, 0), eq(foods.deleted, 0)))
     .all();
 
-  const agg = new Map<string, { itemCount: number; kcal: number; protein: number }>();
+  const agg = new Map<string, { itemCount: number; archivedItemCount: number; kcal: number; protein: number }>();
   for (const row of itemRows) {
-    const prev = agg.get(row.mealId) ?? { itemCount: 0, kcal: 0, protein: 0 };
+    const prev = agg.get(row.mealId) ?? { itemCount: 0, archivedItemCount: 0, kcal: 0, protein: 0 };
     const serving = servingOf(row);
     agg.set(row.mealId, {
       itemCount: prev.itemCount + 1,
+      archivedItemCount: prev.archivedItemCount + (row.archived === 1 ? 1 : 0),
       kcal: prev.kcal + row.qty * serving.kcalPerServing,
       protein: prev.protein + row.qty * serving.proteinPerServing,
     });
   }
 
   return mealRows.map((meal) => {
-    const a = agg.get(meal.id) ?? { itemCount: 0, kcal: 0, protein: 0 };
-    return { id: meal.id, name: meal.name, itemCount: a.itemCount, kcal: a.kcal, protein: a.protein };
+    const a = agg.get(meal.id) ?? { itemCount: 0, archivedItemCount: 0, kcal: 0, protein: 0 };
+    return {
+      id: meal.id,
+      name: meal.name,
+      itemCount: a.itemCount,
+      archivedItemCount: a.archivedItemCount,
+      kcal: a.kcal,
+      protein: a.protein,
+    };
   });
 }
 
