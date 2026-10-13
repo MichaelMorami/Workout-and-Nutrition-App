@@ -279,6 +279,64 @@ describe('motion', () => {
   });
 });
 
+describe('carousel — the swipe-between-tabs gesture (issue #246, builds #82)', () => {
+  const c = motion.carousel;
+
+  it('names a release spring that actually exists in motion.spring', () => {
+    // The pointer, not a second copy of the numbers: every spring in the app lives in
+    // motion.spring, so a retune cannot leave the carousel behind.
+    expect(Object.keys(motion.spring)).toContain(c.releaseSpring);
+    expect(motion.spring[c.releaseSpring]).toBeDefined();
+  });
+
+  it('settles inside the motion ceiling and stops without a visible overshoot', () => {
+    const s = motion.spring[c.releaseSpring];
+    expect(s.duration).toBeLessThanOrEqual(motion.ceilingMs);
+    // A full-screen pager that overshoots shows a sliver of the screen past the one you asked
+    // for, which reads as a bug rather than as bounce. Just short of critical damping.
+    expect(s.dampingRatio).toBeGreaterThanOrEqual(0.9);
+    expect(s.dampingRatio).toBeLessThanOrEqual(1);
+  });
+
+  it('tracks the finger 1:1 while the finger is down — a pager that lags is a pager that fights you', () => {
+    expect(c.trackingGain).toBe(1);
+  });
+
+  it('commits on a flick, not on a drag across the whole phone, and on either distance or speed', () => {
+    // Distance OR velocity: a fast flick from the screen edge must change tab even though it
+    // travelled barely any distance, and a slow deliberate drag must commit on distance alone.
+    expect(c.commitFraction).toBeGreaterThan(0);
+    expect(c.commitFraction).toBeLessThan(0.5);
+    expect(c.commitVelocityPtPerS).toBeGreaterThan(0);
+  });
+
+  it('resists the edge past the first and last tab without blocking it', () => {
+    expect(c.edgeResistance).toBeGreaterThan(0);
+    expect(c.edgeResistance).toBeLessThan(1);
+  });
+
+  it('flips the tab-bar indicator at the commit point rather than interpolating it mid-drag', () => {
+    expect(c.indicatorFlip).toBe('onCommit');
+  });
+
+  it('keeps the tracked phase under reduce motion and drops only the unattended release', () => {
+    // The drag itself is direct manipulation — it IS the finger. Removing it removes the gesture,
+    // and reduce motion never takes away a gesture's own feedback. The release is the part that
+    // moves on its own, so that is the part that goes instant.
+    expect(c.reduced.tracked).toBe('same');
+    expect(c.reduced.release).toEqual({ kind: 'instant', duration: 0 });
+  });
+
+  it('is not a motion.events key: a tracked gesture has no single duration to put there', () => {
+    // Deliberate shape, pinned so a later tidy-up cannot fold it in. motion.events entries are
+    // fire-and-forget (one duration, one easing, one reduced); during the tracked phase the
+    // carousel's position is a function of the finger, not of time, so a `duration` field there
+    // would be a lie about the only phase the user is actually in.
+    expect(Object.keys(motion.events)).not.toContain('carousel');
+    expect(Object.keys(motion.events).filter((k) => k.toLowerCase().includes('carousel'))).toEqual([]);
+  });
+});
+
 describe('food form (issue #88)', () => {
   const f = size.foodForm;
 
