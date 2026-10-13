@@ -1262,7 +1262,7 @@
         "src/db/servings.ts",
         "src/db/types.ts"
       ],
-      "loc": 394,
+      "loc": 405,
       "importedBy": [
         "src/db/queries/search.ts"
       ]
@@ -1489,7 +1489,7 @@
         "src/db/schema.ts",
         "src/db/servings.ts"
       ],
-      "loc": 198,
+      "loc": 204,
       "importedBy": [
         "src/db/queries/catalog.ts",
         "src/db/queries/nutrition.ts",

@@ -34,8 +34,8 @@ jest.mocked(useHapticFeedback).mockReturnValue(mockFireHaptic);
 const theme = themes.dark;
 const db = {} as never;
 
-const breakfast: MealSummary = { id: 'meal-1', name: 'Breakfast bowl', itemCount: 3, kcal: 420, protein: 30 };
-const lunch: MealSummary = { id: 'meal-2', name: 'Lunch bowl', itemCount: 2, kcal: 300, protein: 25 };
+const breakfast: MealSummary = { id: 'meal-1', name: 'Breakfast bowl', itemCount: 3, archivedItemCount: 0, kcal: 420, protein: 30 };
+const lunch: MealSummary = { id: 'meal-2', name: 'Lunch bowl', itemCount: 2, archivedItemCount: 0, kcal: 300, protein: 25 };
 
 beforeEach(() => {
   mockDeleteMeal.mockReset();

@@ -85,6 +85,7 @@ const mealDetail: MealDetail = {
   id: 'meal-1',
   name: 'Post-workout shake',
   itemCount: 3,
+  archivedItemCount: 0,
   kcal: 410,
   protein: 38,
   items: [],

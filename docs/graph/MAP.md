@@ -1121,7 +1121,7 @@ _no exports_
 
 ## `src/db/queries/`
 
-### `src/db/queries/catalog.ts`  <sub>394 lines</sub>
+### `src/db/queries/catalog.ts`  <sub>405 lines</sub>
 
 - `function createFood(db: VitalsDb, opts: Stamp & { food: FoodInput }): FoodRow`
 - `function createMeal(db: VitalsDb, opts: Stamp & { name: string; items: readonly MealItemInput[] }): MealDetail`
@@ -1246,7 +1246,7 @@ _no exports_
 
 ## `src/db/`
 
-### `src/db/types.ts`  <sub>198 lines</sub>
+### `src/db/types.ts`  <sub>204 lines</sub>
 
 - `interface DayLogEntry`
 - `interface DayTotals`
