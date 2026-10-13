@@ -7,13 +7,18 @@
  * long-press opens `<PortionSheet>` (#21) instead. Create's own behaviour is #71.
  */
 import { act, fireEvent, render, screen, within } from '@testing-library/react-native';
-import { Pressable, Text, TextInput } from 'react-native';
+import type { Context } from 'react';
+import { Pressable, ScrollView, Text, TextInput } from 'react-native';
 import type { FoodCandidate, LogReceipt, MealCandidate } from '../../db';
 import { addPortion, libraryByUsage, logFood, logMeal, quickAddCandidates, recentFoods, searchFoods, VitalsDbError } from '../../db';
 import { __resetLogTracker } from '../../store/logTracker';
 import { useUndoToastStore } from '../../store/undoToast';
 import { interaction, themes } from '../../theme/tokens';
 import { SearchSheet } from './SearchSheet';
+
+/** `ScrollView.Context` is a real static property at runtime, but RN's shipped `.d.ts` does not
+ * declare it — see `SearchSheet.tsx`'s module note on issue #109. Same narrow, one-field cast. */
+const ScrollViewNestingContext = (ScrollView as unknown as { Context: Context<{ horizontal: boolean } | null> }).Context;
 
 jest.mock('../../db', () => ({
   ...jest.requireActual<typeof import('../../db')>('../../db'),
@@ -798,5 +803,31 @@ describe('SearchSheet — accessibility', () => {
     const create = screen.getByTestId('search-sheet-create');
     expect(create.props.accessibilityRole).toBe('button');
     expect(create.props.accessibilityLabel).toBe('Create "egg"');
+  });
+});
+
+describe('SearchSheet — issue #109 (results list stays virtualised behind the Modal)', () => {
+  /**
+   * RN's jest mock of `<ScrollView>` never provides `ScrollView.Context` (its real-device render
+   * does — see the module note on `SearchSheet.tsx`), so the only way to reproduce the warning's
+   * exact trigger condition here is to provide the real, unmocked context object directly, exactly
+   * as a host's real `<ScrollView>` would. This is not a false positive: `app/(tabs)/index.tsx`
+   * really does render this component inside a real `ScrollView`, and the identical warning was
+   * observed firing for real (unspied) from `app/(tabs)/index.search-ios.test.tsx` before this fix.
+   */
+  it('does not warn about nested VirtualizedLists when hosted inside a ScrollView', async () => {
+    const spy = jest.spyOn(console, 'error').mockImplementation(() => {});
+    try {
+      await render(
+        <ScrollViewNestingContext.Provider value={{ horizontal: false }}>
+          <SearchSheet db={{} as never} theme={theme} testID="search-sheet" />
+        </ScrollViewNestingContext.Provider>,
+      );
+      await fireEvent.press(screen.getByTestId('search-sheet-bar'));
+
+      expect(spy).not.toHaveBeenCalledWith(expect.stringContaining('VirtualizedLists should never be nested'));
+    } finally {
+      spy.mockRestore();
+    }
   });
 });
