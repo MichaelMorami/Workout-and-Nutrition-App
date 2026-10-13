@@ -1470,6 +1470,45 @@ export type TrackedReduced = {
 };
 
 /**
+ * When a tracked gesture is allowed to take the touch, and from whom. Issue #249: a pager that
+ * does not name this either steals a gesture that belonged to something inside it, or never
+ * starts because something inside it got there first. Both are decided here rather than in the
+ * screen, so every tracked gesture we ever add arbitrates the same way.
+ */
+export type TrackedActivation = {
+  /** Finger travel, in points, before the gesture takes the touch over. */
+  readonly distancePt: number;
+  /** How many times more horizontal than vertical the drag must be: `|dx| > ratio × |dy|`. */
+  readonly axisRatio: number;
+  /**
+   * The travel at which a gesture *inside* this one is allowed to have already claimed the touch.
+   * `distancePt` must stay strictly above it, which is what makes the inner gesture win.
+   */
+  readonly innerClaimPt: number;
+  /** Whether the gesture exists only on a navigator's root screen, leaving pushed screens alone. */
+  readonly onlyAtNavigationRoot: boolean;
+};
+
+/**
+ * What happens to the finger's speed at the instant it lifts (issue #249). A release is one of two
+ * visibly different things and nothing else in the token set says which: either the spring inherits
+ * the finger's velocity and the flick continues through the lift, or it starts from rest and the
+ * content halts for a frame before setting off again.
+ */
+export type ReleaseVelocityHandoff = {
+  /** Points of spring velocity per point/second of finger velocity. 1 is a full hand-off. */
+  readonly carry: number;
+  /**
+   * The ceiling on the carried speed, in multiples of the spring's own average speed for the
+   * distance that is left (`remainingPt ÷ releaseSpring.duration`). 1 means the spring is never
+   * handed more speed than it was going to generate itself.
+   */
+  readonly capSpringSpeeds: number;
+  /** What to do with a release whose velocity points away from the committed destination. */
+  readonly awayFromDestination: 'drop' | 'carry';
+};
+
+/**
  * The full specification of one finger-tracked gesture — everything a pager needs that a
  * `MotionEvent` cannot carry. A tracked gesture has no duration while the finger is down: its
  * position is a function of the finger, so what has to be named instead is the gain, the
@@ -1478,6 +1517,8 @@ export type TrackedReduced = {
 export type TrackedGesture = {
   /** The `motion.spring` key that carries the content to its destination on release. */
   readonly releaseSpring: keyof typeof spring;
+  /** When the gesture takes the touch, and which gestures beat it to it (issue #249). */
+  readonly activation: TrackedActivation;
   /** Content points travelled per point of finger travel while the finger is down. */
   readonly trackingGain: number;
   /** Fraction of the page width past which a release commits to the next page. */
@@ -1486,8 +1527,18 @@ export type TrackedGesture = {
   readonly commitVelocityPtPerS: number;
   /** Gain applied past the first or last page: resistance, not a wall. */
   readonly edgeResistance: number;
+  /** Fraction of the page width at which the over-drag past the first/last page stops dead. */
+  readonly edgeMaxTravelFraction: number;
+  /** Whether paging past the last page returns to the first. */
+  readonly wrapAround: boolean;
+  /** What the finger's speed at lift-off does to the release spring (issue #249). */
+  readonly releaseVelocity: ReleaseVelocityHandoff;
   /** Whether a dependent indicator interpolates with the drag or flips once the outcome is known. */
   readonly indicatorFlip: 'onCommit' | 'continuous';
+  /** The `haptics` key fired on a committed release, or `null` for a decided "none". */
+  readonly commitHaptic: HapticName | null;
+  /** The `haptics` key fired when the over-drag reaches `edgeMaxTravelFraction`, or `null`. */
+  readonly edgeHaptic: HapticName | null;
   readonly reduced: TrackedReduced;
 };
 
@@ -1550,9 +1601,61 @@ export const motion = {
    *
    * The tab bar reads `glyph.tab` and the `tabBar.*` colours as it does today; this token only
    * decides *when* it changes (`indicatorFlip`).
+   *
+   * ─────────────────────────────────────────────────────────────────────────────────────────────
+   * THE ARBITRATION, CONCRETELY (issue #249). #82 lists three gestures the pager has to live
+   * alongside. All three are settled by one rule plus one scope:
+   *
+   * **The rule — the pager claims last, and never takes a touch an inner gesture already holds.**
+   * `activation.distancePt` (12) sits strictly above `activation.innerClaimPt` (6), and 6 is
+   * exactly where `src/components/shared/SwipeToDelete.tsx`'s `onMoveShouldSetPanResponder`
+   * claims (`Math.abs(dx) > 6 && Math.abs(dx) > Math.abs(dy)`). So on a day-log row the row holds
+   * the responder six points before the pager would ask for it, and RN never takes a responder
+   * away from a child. The same ordering covers the Charts tab's horizontal scrollers, which claim
+   * at a few points of travel like any `ScrollView`. Nothing had to be negotiated — the pager
+   * loses these by construction, which is why it is testable from the token alone.
+   *
+   * One consequence #82 must handle, and it is a change in `SwipeToDelete`, not here: a *shut* row
+   * claims a rightward drag it then clamps to zero travel (`dragOffset`'s `Math.min(0, …)`), so
+   * today a right-swipe anywhere on the day log would be swallowed and the pager would be dead on
+   * the most-used half of Today. A row may only claim the direction it can actually move — left
+   * while shut, either way while revealed. That is one predicate in ui-engineer's file and it
+   * falls inside #82's own acceptance ("DayLogRow swipe-to-delete still works on Today").
+   *
+   * **No hand-off when an inner scroller runs out.** iOS chains a scroll into its parent at the
+   * end of the content; the pager does not accept that. One gesture has one owner for its whole
+   * life. A mid-drag hand-off changes what is under the finger without the finger doing anything,
+   * and on a chart that is how you lose your place in your own data.
+   *
+   * **The scope — `activation.onlyAtNavigationRoot`.** The carousel exists on the four tab roots
+   * and nowhere else. `app/(tabs)` is the root `Stack`'s first screen, so at a tab root there is
+   * nothing to pop and the iOS edge-swipe back gesture does not exist to conflict with; on a
+   * pushed screen (`app/foods/[id]`, `app/meals/[id]`) the horizontal drag belongs to the
+   * navigator, whole, and the pager is not mounted. This is why there is deliberately **no
+   * left-edge exclusion zone**: a dead strip at the bezel would kill the one-handed flick from the
+   * frame of the phone, which is the gesture `commitVelocityPtPerS` exists to serve, and it would
+   * buy protection from a gesture that is not there. Android's own back gesture is consumed in the
+   * system gesture insets before the app sees the touch, for the same reason.
    */
   carousel: {
     releaseSpring: 'carouselRelease',
+    /**
+     * When the pager takes the touch. See THE ARBITRATION above for what each number is beating.
+     *
+     * 12 pt is far enough that the sideways drift in a brisk vertical flick never trips it and
+     * that `SwipeToDelete` has already claimed at 6, and close enough that the screen is moving
+     * before you can wonder whether the phone heard you. `axisRatio` 2 keeps the claim inside
+     * 26.6° of horizontal: Today and Charts are vertical lists, scrolling them happens far more
+     * often than changing tab, so every ambiguous diagonal has to go to the scroll — at ratio 1
+     * (45°) a fast thumb up the day log changes tab instead, which is unforgivable on priority 1.
+     */
+    activation: {
+      distancePt: 12,
+      axisRatio: 2,
+      /** Where `SwipeToDelete`'s `PanResponder` claims. `distancePt` must stay above it. */
+      innerClaimPt: 6,
+      onlyAtNavigationRoot: true,
+    },
     /**
      * 1:1. The screen moves exactly as far as the finger, in the same direction, for the whole
      * drag. Any other number means the content slides out from under the thumb, and on the app's
@@ -1585,6 +1688,55 @@ export const motion = {
      */
     edgeResistance: 0.3,
     /**
+     * …and it stops there. `edgeResistance` says how hard the over-drag is; this says where it
+     * ends. 10 % of a 390 pt screen is ~39 pt of content travel, which at gain 0.3 costs ~130 pt
+     * of finger — a long, deliberate pull, never a wobble, so nobody meets the stop by accident.
+     *
+     * A hard stop rather than an asymptote. An asymptote keeps surrendering a pixel however long
+     * you pull, which reads as a pager that is lagging behind your finger; a stop says, in the
+     * gesture itself, "this is the end of the row". It is also what gives `edgeHaptic` a defined
+     * instant to fire at. It stays well below `commitFraction`, so an over-drag can never reach a
+     * committing distance: nothing commits at an edge, in either rule.
+     */
+    edgeMaxTravelFraction: 0.1,
+    /**
+     * No wrap-around — the answer to the question #82 left open for design ("no wrap-around past
+     * the first/last tab (to confirm with design)"). Four tabs in a fixed bottom-bar order are a
+     * row, not a ring: Today is on the left and Settings is on the right, and that is the one
+     * spatial fact the tab bar teaches. Wrapping makes a left-swipe from Today land on Settings,
+     * which contradicts the bar the user is looking at, and it deletes the only signal the gesture
+     * has for "you are at an end" — `edgeResistance` and `edgeMaxTravelFraction` both exist
+     * because this is `false`.
+     */
+    wrapAround: false,
+    /**
+     * The flick carries. At lift-off the spring inherits the finger's velocity at full gain, so a
+     * fast swipe continues at its own speed through the release instead of halting for a frame and
+     * setting off again from rest. That halt is the difference between a pager that feels native
+     * and one that feels like a web page, and it is visible on exactly the gesture
+     * `commitVelocityPtPerS` is built for.
+     *
+     * `capSpringSpeeds: 1` is what keeps the carry from undoing `carouselRelease`'s no-overshoot
+     * promise. The carried speed is clamped to the spring's own average speed for the distance
+     * that is left — `remainingPt ÷ (duration ÷ 1000)` — so the hand-off can only ever remove the
+     * jerk at lift-off, never add travel the spring did not plan for. The dangerous release is not
+     * the fast one; it is the fast one with almost nothing left to cover (a flick that crossed
+     * nearly the whole width before lifting), where an uncapped 2 000 pt/s hand-off throws the
+     * screen well past its destination and shows a sliver of the tab *after* the one you asked
+     * for. A flat pt/s ceiling cannot catch that case, because the same number is fine at 300 pt
+     * remaining and ruinous at 20; only a cap tied to the remaining distance scales with it.
+     *
+     * `awayFromDestination: 'drop'` handles the rare, real release where the drag passed
+     * `commitFraction` but the finger was already reversing when it left the glass. Handing that
+     * velocity over walks the screen backwards and then hauls it forwards, which reads as a glitch
+     * rather than as physics, so only the component toward the destination is carried.
+     */
+    releaseVelocity: {
+      carry: 1,
+      capSpringSpeeds: 1,
+      awayFromDestination: 'drop',
+    },
+    /**
      * The tab bar flips in one frame once the release has committed — it does not interpolate
      * with the drag. Two reasons. The glyph change is a swap, not a tween: `glyph.tab` goes
      * outline → filled cut, which has no halfway. And a continuously-interpolated indicator puts
@@ -1594,6 +1746,37 @@ export const motion = {
      * until the finger lifts nothing is decided and the drag can still come back.
      */
     indicatorFlip: 'onCommit',
+    /**
+     * **No haptic on a committed tab change.** `null` rather than absent: the question #249 asked
+     * is answered, not still open, and a later reader should not have to re-derive it.
+     *
+     * Three reasons, in the order that decided it. The swipe is direct manipulation — the whole
+     * screen travelled under your thumb and a different screen is now in front of you, so a buzz
+     * confirms nothing you cannot already see, and the Motion board's own rule is that motion and
+     * feedback are feedback, never decoration. It would fire dozens of times a session, which is
+     * how a haptic vocabulary goes deaf: `foodLogged` only works as "the food is saved" while it is
+     * rare enough to mean something, and a tick on every tab change blunts it. And there is no
+     * crossing to fire at anyway — `indicatorFlip` is `onCommit` precisely because nothing is
+     * decided until the finger lifts, so a mid-drag "you have crossed the line" tick would be
+     * claiming an outcome the drag can still take back.
+     *
+     * This is a `null` with a reason, not a gap. If the client wants one, it goes here and the
+     * vocabulary argument above is what has to be answered.
+     */
+    commitHaptic: null,
+    /**
+     * The edge gets one, because the edge is the one outcome the screen cannot show you. Pull past
+     * the first or last tab and 30 % of your travel happens and then springs back — nothing
+     * appears, because there is no screen over there to appear. A tick at the hard stop
+     * (`edgeMaxTravelFraction`) is the gesture answering "heard you, there is nothing this way",
+     * and it lands while the finger is still down and can still stop pulling, which is the only
+     * time the information is useful.
+     *
+     * Fires **once per gesture**, on first reaching the stop — not repeatedly, not again on
+     * release, and never when a release commits or springs back inside the row. Like every haptic
+     * in this app it survives reduce motion (`haptics`' own rule): it is feedback, not animation.
+     */
+    edgeHaptic: 'carouselEdge',
     reduced: {
       /**
        * The drag survives reduce motion untouched. It is not an animation we are playing at the
@@ -1853,4 +2036,18 @@ export const haptics = {
   servingPicked: { ios: 'selection', android: 'EFFECT_TICK' },
   /** Confirming something destructive. */
   destructiveConfirm: { ios: 'notificationWarning', android: 'EFFECT_HEAVY_CLICK' },
+  /**
+   * The swipe-between-tabs carousel hitting the end of the row (issue #249, fired by #82) — the
+   * over-drag reaching `motion.carousel.edgeMaxTravelFraction` at the first or last tab, once per
+   * gesture. The lightest pair in the vocabulary, the same one `setLogged` uses, because it reports
+   * a *non*-event: there was no tab that way. It must never read like a confirmation —
+   * `foodLogged`'s medium impact is the only haptic that means something was written.
+   *
+   * There is deliberately no sibling for a committed tab change; see `motion.carousel.commitHaptic`
+   * for why that is `null`.
+   */
+  carouselEdge: { ios: 'impactLight', android: 'EFFECT_TICK' },
 } as const satisfies Record<string, Haptic>;
+
+/** A haptic by name, for a token that names one instead of restating its two strings. */
+export type HapticName = keyof typeof haptics;
