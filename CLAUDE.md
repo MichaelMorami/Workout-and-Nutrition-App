@@ -72,6 +72,14 @@ boundaries in CI, so a violation is a build failure, not a style note.
 | `release-engineer` | `.github/**`, `scripts/**`, `app.json`, `eas.json`, `package.json` scripts |
 | `code-reviewer` | nothing — reviews only |
 
+**A co-located test file is owned by whoever owns its subject.** The table lists paths, so a test
+sitting next to the thing it tests would otherwise have no stated owner — which has cost two agents a
+question already. So `src/theme/tokens.test.tsx` is `design-lead`'s because `src/theme/tokens.ts` is,
+and `app/(tabs)/index.search-ios.test.tsx` is `ui-engineer`'s because `app/**` is. `test/**` and
+`e2e/**` are `qa-engineer`'s outright, wherever their subjects live. Writing your own subject's
+co-located test is in-scope and needs no carve-out; writing someone else's is a crossing like any
+other.
+
 Need a change outside your paths? Say so in the PR or issue. Do not reach across.
 **Do not message other agents.** All coordination goes through `tech-lead` and the GitHub issue.
 
