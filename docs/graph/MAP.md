@@ -1436,7 +1436,7 @@ _no exports_
 
 ## `src/theme/`
 
-### `src/theme/tokens.ts`  <sub>1707 lines</sub>
+### `src/theme/tokens.ts`  <sub>1857 lines</sub>
 
 - `const MIN_TEXT_CONTRAST: 4.5`
 - `const contrastPairs: readonly ContrastPair[]`
@@ -1445,7 +1445,7 @@ _no exports_
 - `const haptics: { readonly foodLogged: { readonly ios: "impactMedium"; readonly android: "EFFECT_HEAVY_CLICK"; }; readonly setLogged: { readonly ios: "impactLight"; readonly android: "EFFECT_TICK"; }; readonly undo: { readonly ios: "impactLight"; readonly android: "EFFECT_CLICK"; }; readonly sliderDetent: { readonly ios: "selection"; readonly android: "EFFECT_TICK"; }; readonly restFinished: { r...`
 - `const interaction: { readonly longPressMs: 220; readonly repeatWindowMs: 5000; readonly tileLoggedHoldMs: 900; readonly rowLoggedHoldMs: 240; readonly undoAutoDismissMs: 10000; readonly undoDismissedBy: readonly ["anotherLog", "sheetOpened", "tabChanged", "swipedAway"]; readonly undoSurvives: readonly ["scroll", "screenLock", "appBackgrounded"]; readonly stepperRepeatDelayMs: 400; readonly slid...`
 - `const layout: { readonly gutterToday: 20; readonly gutter: 16; readonly cardPadding: 16; readonly cardGap: 12; readonly tileGap: 10; readonly groupGap: 24; readonly floatAboveTabBar: 12; readonly formFooterPadTop: 10; readonly formFooterPadBottom: 10; readonly formFooterRowGap: 10; readonly formBodyPadBottom: 16; }`
-- `const motion: { readonly ceilingMs: 260; readonly easing: { readonly standard: readonly [0.2, 0, 0, 1]; readonly out: readonly [0, 0, 0.58, 1]; readonly inOut: readonly [0.42, 0, 0.58, 1]; readonly linear: readonly [0, 0, 1, 1]; }; readonly spring: { readonly sheet: { readonly dampingRatio: 0.82; readonly duration: 200; }; }; readonly events: { readonly tilePressIn: { readonly duration: 90; rea...`
+- `const motion: { readonly ceilingMs: 260; readonly easing: { readonly standard: readonly [0.2, 0, 0, 1]; readonly out: readonly [0, 0, 0.58, 1]; readonly inOut: readonly [0.42, 0, 0.58, 1]; readonly linear: readonly [0, 0, 1, 1]; }; readonly spring: { readonly sheet: { readonly dampingRatio: 0.82; readonly duration: 200; }; readonly carouselRelease: { readonly dampingRatio: 0.9; readonly duratio...`
 - `const radius: { readonly xs: 8; readonly sm: 10; readonly md: 14; readonly lg: 18; readonly xl: 22; readonly card: 24; readonly pill: 999; }`
 - `const servingPresetKeys: readonly ["100g", "100ml", "cup", "tbsp", "tsp"]`
 - `const size: { readonly tapTargetMin: 44; readonly icon: { readonly tab: 23; readonly deleteAction: 22; readonly lg: 21; readonly md: 19; readonly sm: 15; readonly stroke: 1.75; readonly strokeActive: 2; }; readonly tabBar: { readonly height: 58; readonly itemHit: 58; }; readonly tile: { readonly height: 80; readonly heightHit: 80; readonly nameLines: 2; readonly borderLogged: 1.5; readonly pres...`
@@ -1496,6 +1496,11 @@ _no exports_
   readonly floating: string;
   /** The soft bloom under a large calorie-coloured ca...`
 - `type SpaceStep = keyof typeof space`
+- `type SpringConfig = {
+  readonly dampingRatio: number;
+  readonly duration: number;
+}`
+- `type SpringName = keyof typeof spring`
 - `type Theme = {
   readonly name: ThemeName;
   readonly color: ColorTokens;
@@ -1504,6 +1509,17 @@ _no exports_
 }`
 - `type ThemeName = (typeof themeNames)[number]`
 - `type ThemePreference = 'dark' | 'light' | 'auto'`
+- `type TrackedGesture = {
+  /** The `motion.spring` key that carries the content to its destination on release. */
+  readonly releaseSpring: keyof typeof spring;
+  /** Content points travelled per point of finger travel while the finger is down. */
+  readonly trackingGain: number;
+  /** Fraction of the page width past which a release commits to the next page. */
+  readonly commitFraction: number;...`
+- `type TrackedReduced = {
+  readonly tracked: ReducedKind;
+  readonly release: { readonly kind: ReducedKind; readonly duration: number };
+}`
 - `type TypeRole = keyof typeof type`
 - `type TypeStyle = {
   readonly fontFamily: FontFamily;
