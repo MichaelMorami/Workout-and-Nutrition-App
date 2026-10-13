@@ -76,9 +76,19 @@
  * this component inside a `ScrollView` must give that `ScrollView` `keyboardShouldPersistTaps=
  * "handled"`: the responder system walks React ancestry across the `Modal`, and the default
  * (`'never'`) spends the first tap on every row, Cancel and Create dismissing the keyboard.
+ *
+ * THE RESULTS LIST STILL VIRTUALISES BEHIND THE MODAL (issue #109). `Modal` is a React *child*, not
+ * a true context boundary: RN resets `VirtualizedListContext` for us at the `Modal` boundary (so a
+ * list drawn inside behaves correctly), but it does not reset `ScrollView.Context` — the separate
+ * context RN's dev-mode nesting check reads. A host that renders this sheet inside its own
+ * `ScrollView` (Today's screen does) leaves that context value sitting above the `Modal`, so the
+ * results `FlatList` below inherits it and trips "VirtualizedLists should never be nested inside
+ * plain ScrollViews..." even though nothing is visually or structurally nested — the `Modal` is a
+ * portal, not a page section. Resetting `ScrollView.Context` to `null` right where the `Modal`
+ * starts closes that one gap, mirroring RN's own `VirtualizedListContextResetter` pattern.
  */
-import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { FlatList, Modal, Pressable, StyleSheet, Text, TextInput, View, type TextStyle } from 'react-native';
+import { useEffect, useMemo, useRef, useState, type Context, type ReactNode } from 'react';
+import { FlatList, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View, type TextStyle } from 'react-native';
 import {
   addPortion,
   libraryByUsage,
@@ -106,6 +116,15 @@ const MEAL_GLYPH = '▤';
 /** A plain-Unicode magnifier and clear glyph, for the same reason. */
 const SEARCH_GLYPH = '⌕';
 const CLEAR_GLYPH = '×';
+
+/** The nesting-orientation value `ScrollView.Context` carries — mirrors RN's own (untyped,
+ * internal) `ScrollViewContext` shape: `null` outside any `ScrollView`, `{horizontal}` inside one. */
+type ScrollNestingContextValue = { horizontal: boolean } | null;
+/** `ScrollView.Context` is a real static property at runtime (RN's own nesting-warning check in
+ * `VirtualizedList.js` reads it), but RN's shipped `.d.ts` does not declare it — see the module
+ * note on issue #109 above. The cast is narrow (one field, the exact shape RN's own check uses), so
+ * a future RN upgrade that actually types this can simply delete the cast. */
+const ScrollViewNestingContext = (ScrollView as unknown as { Context: Context<ScrollNestingContextValue> }).Context;
 
 /** What `SearchSheetProps['renderCreate']` receives. */
 export type CreateSlotArgs = { query: string; onLogged: (receipt: LogReceipt) => void; onClose: () => void };
@@ -658,6 +677,8 @@ export function SearchSheet({ db, onLogged, onPortionAdded, onCreate, renderCrea
           onShow={handleShow}
           testID={`${testID}-modal`}
         >
+          {/* Issue #109 — reset the nesting-warning context at the Modal boundary; see module note above. */}
+          <ScrollViewNestingContext.Provider value={null}>
           <Pressable
             testID={`${testID}-scrim`}
             accessibilityRole="button"
@@ -731,6 +752,7 @@ export function SearchSheet({ db, onLogged, onPortionAdded, onCreate, renderCrea
             onClose={handlePortionSheetClose}
             testID={`${testID}-portion-sheet`}
           />
+          </ScrollViewNestingContext.Provider>
         </Modal>
       ) : null}
     </View>

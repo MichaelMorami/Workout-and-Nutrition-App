@@ -803,7 +803,7 @@
         "src/store/undoToast.ts",
         "src/theme/tokens.ts"
       ],
-      "loc": 828
+      "loc": 850
     },
     "src/components/search/index.ts": {
       "exports": [
