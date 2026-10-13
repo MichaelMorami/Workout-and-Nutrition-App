@@ -11,6 +11,32 @@ Read this before doing anything. It is auto-loaded, so it is never repeated in p
 
 When a trade-off appears, resolve it in that order.
 
+## What gets worked is the user's call
+
+**Filing is free. Working is not.** Found a problem, a rough edge, a missing guard? Open an issue —
+findings are wanted, not swallowed. Then **stop**. Do not start it, and do not fold it into the PR
+you are already on.
+
+Nothing moves from the backlog to an agent until the user has picked it off a slate stating, per
+candidate, **what they get and what it costs**. "It is open" is not a reason to work something.
+Neither is `priority:p2`.
+
+**Every issue names its user-visible symptom in one sentence** — what the person holding the phone
+sees, feels or loses. An issue that cannot is labelled `speculative` and waits, with a note saying
+what it waits on. Eight were parked that way on 2026-10-13: #183, #192, #225, #230, #231, #232,
+#233, #236.
+
+This rule exists because the project stopped converging without it. The user's own intake batch
+reached 29 of 32 closed while 22 issues stayed open — 19 agent-filed, 11 of those in two days. Four
+chains did it: a migration parser seven issues deep (#132 → #183) and an RLS checker five
+(#130/#131/#135/#147/#160), both guarding a Supabase project that **does not exist** (#127); a
+motion-token audit (#210 → #224) that spawned eight children, two blocked on unbuilt screens; and a
+PROGRESS.md round-trip (#211 → #217 → #221). Every one of them had **internal** acceptance criteria,
+so none could finish, while Sprints 2–5 held zero issues.
+
+So: before briefing a guard, an analyzer or a ratchet, check that the thing it guards is
+user-visible and already exists. If it is not, say so instead of filing its follow-ups.
+
 ## Find things with the graph, not with `cat`
 
 **Do not read whole files to find out what something is.** The repo carries a generated, always-fresh
