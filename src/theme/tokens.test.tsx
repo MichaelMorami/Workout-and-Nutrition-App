@@ -302,17 +302,24 @@ describe('carousel — the swipe-between-tabs gesture (issue #246, builds #82)',
     expect(c.trackingGain).toBe(1);
   });
 
-  it('commits on a flick, not on a drag across the whole phone, and on either distance or speed', () => {
-    // Distance OR velocity: a fast flick from the screen edge must change tab even though it
-    // travelled barely any distance, and a slow deliberate drag must commit on distance alone.
-    expect(c.commitFraction).toBeGreaterThan(0);
-    expect(c.commitFraction).toBeLessThan(0.5);
-    expect(c.commitVelocityPtPerS).toBeGreaterThan(0);
+  it('commits a deliberate drag at 22 % of the width — ~86 pt, one thumb swing, not 176', () => {
+    // The decision, not a range. 0.22 × 390 pt ≈ 86 pt: about as far as a thumb swings before the
+    // hand re-grips, so a committed swipe is one-handed. Anything near half the screen (0.45 is
+    // 176 pt) needs the second hand, and this is the app's most-used gesture.
+    expect(c.commitFraction).toBe(0.22);
   });
 
-  it('resists the edge past the first and last tab without blocking it', () => {
-    expect(c.edgeResistance).toBeGreaterThan(0);
-    expect(c.edgeResistance).toBeLessThan(1);
+  it('commits a flick at 420 pt/s however short it was — the other way in, on speed alone', () => {
+    // ~1.1 screen widths per second. A fast swipe lifts off early and covers little distance, so
+    // without this rule it would fail commitFraction and spring back — the commonest way a pager
+    // feels broken. The number is the decision: drop it toward 0 and every twitch changes tab.
+    expect(c.commitVelocityPtPerS).toBe(420);
+  });
+
+  it('keeps 30 % of the finger past the first and last tab — resistance you can feel, not a wall', () => {
+    // 0.3 says "heard you, there is nothing over here" in the gesture itself. A dead edge (0)
+    // leaves you unsure the gesture registered; near-free travel (0.95) reads as a missing screen.
+    expect(c.edgeResistance).toBe(0.3);
   });
 
   it('flips the tab-bar indicator at the commit point rather than interpolating it mid-drag', () => {
