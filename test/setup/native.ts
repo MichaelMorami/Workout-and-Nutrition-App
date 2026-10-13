@@ -8,6 +8,26 @@
 import './common';
 
 /**
+ * Replaces `@react-native/jest-preset/jest/mocks/Modal.js` with a mock that performs the same
+ * `ScrollView.Context` reset the real `Modal` does (`react-native/Libraries/Modal/Modal.js:352-360`).
+ * Without this, any suite that renders a `FlatList` as a genuine descendant of a real `ScrollView`
+ * with only a `Modal` between them trips the dev-mode nesting guard in
+ * `@react-native/virtualized-lists/Lists/VirtualizedList.js` purely because the mock — not the
+ * app, and not the device — omits that reset. See `test/setup/mocks/Modal.tsx` and issue #245.
+ *
+ * This has to be a `jest.mock` override here, not an edit to `node_modules`: it replaces the
+ * module registration the preset's own `setupFiles` entry (`@react-native/jest-preset/jest/setup.js`)
+ * makes for this exact path, and `setupFilesAfterEnv` runs after `setupFiles`, so the override wins.
+ *
+ * `jest.mock`'s factory is hoisted above this file's own imports (babel-plugin-jest-hoist), so it
+ * cannot close over a top-level `import` of `./mocks/Modal` — only a `require` inside the factory
+ * itself, resolved lazily when jest actually calls it, works here (same pattern as
+ * `src/components/form/FormFrame.test.tsx`'s `reanimated-mock`).
+ */
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+jest.mock('react-native/Libraries/Modal/Modal', () => require('./mocks/Modal'));
+
+/**
  * The default 5000 ms per-test budget is a laptop number. On the hosted CI runner (2 vCPUs,
  * `--coverage`, and Jest's own `maxWorkers` therefore pinned to 1) every `components` suite runs
  * strictly sequentially in one process — there is no free core for a second file to overlap into.
