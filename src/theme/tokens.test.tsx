@@ -279,6 +279,71 @@ describe('motion', () => {
   });
 });
 
+describe('carousel — the swipe-between-tabs gesture (issue #246, builds #82)', () => {
+  const c = motion.carousel;
+
+  it('names a release spring that actually exists in motion.spring', () => {
+    // The pointer, not a second copy of the numbers: every spring in the app lives in
+    // motion.spring, so a retune cannot leave the carousel behind.
+    expect(Object.keys(motion.spring)).toContain(c.releaseSpring);
+    expect(motion.spring[c.releaseSpring]).toBeDefined();
+  });
+
+  it('settles inside the motion ceiling and stops without a visible overshoot', () => {
+    const s = motion.spring[c.releaseSpring];
+    expect(s.duration).toBeLessThanOrEqual(motion.ceilingMs);
+    // A full-screen pager that overshoots shows a sliver of the screen past the one you asked
+    // for, which reads as a bug rather than as bounce. Just short of critical damping.
+    expect(s.dampingRatio).toBeGreaterThanOrEqual(0.9);
+    expect(s.dampingRatio).toBeLessThanOrEqual(1);
+  });
+
+  it('tracks the finger 1:1 while the finger is down — a pager that lags is a pager that fights you', () => {
+    expect(c.trackingGain).toBe(1);
+  });
+
+  it('commits a deliberate drag at 22 % of the width — ~86 pt, one thumb swing, not 176', () => {
+    // The decision, not a range. 0.22 × 390 pt ≈ 86 pt: about as far as a thumb swings before the
+    // hand re-grips, so a committed swipe is one-handed. Anything near half the screen (0.45 is
+    // 176 pt) needs the second hand, and this is the app's most-used gesture.
+    expect(c.commitFraction).toBe(0.22);
+  });
+
+  it('commits a flick at 420 pt/s however short it was — the other way in, on speed alone', () => {
+    // ~1.1 screen widths per second. A fast swipe lifts off early and covers little distance, so
+    // without this rule it would fail commitFraction and spring back — the commonest way a pager
+    // feels broken. The number is the decision: drop it toward 0 and every twitch changes tab.
+    expect(c.commitVelocityPtPerS).toBe(420);
+  });
+
+  it('keeps 30 % of the finger past the first and last tab — resistance you can feel, not a wall', () => {
+    // 0.3 says "heard you, there is nothing over here" in the gesture itself. A dead edge (0)
+    // leaves you unsure the gesture registered; near-free travel (0.95) reads as a missing screen.
+    expect(c.edgeResistance).toBe(0.3);
+  });
+
+  it('flips the tab-bar indicator at the commit point rather than interpolating it mid-drag', () => {
+    expect(c.indicatorFlip).toBe('onCommit');
+  });
+
+  it('keeps the tracked phase under reduce motion and drops only the unattended release', () => {
+    // The drag itself is direct manipulation — it IS the finger. Removing it removes the gesture,
+    // and reduce motion never takes away a gesture's own feedback. The release is the part that
+    // moves on its own, so that is the part that goes instant.
+    expect(c.reduced.tracked).toBe('same');
+    expect(c.reduced.release).toEqual({ kind: 'instant', duration: 0 });
+  });
+
+  it('is not a motion.events key: a tracked gesture has no single duration to put there', () => {
+    // Deliberate shape, pinned so a later tidy-up cannot fold it in. motion.events entries are
+    // fire-and-forget (one duration, one easing, one reduced); during the tracked phase the
+    // carousel's position is a function of the finger, not of time, so a `duration` field there
+    // would be a lie about the only phase the user is actually in.
+    expect(Object.keys(motion.events)).not.toContain('carousel');
+    expect(Object.keys(motion.events).filter((k) => k.toLowerCase().includes('carousel'))).toEqual([]);
+  });
+});
+
 describe('food form (issue #88)', () => {
   const f = size.foodForm;
 

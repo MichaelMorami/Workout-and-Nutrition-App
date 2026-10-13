@@ -1445,6 +1445,52 @@ export type MotionEvent = {
   readonly staggerMs?: number;
 };
 
+/** A `withSpring` config: critical-damping ratio plus the time it is allowed to take to settle. */
+export type SpringConfig = {
+  readonly dampingRatio: number;
+  readonly duration: number;
+};
+
+/**
+ * What reduce motion does to a **finger-tracked** gesture. Two answers, not one, because a tracked
+ * gesture has two phases and they are not the same kind of motion:
+ *
+ * - `tracked` — the part that happens while the finger is down. This is direct manipulation: the
+ *   content is under the finger and the user is causing every pixel of it. Suppressing it does not
+ *   calm anything, it removes the gesture, so this is `same` for every tracked gesture we ship.
+ * - `release` — the part that keeps moving after the finger lifts. Unattended travel across the
+ *   whole screen is the vestibular one, and it is the one reduce motion replaces.
+ *
+ * `MotionEvent.reduced` cannot express this: it has a single answer, which is correct for a
+ * fire-and-forget animation and wrong here.
+ */
+export type TrackedReduced = {
+  readonly tracked: ReducedKind;
+  readonly release: { readonly kind: ReducedKind; readonly duration: number };
+};
+
+/**
+ * The full specification of one finger-tracked gesture — everything a pager needs that a
+ * `MotionEvent` cannot carry. A tracked gesture has no duration while the finger is down: its
+ * position is a function of the finger, so what has to be named instead is the gain, the
+ * threshold that decides where it lands, the spring that takes it there, and what the edge does.
+ */
+export type TrackedGesture = {
+  /** The `motion.spring` key that carries the content to its destination on release. */
+  readonly releaseSpring: keyof typeof spring;
+  /** Content points travelled per point of finger travel while the finger is down. */
+  readonly trackingGain: number;
+  /** Fraction of the page width past which a release commits to the next page. */
+  readonly commitFraction: number;
+  /** Release speed, in points per second, that commits regardless of distance travelled. */
+  readonly commitVelocityPtPerS: number;
+  /** Gain applied past the first or last page: resistance, not a wall. */
+  readonly edgeResistance: number;
+  /** Whether a dependent indicator interpolates with the drag or flips once the outcome is known. */
+  readonly indicatorFlip: 'onCommit' | 'continuous';
+  readonly reduced: TrackedReduced;
+};
+
 const easing = {
   /** Arcs, sheets, anything that settles into place. */
   standard: [0.2, 0, 0, 1],
@@ -1456,15 +1502,116 @@ const easing = {
   linear: [0, 0, 1, 1],
 } as const satisfies Record<string, Bezier>;
 
+/** Spring configs for Reanimated's `withSpring`. Hoisted so a token can name one by key. */
+const spring = {
+  /** Bottom sheets rising (portion, search). */
+  sheet: { dampingRatio: 0.82, duration: 200 },
+  /**
+   * The swipe-between-tabs carousel carrying a part-dragged screen to the tab it committed to —
+   * or back to the one it came from (issue #246, consumed by #82). Read it through
+   * `motion.carousel.releaseSpring`, never by this key directly: the carousel token is the
+   * specification, and this is only where the two numbers live.
+   *
+   * Crisper and less bouncy than `sheet`. A sheet may overshoot a little — it is arriving, and a
+   * touch of bounce reads as weight. A full-screen pager must not: at 390 pt wide, an overshoot
+   * shows a sliver of the screen *past* the one you asked for, and that reads as a bug, not as
+   * physics. 0.9 is just short of critical damping — about 0.6 pt of overshoot on a 390 pt
+   * travel, below the point anyone can see it — so the screen looks like it decelerates rather
+   * than stops dead. 220 ms sits under `ceilingMs` and covers the worst case, a release at 1 %
+   * dragged that has the whole width to cross.
+   */
+  carouselRelease: { dampingRatio: 0.9, duration: 220 },
+} as const satisfies Record<string, SpringConfig>;
+
 export const motion = {
   /** Nothing animates longer than this, except `chartDraw`, which runs once per screen entry. */
   ceilingMs: 260,
   /** Cubic-bezier control points for Reanimated's `Easing.bezier(...)`. */
   easing,
   /** Spring configs for Reanimated's `withSpring`. */
-  spring: {
-    /** Bottom sheets rising (portion, search). */
-    sheet: { dampingRatio: 0.82, duration: 200 },
+  spring,
+  /**
+   * The swipe-between-tabs carousel (issue #246, built by #82) — the one **finger-tracked**
+   * gesture that moves a whole screen, and the app's most-used gesture once it lands.
+   *
+   * WHY THIS IS NOT A `motion.events` KEY. Everything in `events` is fire-and-forget: one
+   * `duration`, one `easing`, one `reduced`. While the finger is down the carousel has no
+   * duration at all — the screen's position is `trackingGain ×` the finger's, a function of the
+   * finger and not of time. Giving it a `duration` would describe only the release and would name
+   * a time for the phase the user actually spends the gesture in. It also needs three things
+   * `MotionEvent` has nowhere to put: a commit threshold, an edge rule, and a two-phase
+   * reduce-motion answer (see `TrackedReduced`). So tracked gestures get their own shape, and
+   * `motion.events` keeps meaning exactly one thing.
+   *
+   * WHY THE THRESHOLDS ARE HERE AND NOT IN `interaction`. `interaction` holds the quantities for
+   * gestures whose animation lives in `motion.events` — the long-press that opens a sheet, the
+   * detent the slider snaps to. The carousel has no `events` entry to pair with, so splitting it
+   * would leave two half-specs and no single place that says what the gesture is. It stays whole.
+   *
+   * The tab bar reads `glyph.tab` and the `tabBar.*` colours as it does today; this token only
+   * decides *when* it changes (`indicatorFlip`).
+   */
+  carousel: {
+    releaseSpring: 'carouselRelease',
+    /**
+     * 1:1. The screen moves exactly as far as the finger, in the same direction, for the whole
+     * drag. Any other number means the content slides out from under the thumb, and on the app's
+     * most-used gesture that reads as the phone arguing with you. Priority 1 is how the app feels.
+     */
+    trackingGain: 1,
+    /**
+     * Release past 22 % of the page width and the next tab commits; release short of it and the
+     * current screen springs back. 22 % of a 390 pt screen is ~86 pt — roughly how far a thumb
+     * swings across the screen without the hand re-gripping, so a committed swipe is a flick you
+     * can do one-handed rather than a drag across the whole phone (a 50 % threshold needs the
+     * second hand). It is deliberately below half: with `commitVelocityPtPerS` as the other way
+     * in, the cost of a mistaken commit is one swipe back, and the cost of a missed commit is
+     * doing the whole gesture again.
+     */
+    commitFraction: 0.22,
+    /**
+     * …or release moving faster than 420 pt/s (~1.1 screen widths per second) and it commits
+     * however little distance it covered. The two rules are an OR, and this one is why a quick
+     * flick from the bezel works: a fast swipe lifts off early and would otherwise fail
+     * `commitFraction` and spring back, which is the single most common way a pager feels broken.
+     * Below this speed the gesture is a positioning drag and distance decides.
+     */
+    commitVelocityPtPerS: 420,
+    /**
+     * Past the first tab or the last one there is no screen to bring in, so the drag keeps only
+     * 30 % of the finger's travel and the release spring pulls it back. Resistance, not a wall:
+     * a dead edge leaves you unsure whether the gesture was recognised at all, while 30 % says
+     * "heard you, there is nothing over here" in the gesture itself. Nothing commits at an edge.
+     */
+    edgeResistance: 0.3,
+    /**
+     * The tab bar flips in one frame once the release has committed — it does not interpolate
+     * with the drag. Two reasons. The glyph change is a swap, not a tween: `glyph.tab` goes
+     * outline → filled cut, which has no halfway. And a continuously-interpolated indicator puts
+     * two tabs in a half-active state mid-drag, which is ambiguity in the one element whose only
+     * job is to say unambiguously where you are. So the bar states the destination the moment
+     * the destination is known — at release, not when the screen crosses a halfway line, because
+     * until the finger lifts nothing is decided and the drag can still come back.
+     */
+    indicatorFlip: 'onCommit',
+    reduced: {
+      /**
+       * The drag survives reduce motion untouched. It is not an animation we are playing at the
+       * user — it is their finger, at `trackingGain` 1, and the screen stopping short of it is
+       * either a broken gesture or a gesture with no feedback at all. Direct manipulation is the
+       * documented exception to prefers-reduced-motion, and the existing Motion board's "nothing
+       * vestibular either way" for the tab change is what that means for a tracked drag.
+       */
+      tracked: 'same',
+      /**
+       * The release is the part that moves on its own, so it is the part that goes: the screen
+       * lands on the committed tab in one frame instead of springing 220 ms across the width.
+       * Snap-back on a non-committed release is the same — instant return. The commit thresholds
+       * and `edgeResistance` are unchanged: reduce motion changes what you watch, never what
+       * your finger has to do.
+       */
+      release: { kind: 'instant', duration: 0 },
+    },
   },
   /**
    * Every named animation in the app, by the *event* that causes it — never by the component that
@@ -1567,12 +1714,15 @@ export const motion = {
 } as const satisfies {
   ceilingMs: number;
   easing: Record<string, Bezier>;
-  spring: Record<string, { dampingRatio: number; duration: number }>;
+  spring: Record<string, SpringConfig>;
+  carousel: TrackedGesture;
   events: Record<string, MotionEvent>;
   continuous: Record<string, unknown>;
 };
 
 export type MotionEventName = keyof typeof motion.events;
+/** A spring by name: `motion.spring[motion.carousel.releaseSpring]`. */
+export type SpringName = keyof typeof spring;
 
 /* ============================================================= interaction */
 
