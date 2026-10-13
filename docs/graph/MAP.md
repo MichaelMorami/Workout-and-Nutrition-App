@@ -1436,7 +1436,7 @@ _no exports_
 
 ## `src/theme/`
 
-### `src/theme/tokens.ts`  <sub>1857 lines</sub>
+### `src/theme/tokens.ts`  <sub>2054 lines</sub>
 
 - `const MIN_TEXT_CONTRAST: 4.5`
 - `const contrastPairs: readonly ContrastPair[]`
@@ -1469,6 +1469,7 @@ _no exports_
 }`
 - `type Ground = readonly [ColorPath, ...ColorPath[]]`
 - `type Haptic = { readonly ios: string; readonly android: string }`
+- `type HapticName = keyof typeof haptics`
 - `type MotionEvent = {
   readonly duration: number;
   readonly easing: keyof typeof easing | 'spring';
@@ -1477,6 +1478,13 @@ _no exports_
 }`
 - `type MotionEventName = keyof typeof motion.events`
 - `type ReducedKind = 'instant' | 'fade' | 'same'`
+- `type ReleaseVelocityHandoff = {
+  /** Points of spring velocity per point/second of finger velocity. 1 is a full hand-off. */
+  readonly carry: number;
+  /**
+   * The ceiling on the carried speed, in multiples of the spring's own average speed for the
+   * distance that is left (`remainingPt ÷ releaseSpring.duration`). 1 means the spring is never
+   * handed more speed than it was going to gene...`
 - `type ServingPresetKey = (typeof servingPresetKeys)[number]`
 - `type ServingStep = {
   /** The gap between two steps, in servings. Only ¼ and ½ exist, so every label is ¼ ½ ¾ 1 1¼ … */
@@ -1509,13 +1517,21 @@ _no exports_
 }`
 - `type ThemeName = (typeof themeNames)[number]`
 - `type ThemePreference = 'dark' | 'light' | 'auto'`
+- `type TrackedActivation = {
+  /** Finger travel, in points, before the gesture takes the touch over. */
+  readonly distancePt: number;
+  /** How many times more horizontal than vertical the drag must be: `|dx| > ratio × |dy|`. */
+  readonly axisRatio: number;
+  /**
+   * The travel at which a gesture *inside* this one is allowed to have already claimed the touch.
+   * `distancePt` must stay stric...`
 - `type TrackedGesture = {
   /** The `motion.spring` key that carries the content to its destination on release. */
   readonly releaseSpring: keyof typeof spring;
+  /** When the gesture takes the touch, and which gestures beat it to it (issue #249). */
+  readonly activation: TrackedActivation;
   /** Content points travelled per point of finger travel while the finger is down. */
-  readonly trackingGain: number;
-  /** Fraction of the page width past which a release commits to the next page. */
-  readonly commitFraction: number;...`
+  readonly trackin...`
 - `type TrackedReduced = {
   readonly tracked: ReducedKind;
   readonly release: { readonly kind: ReducedKind; readonly duration: number };
