@@ -83,19 +83,29 @@ other.
 Need a change outside your paths? Say so in the PR or issue. Do not reach across.
 **Do not message other agents.** All coordination goes through `tech-lead` and the GitHub issue.
 
-### The one carve-out: a mock for your own new export
+### The one carve-out: an entry for your own new export
 
-Adding a new export routinely breaks a test file someone else owns, because that file mocks the
-module and the suite throws on the missing key. Handing a one-line, functionally inert change to
-another agent costs a second issue, a second PR and a block on the first — so it is allowed:
+Adding a new export — or a new required field on an existing type — routinely breaks a test file
+someone else owns, because that file mocks the module or builds a fixture, and the compiler or the
+suite throws on the missing key. Handing a one-line, functionally inert change to another agent
+costs a second issue, a second PR and a block on the first — so it is allowed:
 
-> You may add or update the mock entry for **your own new export** in another agent's test file,
-> and nothing else in that file.
+> You may add or update the entry for **your own new export or required field** in another agent's
+> test file — a `jest.mock` return, an object literal or a plain fixture, whichever shape that file
+> happens to use — and nothing else in that file.
 
-It stops there. Changing an assertion, a fixture, a render, or an existing mock's behaviour is not
-covered — that is the owner's change, as `qa-engineer` made for `test/tap-budget.test.tsx` in
-PR #142. If you cannot make the suite pass by adding your own key alone, you have outgrown the
-carve-out: say so in the PR or issue and let the owner do it.
+**The shape of the literal does not decide it. The operative test does:** if you cannot make the
+suite pass by adding your own key alone, you have outgrown the carve-out — say so in the PR or issue
+and let the owner do it. A mock return and a fixture literal are the same one-line addition, so they
+are governed the same way. That was the ruling on PR #254, which added `archivedItemCount` to four
+of ui-engineer's literals — `app/meals/index.test.tsx:39`,
+`src/components/meals/MealList.test.tsx:37-38`, `src/components/day-log/DayLogList.test.tsx:84` and
+`src/components/day-log/entry-candidate.test.tsx:50`, two mock returns and two plain fixtures. All
+four were inside.
+
+It stops there. Changing an assertion, a render, an existing mock's behaviour, or **the values of a
+fixture you did not add** is not covered — that is the owner's change, as `qa-engineer` made for
+`test/tap-budget.test.tsx` in PR #142.
 
 **Every crossing is disclosed in the PR body** — the file, the export, and the line added. Silence
 is the violation, not the edit.
