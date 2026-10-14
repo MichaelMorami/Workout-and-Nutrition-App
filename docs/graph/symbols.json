@@ -27,9 +27,10 @@
         "function default(): import(\"react\").JSX.Element"
       ],
       "imports": [
-        "react-native"
+        "react-native",
+        "src/components/navigation/CarouselPage.tsx"
       ],
-      "loc": 12
+      "loc": 17
     },
     "app/(tabs)/index.tsx": {
       "exports": [
@@ -39,6 +40,7 @@
         "react",
         "react-native",
         "src/components/day-log/index.ts",
+        "src/components/navigation/CarouselPage.tsx",
         "src/components/quick-add/index.ts",
         "src/components/search/index.ts",
         "src/components/today/index.ts",
@@ -49,7 +51,7 @@
         "src/store/undoToast.ts",
         "src/theme/tokens.ts"
       ],
-      "loc": 188
+      "loc": 197
     },
     "app/(tabs)/settings.tsx": {
       "exports": [
@@ -59,21 +61,23 @@
         "expo-router",
         "react",
         "react-native",
+        "src/components/navigation/CarouselPage.tsx",
         "src/components/settings/TargetsGroup.tsx",
         "src/hooks/useDb.ts",
         "src/hooks/useTheme.ts",
         "src/theme/tokens.ts"
       ],
-      "loc": 96
+      "loc": 103
     },
     "app/(tabs)/workout.tsx": {
       "exports": [
         "function default(): import(\"react\").JSX.Element"
       ],
       "imports": [
-        "react-native"
+        "react-native",
+        "src/components/navigation/CarouselPage.tsx"
       ],
-      "loc": 12
+      "loc": 17
     },
     "app/+html.tsx": {
       "exports": [
@@ -651,7 +655,11 @@
       ],
       "loc": 49,
       "importedBy": [
-        "app/(tabs)/_layout.tsx"
+        "app/(tabs)/_layout.tsx",
+        "app/(tabs)/charts.tsx",
+        "app/(tabs)/index.tsx",
+        "app/(tabs)/settings.tsx",
+        "app/(tabs)/workout.tsx"
       ]
     },
     "src/components/navigation/carousel.ts": {

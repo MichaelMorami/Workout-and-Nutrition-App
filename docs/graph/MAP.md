@@ -21,19 +21,19 @@ jq -r '.modules["src/db/queries/nutrition.ts"].exports[]' docs/graph/symbols.jso
 - `function sharedTabBarOptions(color: ColorTokens): { readonly headerShown: false; readonly tabBarStyle: { readonly backgroundColor: string; readonly borderTopColor: string; readonly height: 58; }; readonly tabBarInactiveTintColor: string; readonly tabBarLabelStyle: { readonly fontFamily: "Archivo-Medium"; readonly fontSize: 10; readonly letterSpacing: 0.1; }; }`
 - `function tabBarIcon(tab: TabName): ({ focused, color }: { focused: boolean; color: ColorValue; size: number; }) => React.JSX.Element`
 
-### `app/(tabs)/charts.tsx`  <sub>12 lines</sub>
+### `app/(tabs)/charts.tsx`  <sub>17 lines</sub>
 
 - `function default(): import("react").JSX.Element`
 
-### `app/(tabs)/index.tsx`  <sub>188 lines</sub>
+### `app/(tabs)/index.tsx`  <sub>197 lines</sub>
 
 - `function default(): React.JSX.Element`
 
-### `app/(tabs)/settings.tsx`  <sub>96 lines</sub>
+### `app/(tabs)/settings.tsx`  <sub>103 lines</sub>
 
 - `function default(): React.JSX.Element`
 
-### `app/(tabs)/workout.tsx`  <sub>12 lines</sub>
+### `app/(tabs)/workout.tsx`  <sub>17 lines</sub>
 
 - `function default(): import("react").JSX.Element`
 
@@ -619,7 +619,7 @@ jq -r '.modules["src/db/queries/nutrition.ts"].exports[]' docs/graph/symbols.jso
   readonly testID?: string;
 }`
 
-<sub>used by: `app/(tabs)/_layout.tsx`</sub>
+<sub>used by: `app/(tabs)/_layout.tsx`, `app/(tabs)/charts.tsx`, `app/(tabs)/index.tsx`, `app/(tabs)/settings.tsx`, `app/(tabs)/workout.tsx`</sub>
 
 ### `src/components/navigation/carousel.ts`  <sub>98 lines</sub>
 
