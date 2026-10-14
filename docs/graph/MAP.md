@@ -621,11 +621,11 @@ jq -r '.modules["src/db/queries/nutrition.ts"].exports[]' docs/graph/symbols.jso
 
 <sub>used by: `app/(tabs)/_layout.tsx`, `app/(tabs)/charts.tsx`, `app/(tabs)/index.tsx`, `app/(tabs)/settings.tsx`, `app/(tabs)/workout.tsx`</sub>
 
-### `src/components/navigation/carousel.ts`  <sub>98 lines</sub>
+### `src/components/navigation/carousel.ts`  <sub>103 lines</sub>
 
 - `function carouselCommit(dx: number, vxPtPerS: number, pageWidthPt: number, hasPrevious: boolean, hasNext: boolean, commitFraction: number, commitVelocityPtPerS: number): CarouselCommit`
 - `function carouselHandoffVelocity(vxPtPerS: number, remainingPt: number, releaseDurationMs: number, carry: number, capSpringSpeeds: number, awayFromDestination: 'drop' | 'carry'): number`
-- `function carouselOffset(dx: number, hasPrevious: boolean, hasNext: boolean, pageWidthPt: number, edgeResistance: number, edgeMaxTravelFraction: number): number`
+- `function carouselOffset(dx: number, hasPrevious: boolean, hasNext: boolean, pageWidthPt: number, edgeResistance: number, edgeMaxTravelFraction: number, trackingGain: number): number`
 - `function reachedCarouselEdgeStop(offset: number, pageWidthPt: number, edgeMaxTravelFraction: number): boolean`
 - `function shouldActivateCarousel(dx: number, dy: number, distancePt: number, axisRatio: number): boolean`
 - `type CarouselCommit = 'next' | 'previous' | null`
@@ -1379,7 +1379,7 @@ _no exports_
 
 <sub>used by: `src/components/food-form/FoodForm.tsx`, `src/components/form/FormFrame.tsx`</sub>
 
-### `src/hooks/useTabCarousel.ts`  <sub>182 lines</sub>
+### `src/hooks/useTabCarousel.ts`  <sub>207 lines</sub>
 
 - `const TAB_PATHS: readonly ["/", "/workout", "/charts", "/settings"]`
 - `function useTabCarousel(): UseTabCarouselResult`

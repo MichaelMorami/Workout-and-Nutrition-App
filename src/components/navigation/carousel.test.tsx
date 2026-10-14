@@ -129,7 +129,9 @@ describe('carouselCommit', () => {
 });
 
 describe('carouselHandoffVelocity', () => {
-  const releaseDurationMs = 220;
+  // Read off the token, not restated as 220 — the one literal S4 flagged as surviving from before
+  // this file's own "never a restated literal" rule.
+  const releaseDurationMs = releaseSpringDurationMs;
 
   it('carries the lift-off velocity toward the destination at full gain', () => {
     const remainingPt = -100;
@@ -161,5 +163,6 @@ describe('carouselHandoffVelocity', () => {
 
   it('reads its numbers from motion.carousel.releaseVelocity, never a restated literal', () => {
     expect(releaseVelocity).toEqual({ carry: 1, capSpringSpeeds: 1, awayFromDestination: 'drop' });
+    expect(releaseDurationMs).toBe(motion.spring[motion.carousel.releaseSpring].duration);
   });
 });
