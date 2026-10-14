@@ -21,6 +21,7 @@ import {
   fontInstances,
   formFooterPaddingBottom,
   glyph,
+  haptics,
   interaction,
   layout,
   MIN_TEXT_CONTRAST,
@@ -341,6 +342,112 @@ describe('carousel — the swipe-between-tabs gesture (issue #246, builds #82)',
     // would be a lie about the only phase the user is actually in.
     expect(Object.keys(motion.events)).not.toContain('carousel');
     expect(Object.keys(motion.events).filter((k) => k.toLowerCase().includes('carousel'))).toEqual([]);
+  });
+});
+
+/* The four values issue #249 decided, so that #82's pager has nothing left to invent. Each one is
+   pinned with an exact `toBe`: a bound would let a retune slide under it, which is exactly what
+   happened to the first three values in PR #247 before review B1. */
+describe('carousel activation and hand-off (issue #249, builds #82)', () => {
+  const c = motion.carousel;
+  const a = motion.carousel.activation;
+
+  it('takes the gesture over at 12 pt of travel — twice the 6 pt a row-level swipe claims at', () => {
+    // The whole arbitration rests on this ordering. `SwipeToDelete`'s PanResponder claims at
+    // `Math.abs(dx) > 6`, so by the time the finger has moved 12 pt the row already holds the
+    // responder and the pager cannot take it: the inner gesture wins by construction, not by
+    // negotiation. Drop `distancePt` to 6 or below and a swipe-to-delete becomes a coin toss.
+    // 12 pt is also past the incidental sideways drift in a vertical flick, and still early
+    // enough that the screen is following before you can doubt that it heard you.
+    expect(a.distancePt).toBe(12);
+    expect(a.innerClaimPt).toBe(6);
+    expect(a.distancePt).toBeGreaterThan(a.innerClaimPt);
+  });
+
+  it('needs the drag twice as horizontal as it is vertical — the list wins every diagonal', () => {
+    // |dx| > 2 × |dy|, i.e. inside 26.6° of horizontal. Today and Charts are vertical lists and
+    // scrolling them is far more frequent than changing tab, so an ambiguous diagonal must go to
+    // the scroll. At ratio 1 (45°) a brisk thumb-flick up the day log changes tab instead.
+    expect(a.axisRatio).toBe(2);
+  });
+
+  it('exists only on the four tab roots, which is what keeps it clear of the edge-swipe back', () => {
+    // `app/(tabs)` is the root Stack's first screen, so at a tab root there is nothing to pop and
+    // no iOS edge-swipe back gesture to arbitrate against. On a pushed screen (`app/foods/[id]`,
+    // `app/meals/[id]`) the horizontal drag belongs to the navigator, whole. That is why there is
+    // no left-edge exclusion zone: a dead strip at the bezel would kill the one-handed flick from
+    // the frame that `commitVelocityPtPerS` exists to serve.
+    expect(a.onlyAtNavigationRoot).toBe(true);
+  });
+
+  it('stops the over-drag dead at 10 % of the width — ~39 pt of give, then nothing', () => {
+    // Where `edgeResistance` (the gain) runs out. 0.1 × 390 pt ≈ 39 pt of content travel, which at
+    // gain 0.3 takes ~130 pt of finger: a long deliberate pull, never a wobble. A hard stop, not an
+    // asymptote — an asymptote keeps yielding a pixel forever and reads as a laggy pager, while a
+    // stop says unambiguously "this is the end". It also gives `edgeHaptic` a defined instant.
+    expect(c.edgeMaxTravelFraction).toBe(0.1);
+    // An edge pull can therefore never reach a commit distance: nothing commits at an edge.
+    expect(c.edgeMaxTravelFraction).toBeLessThan(c.commitFraction);
+  });
+
+  it('does not wrap around — #82 asked design to confirm, and the answer is no', () => {
+    // Four tabs in a fixed bottom-bar order are a row, not a ring. Wrapping means a swipe left
+    // from Today lands on Settings, which breaks the one spatial model the tab bar teaches, and
+    // it removes the only way the gesture can tell you that you are at an end.
+    expect(c.wrapAround).toBe(false);
+  });
+
+  it('hands the finger’s speed to the release spring at full gain — a flick never stops dead', () => {
+    // Visibly different on a fast flick: at carry 0 the screen halts at lift-off and the spring
+    // re-accelerates from rest, which reads as the phone dropping your gesture mid-stride.
+    expect(c.releaseVelocity.carry).toBe(1);
+  });
+
+  it('caps the carried speed at the spring’s own speed for the distance that is left', () => {
+    // 1 × (remaining pt ÷ (carouselRelease.duration ÷ 1000)), in pt/s — `duration` is 220 ms and
+    // every velocity in the token set is per second. That is the bound that makes the carry safe:
+    // above it the initial velocity adds travel the spring did not plan for, and at damping 0.9
+    // every point of that comes back as overshoot past the destination — the sliver of the *next*
+    // screen that `motion.spring.carouselRelease`'s own comment refuses. The dangerous release is
+    // not the fast one, it is the fast one with almost no distance left to cover, and a cap tied
+    // to the remaining distance is the only cap that catches it. At this value the carry can only
+    // ever remove the jerk at lift-off, never add travel.
+    expect(c.releaseVelocity.capSpringSpeeds).toBe(1);
+  });
+
+  it('drops a release whose velocity points away from the tab it committed to', () => {
+    // Rare but real: the drag passed `commitFraction` and the finger was already reversing when it
+    // lifted. Carrying that velocity in walks the screen backwards before the spring hauls it
+    // forwards, which looks like a glitch rather than like physics. Only the component toward the
+    // destination is handed over.
+    expect(c.releaseVelocity.awayFromDestination).toBe('drop');
+  });
+
+  it('fires no haptic on a committed tab change — ruled out, and recorded as a decision', () => {
+    // `null`, not absent: the question is answered, not unanswered. A tab change is already
+    // direct manipulation with the whole screen as its feedback, so a buzz there confirms nothing
+    // you cannot see — it is decoration, which this app's motion rules forbid — and it would fire
+    // dozens of times a session, blunting `foodLogged`, the one haptic that replaces a Save button.
+    expect(c.commitHaptic).toBeNull();
+  });
+
+  it('fires one at the edge instead — the only outcome the screen cannot show you', () => {
+    // The inverse case earns it. Pulling past the first or last tab moves 30 % of your travel and
+    // springs back; nothing on screen says *why*, because there is no screen over there to show.
+    // One tick at the hard stop, once per gesture, while the finger is still down and can still
+    // stop pulling.
+    expect(c.edgeHaptic).toBe('carouselEdge');
+    expect(Object.keys(haptics)).toContain(c.edgeHaptic);
+  });
+
+  it('gives the edge bump the lightest feel in the vocabulary, and one useHapticFeedback resolves', () => {
+    // A boundary bump must sit below every confirmation: it reports a non-event. Same pair as
+    // `setLogged`, the other high-frequency tick.
+    expect(haptics.carouselEdge).toEqual({ ios: 'impactLight', android: 'EFFECT_TICK' });
+    // `useHapticFeedback` maps the `ios` field by name and falls back to Medium on an unknown one,
+    // which would silently make the lightest haptic in the app the second-heaviest.
+    const resolvable = ['selection', 'impactLight', 'impactMedium', 'impactHeavy', 'notificationSuccess', 'notificationWarning', 'notificationError'];
+    expect(resolvable).toContain(haptics.carouselEdge.ios);
   });
 });
 
