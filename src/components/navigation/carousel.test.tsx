@@ -12,8 +12,9 @@ import {
   shouldActivateCarousel,
 } from './carousel';
 
-const { activation, commitFraction, commitVelocityPtPerS, edgeMaxTravelFraction, edgeResistance, releaseVelocity } =
+const { activation, commitFraction, commitVelocityPtPerS, edgeMaxTravelFraction, edgeResistance, releaseVelocity, trackingGain } =
   motion.carousel;
+const releaseSpringDurationMs = motion.spring[motion.carousel.releaseSpring].duration;
 
 describe('shouldActivateCarousel', () => {
   it('claims past distancePt, inside the axisRatio cone', () => {
@@ -39,23 +40,30 @@ describe('carouselOffset', () => {
   const pageWidthPt = 390;
 
   it('tracks the finger 1:1 in the middle of the tab order', () => {
-    expect(carouselOffset(-50, true, true, pageWidthPt, edgeResistance, edgeMaxTravelFraction)).toBe(-50);
-    expect(carouselOffset(50, true, true, pageWidthPt, edgeResistance, edgeMaxTravelFraction)).toBe(50);
+    expect(carouselOffset(-50, true, true, pageWidthPt, edgeResistance, edgeMaxTravelFraction, trackingGain)).toBe(-50);
+    expect(carouselOffset(50, true, true, pageWidthPt, edgeResistance, edgeMaxTravelFraction, trackingGain)).toBe(50);
+  });
+
+  it('actually multiplies by trackingGain, not just taking dx unscaled (B6: trackingGain had no consumer)', () => {
+    // A trackingGain other than today's 1 must change the result — this is the test that catches
+    // the token going uncomsumed, by using a gain where "identity" and "ignored" read differently.
+    expect(carouselOffset(-50, true, true, pageWidthPt, edgeResistance, edgeMaxTravelFraction, 0.5)).toBe(-25);
+    expect(carouselOffset(50, true, true, pageWidthPt, edgeResistance, edgeMaxTravelFraction, 2)).toBe(100);
   });
 
   it('resists past the last tab (no next screen) and stops at edgeMaxTravelFraction of the page', () => {
-    const resisted = carouselOffset(-1000, true, false, pageWidthPt, edgeResistance, edgeMaxTravelFraction);
+    const resisted = carouselOffset(-1000, true, false, pageWidthPt, edgeResistance, edgeMaxTravelFraction, trackingGain);
     expect(resisted).toBe(-(pageWidthPt * edgeMaxTravelFraction));
   });
 
   it('resists past the first tab (no previous screen) the same way, mirrored', () => {
-    const resisted = carouselOffset(1000, false, true, pageWidthPt, edgeResistance, edgeMaxTravelFraction);
+    const resisted = carouselOffset(1000, false, true, pageWidthPt, edgeResistance, edgeMaxTravelFraction, trackingGain);
     expect(resisted).toBe(pageWidthPt * edgeMaxTravelFraction);
   });
 
   it('a small over-drag past the last tab is resisted, not clamped straight to the stop', () => {
     const dx = -40;
-    const resisted = carouselOffset(dx, true, false, pageWidthPt, edgeResistance, edgeMaxTravelFraction);
+    const resisted = carouselOffset(dx, true, false, pageWidthPt, edgeResistance, edgeMaxTravelFraction, trackingGain);
     expect(resisted).toBe(dx * edgeResistance);
     expect(Math.abs(resisted)).toBeLessThan(pageWidthPt * edgeMaxTravelFraction);
   });
@@ -63,6 +71,7 @@ describe('carouselOffset', () => {
   it('reads its numbers from motion.carousel, never a restated literal', () => {
     expect(edgeResistance).toBe(0.3);
     expect(edgeMaxTravelFraction).toBe(0.1);
+    expect(trackingGain).toBe(1);
   });
 });
 

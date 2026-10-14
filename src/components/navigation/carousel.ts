@@ -19,9 +19,12 @@ export function shouldActivateCarousel(dx: number, dy: number, distancePt: numbe
 }
 
 /**
- * Where the dragged screen sits for a given finger travel `dx`. 1:1 (`trackingGain`) in the middle
- * of the tab order; resisted toward `edgeResistance` and hard-stopped at `edgeMaxTravelFraction` of
- * the page width past the first or last tab, where there is no screen to bring in.
+ * Where the dragged screen sits for a given finger travel `dx`. `trackingGain` content points per
+ * point of finger travel in the middle of the tab order (1 today — "the screen's position is
+ * `trackingGain ×` the finger's", per `motion.carousel`'s own doc); resisted toward `edgeResistance`
+ * and hard-stopped at `edgeMaxTravelFraction` of the page width past the first or last tab, where
+ * there is no screen to bring in — resistance and the stop apply to the gained travel, not the raw
+ * finger travel, so a future `trackingGain` retune still clamps at the same page fraction.
  */
 export function carouselOffset(
   dx: number,
@@ -30,11 +33,13 @@ export function carouselOffset(
   pageWidthPt: number,
   edgeResistance: number,
   edgeMaxTravelFraction: number,
+  trackingGain: number,
 ): number {
+  const tracked = dx * trackingGain;
   const stopPt = pageWidthPt * edgeMaxTravelFraction;
-  if (dx < 0 && !hasNext) return Math.max(dx * edgeResistance, -stopPt);
-  if (dx > 0 && !hasPrevious) return Math.min(dx * edgeResistance, stopPt);
-  return dx;
+  if (tracked < 0 && !hasNext) return Math.max(tracked * edgeResistance, -stopPt);
+  if (tracked > 0 && !hasPrevious) return Math.min(tracked * edgeResistance, stopPt);
+  return tracked;
 }
 
 /** Whether the drag has reached the hard stop past an edge — the one instant `edgeHaptic` fires at. */

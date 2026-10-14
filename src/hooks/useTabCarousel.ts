@@ -25,11 +25,21 @@
  * slides with the finger over a bare `color.bg.canvas` (`_layout.tsx`'s own background;
  * `onlyAtNavigationRoot` keeps this to the four tab roots, which already share that canvas) —
  * nothing of the destination tab is visible until it is focused. At commit, `router.navigate` makes
- * the destination the focused screen in the same tick `dragX` is shifted by exactly one page width
- * (the "camera hand-off": the one shared value keeps meaning "how far this screen has travelled"
- * across the swap, so the continuing release spring never jumps). This is a real, visible difference
- * from a true side-by-side peek and is called out here for design-lead's/the issue's review — not
- * silently shipped as if it were the full thing `motion.carousel`'s prose describes.
+ * the destination the focused screen in the same tick `dragX` is shifted by exactly one page width,
+ * signed toward the side the destination tab lives on in `TAB_PATHS` order — `next` is to the right,
+ * so its hand-off position is `dx + pageWidthPt` (translateX positive = still entering from the
+ * right), `previous` is `dx - pageWidthPt` (entering from the left). Getting either sign backward
+ * makes the destination fly in from the wrong side across more than a full page width *and* flips
+ * `carouselHandoffVelocity`'s toward/away test, silently dropping `releaseVelocity.carry` on every
+ * commit — this hook shipped that exact bug once; see the review history on issue #82's PR for the
+ * probe that caught it. Getting it right is what keeps the release spring's travel bounded and the
+ * flick's own velocity actually carried into it, rather than a jump the spring has to undo. This
+ * hand-off is still a real, visible difference from a true side-by-side peek (nothing of the
+ * destination is visible until the swap, per the simplification above) and is called out here for
+ * design-lead's/the issue's review — not silently shipped as if it were the full thing
+ * `motion.carousel`'s prose describes. `router.navigate` also focuses the destination asynchronously
+ * while the spring starts on `dragX` in the same tick, so the destination may render mid-flight or
+ * already settled depending on timing — a device-check question, not something this hook controls.
  *
  * `gesture.vx`/`vy` from `PanResponderGestureState` are points **per millisecond**
  * (`PanResponder.js`'s own `(nextDX - dx) / dt`, `dt` a millisecond delta); `motion.carousel`'s
@@ -71,8 +81,17 @@ export function useTabCarousel(): UseTabCarouselResult {
   const { width: pageWidthPt } = useWindowDimensions();
   const firedEdgeHaptic = useRef(false);
 
-  const { activation, commitFraction, commitVelocityPtPerS, edgeHaptic, edgeMaxTravelFraction, edgeResistance, reduced, releaseVelocity } =
-    motion.carousel;
+  const {
+    activation,
+    commitFraction,
+    commitVelocityPtPerS,
+    edgeHaptic,
+    edgeMaxTravelFraction,
+    edgeResistance,
+    reduced,
+    releaseVelocity,
+    trackingGain,
+  } = motion.carousel;
   const springToken = motion.spring[motion.carousel.releaseSpring];
 
   // Not a ref: `pathname` is in this `useMemo`'s own dependency list below, so the whole responder
@@ -107,7 +126,7 @@ export function useTabCarousel(): UseTabCarouselResult {
         onPanResponderMove: (_evt: GestureResponderEvent, gesture: PanResponderGestureState) => {
           const hasPrevious = index > 0;
           const hasNext = index >= 0 && index < TAB_PATHS.length - 1;
-          const offset = carouselOffset(gesture.dx, hasPrevious, hasNext, pageWidthPt, edgeResistance, edgeMaxTravelFraction);
+          const offset = carouselOffset(gesture.dx, hasPrevious, hasNext, pageWidthPt, edgeResistance, edgeMaxTravelFraction, trackingGain);
           dragX.value = offset;
 
           // reachedCarouselEdgeStop reads the resisted offset's *magnitude*, which a legitimate deep
@@ -128,11 +147,16 @@ export function useTabCarousel(): UseTabCarouselResult {
           const commit = carouselCommit(gesture.dx, vxPtPerS, pageWidthPt, hasPrevious, hasNext, commitFraction, commitVelocityPtPerS);
 
           if (commit === 'next') {
+            // The next tab is to the right in TAB_PATHS order, so its camera hand-off position is
+            // dx + pageWidthPt (translateX positive = further right, i.e. "still entering from the
+            // right"), not dx - pageWidthPt. See this function's own review history (#82's PR) for
+            // the probe that caught the signs swapped: a committed-next flick at dx=-175,
+            // pageWidthPt=750 must hand off at +575, not -925.
             router.navigate(TAB_PATHS[index + 1] as Href);
-            dragX.value -= pageWidthPt;
+            dragX.value += pageWidthPt;
           } else if (commit === 'previous') {
             router.navigate(TAB_PATHS[index - 1] as Href);
-            dragX.value += pageWidthPt;
+            dragX.value -= pageWidthPt;
           }
 
           const remainingPt = 0 - dragX.value;
@@ -174,6 +198,7 @@ export function useTabCarousel(): UseTabCarouselResult {
       router,
       springToken.dampingRatio,
       springToken.duration,
+      trackingGain,
     ],
   );
 
