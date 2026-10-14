@@ -1436,7 +1436,7 @@ _no exports_
 
 ## `src/theme/`
 
-### `src/theme/tokens.ts`  <sub>2054 lines</sub>
+### `src/theme/tokens.ts`  <sub>2060 lines</sub>
 
 - `const MIN_TEXT_CONTRAST: 4.5`
 - `const contrastPairs: readonly ContrastPair[]`
@@ -1483,8 +1483,10 @@ _no exports_
   readonly carry: number;
   /**
    * The ceiling on the carried speed, in multiples of the spring's own average speed for the
-   * distance that is left (`remainingPt ÷ releaseSpring.duration`). 1 means the spring is never
-   * handed more speed than it was going to gene...`
+   * distance that is left. 1 means the spring is never handed more speed than it was going to
+   * generate itself.
+   *
+   * That average speed...`
 - `type ServingPresetKey = (typeof servingPresetKeys)[number]`
 - `type ServingStep = {
   /** The gap between two steps, in servings. Only ¼ and ½ exist, so every label is ¼ ½ ¾ 1 1¼ … */
