@@ -404,7 +404,8 @@ describe('carousel activation and hand-off (issue #249, builds #82)', () => {
   });
 
   it('caps the carried speed at the spring’s own speed for the distance that is left', () => {
-    // 1 × (remaining pt ÷ carouselRelease.duration). That is the bound that makes the carry safe:
+    // 1 × (remaining pt ÷ (carouselRelease.duration ÷ 1000)), in pt/s — `duration` is 220 ms and
+    // every velocity in the token set is per second. That is the bound that makes the carry safe:
     // above it the initial velocity adds travel the spring did not plan for, and at damping 0.9
     // every point of that comes back as overshoot past the destination — the sliver of the *next*
     // screen that `motion.spring.carouselRelease`'s own comment refuses. The dangerous release is

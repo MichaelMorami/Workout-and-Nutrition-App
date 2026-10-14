@@ -1500,8 +1500,14 @@ export type ReleaseVelocityHandoff = {
   readonly carry: number;
   /**
    * The ceiling on the carried speed, in multiples of the spring's own average speed for the
-   * distance that is left (`remainingPt ÷ releaseSpring.duration`). 1 means the spring is never
-   * handed more speed than it was going to generate itself.
+   * distance that is left. 1 means the spring is never handed more speed than it was going to
+   * generate itself.
+   *
+   * That average speed is `remainingPt ÷ (releaseSpring.duration ÷ 1000)`, **in points per
+   * second** — `duration` is milliseconds, and every velocity in this file is pt/s (see `carry`
+   * above and `commitVelocityPtPerS`). Dividing by the raw millisecond figure gives pt/ms, which
+   * is 1000× too small: at 100 pt remaining the cap would be 0.45 pt/s instead of 455 pt/s, which
+   * clamps every hand-off to nothing and silently turns `carry: 1` into `carry: 0`.
    */
   readonly capSpringSpeeds: number;
   /** What to do with a release whose velocity points away from the committed destination. */
