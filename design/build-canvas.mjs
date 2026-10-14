@@ -99,7 +99,7 @@ function tabbar(T, active) {
   return `<nav style="${s({ position: 'absolute', left: 0, right: 0, bottom: 0, height: TABH + HOMEH + 'px', paddingBottom: HOMEH + 'px', display: 'flex', background: C.bg, borderTop: `1px solid ${C.border}` })}">
 ${tabs.map(([n, d]) => {
     const on = n === active;
-    return `  <div style="${s({ flex: '1', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '4px', height: TABH + 'px', color: on ? accent : C.inactiveText })}">${ico(d, { size: size.icon.tab, w: on ? size.icon.strokeActive : 1.7 })}<span style="${t(on ? 'tabLabelActive' : 'tabLabel')}">${n}</span></div>`;
+    return `  <div style="${s({ flex: '1', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '4px', height: TABH + 'px', color: on ? accent : C.inactiveText })}">${ico(d, { size: size.icon.tab, w: on ? size.icon.strokeActive : size.icon.stroke })}<span style="${t(on ? 'tabLabelActive' : 'tabLabel')}">${n}</span></div>`;
   }).join('\n')}
 </nav>`;
 }
