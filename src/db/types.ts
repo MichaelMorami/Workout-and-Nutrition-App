@@ -130,11 +130,17 @@ export interface MealItemInput {
   qty: number;
 }
 
-/** One portion's worth, aggregated from *live* items over *live* foods — tombstoned foods excluded. */
+/**
+ * One portion's worth, aggregated from *live* items over *live* foods — tombstoned foods excluded.
+ * `archivedItemCount` counts live items whose food is archived (not deleted): always present, `0`
+ * when every ingredient is live, never `undefined` — issue #240. It counts items, not distinct
+ * foods, so a food appearing twice in the same meal contributes 2 once archived.
+ */
 export interface MealSummary {
   id: string;
   name: string;
   itemCount: number;
+  archivedItemCount: number;
   kcal: number;
   protein: number;
 }
