@@ -2,6 +2,9 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import { Tabs } from 'expo-router';
 import React from 'react';
 import type { ColorValue } from 'react-native';
+import { StyleSheet, View } from 'react-native';
+import { CarouselContext } from '../../src/components/navigation/CarouselPage';
+import { useTabCarousel } from '../../src/hooks/useTabCarousel';
 import { useTheme } from '../../src/hooks/useTheme';
 import { glyph, size, type, type ColorTokens } from '../../src/theme/tokens';
 
@@ -51,43 +54,74 @@ export function sharedTabBarOptions(color: ColorTokens) {
   } as const;
 }
 
+/**
+ * Wraps every tab root in the one shared `PanResponder` + `dragX` behind swipe-between-tabs
+ * (issue #82) — `useTabCarousel`'s own module note explains the mechanism (`PanResponder`, no new
+ * dependency) and the "camera hand-off" simplification (only the focused screen's position is
+ * live during the drag). This `View` must be an *ancestor* of every screen's content, not a
+ * sibling: `DayLogRow`'s own, deeper `PanResponder` (Today's swipe-to-delete) needs bubble-phase
+ * first refusal over this one, which only holds if this responder sits above it in the tree (RN
+ * polls non-capture `*ShouldSetPanResponder` handlers bubble-phase, innermost first).
+ *
+ * The background is `color.bg.canvas` (`activation.onlyAtNavigationRoot` keeps this gesture
+ * scoped to exactly the four tab roots, which already share that canvas) — what shows through in
+ * the gap while the focused screen slides, since no second screen is actually live underneath it.
+ */
+export function CarouselRoot({ children, color }: { children: React.ReactNode; color: ColorTokens }): React.JSX.Element {
+  const { dragX, panHandlers } = useTabCarousel();
+
+  return (
+    <View testID="tab-carousel-root" style={[styles.root, { backgroundColor: color.bg.canvas }]} {...panHandlers}>
+      <CarouselContext.Provider value={{ dragX }}>{children}</CarouselContext.Provider>
+    </View>
+  );
+}
+
 export default function TabLayout(): React.JSX.Element {
   const { color } = useTheme();
 
   return (
-    <Tabs screenOptions={sharedTabBarOptions(color)}>
-      <Tabs.Screen
-        name="index"
-        options={{
-          title: 'Today',
-          tabBarActiveTintColor: color.tabBar.todayActiveText,
-          tabBarIcon: tabBarIcon('today'),
-        }}
-      />
-      <Tabs.Screen
-        name="workout"
-        options={{
-          title: 'Workout',
-          tabBarActiveTintColor: color.tabBar.workoutActiveText,
-          tabBarIcon: tabBarIcon('workout'),
-        }}
-      />
-      <Tabs.Screen
-        name="charts"
-        options={{
-          title: 'Charts',
-          tabBarActiveTintColor: color.tabBar.chartsActiveText,
-          tabBarIcon: tabBarIcon('charts'),
-        }}
-      />
-      <Tabs.Screen
-        name="settings"
-        options={{
-          title: 'Settings',
-          tabBarActiveTintColor: color.tabBar.settingsActiveText,
-          tabBarIcon: tabBarIcon('settings'),
-        }}
-      />
-    </Tabs>
+    <CarouselRoot color={color}>
+      <Tabs screenOptions={sharedTabBarOptions(color)}>
+        <Tabs.Screen
+          name="index"
+          options={{
+            title: 'Today',
+            tabBarActiveTintColor: color.tabBar.todayActiveText,
+            tabBarIcon: tabBarIcon('today'),
+          }}
+        />
+        <Tabs.Screen
+          name="workout"
+          options={{
+            title: 'Workout',
+            tabBarActiveTintColor: color.tabBar.workoutActiveText,
+            tabBarIcon: tabBarIcon('workout'),
+          }}
+        />
+        <Tabs.Screen
+          name="charts"
+          options={{
+            title: 'Charts',
+            tabBarActiveTintColor: color.tabBar.chartsActiveText,
+            tabBarIcon: tabBarIcon('charts'),
+          }}
+        />
+        <Tabs.Screen
+          name="settings"
+          options={{
+            title: 'Settings',
+            tabBarActiveTintColor: color.tabBar.settingsActiveText,
+            tabBarIcon: tabBarIcon('settings'),
+          }}
+        />
+      </Tabs>
+    </CarouselRoot>
   );
 }
+
+const styles = StyleSheet.create({
+  root: {
+    flex: 1,
+  },
+});

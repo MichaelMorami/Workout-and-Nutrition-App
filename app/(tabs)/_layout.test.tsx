@@ -8,10 +8,40 @@
  * hands to `tabBarIcon`, so a test can render it directly — no router harness, no full `<Tabs>`
  * mount — and assert the actual rendered `Ionicons` element, not just that the code exists.
  */
+/**
+ * `<CarouselRoot>`/the default export's carousel wiring (issue #82): `Tabs`/`Tabs.Screen` are
+ * stubbed the same way `app/meals/new.test.tsx` stubs `Stack.Screen` — a real `Tabs` needs a
+ * `NavigationContainer` this test has no reason to stand up, when all that matters here is that
+ * `TabLayout` renders it *inside* the carousel's gesture view, not the reverse order (the carousel
+ * must be an ancestor so `DayLogRow`'s own, deeper `PanResponder` gets bubble-phase first refusal —
+ * `useTabCarousel`'s own module note). `useTabCarousel` itself is mocked so this file asserts only
+ * the wiring — the hook's own behaviour is `useTabCarousel.test.tsx`'s job.
+ */
+jest.mock('react-native-reanimated', () => jest.requireActual('../../src/components/navigation/test-support/reanimated-mock'));
+
+const mockPanHandlers = { onMoveShouldSetResponder: jest.fn(() => false) };
+const mockDragX = { value: -7 };
+jest.mock('../../src/hooks/useTabCarousel', () => ({
+  useTabCarousel: () => ({ dragX: mockDragX, panHandlers: mockPanHandlers }),
+}));
+jest.mock('expo-router', () => {
+  const react = jest.requireActual<typeof import('react')>('react');
+  function Tabs({ children }: { children?: React.ReactNode }) {
+    return react.createElement(react.Fragment, null, children);
+  }
+  Tabs.Screen = () => null;
+  return { Tabs };
+});
+
 import { render, screen } from '@testing-library/react-native';
 import Ionicons from '@expo/vector-icons/Ionicons';
+import type React from 'react';
+import { useContext } from 'react';
+import { StyleSheet, Text } from 'react-native';
+import { CarouselContext } from '../../src/components/navigation/CarouselPage';
+import { ThemeContext } from '../../src/components/theme/theme-context';
 import { glyph, size, themes } from '../../src/theme/tokens';
-import { sharedTabBarOptions, tabBarIcon, tabNames } from './_layout';
+import TabLayout, { CarouselRoot, sharedTabBarOptions, tabBarIcon, tabNames } from './_layout';
 
 describe('sharedTabBarOptions', () => {
   it('paints the bar with the theme’s translucent tabBar.bg token, not a hard-coded colour', () => {
@@ -71,5 +101,51 @@ describe('tabBarIcon (issue #81)', () => {
     const icon = screen.getByTestId(`tab-icon-${tab}`);
     expect(icon.children).toEqual([renderedGlyph(glyph.tab[tab].active)]);
     expect(icon.props.style[0]).toEqual(expect.objectContaining({ color: activeTint }));
+  });
+});
+
+/** Reads the carousel's `dragX` from context, for the context-propagation assertion below. */
+function DragXProbe() {
+  const ctx = useContext(CarouselContext);
+  return <Text>{String(ctx?.dragX.value)}</Text>;
+}
+
+describe('TabLayout carousel wiring (issue #82)', () => {
+  it('spreads useTabCarousel’s panHandlers onto the gesture view that wraps Tabs', async () => {
+    await render(
+      <ThemeContext.Provider value={themes.dark}>
+        <TabLayout />
+      </ThemeContext.Provider>,
+    );
+    // The mocked panHandlers carry one recognisable key; `getByTestId` on the root proves it landed
+    // on an actual rendered host view, not merely that the mock function exists somewhere in scope.
+    const root = screen.getByTestId('tab-carousel-root');
+    expect(root.props.onMoveShouldSetResponder).toBe(mockPanHandlers.onMoveShouldSetResponder);
+  });
+
+  it('paints the gesture view in color.bg.canvas — what shows through while a screen slides', async () => {
+    await render(
+      <ThemeContext.Provider value={themes.dark}>
+        <TabLayout />
+      </ThemeContext.Provider>,
+    );
+    const root = screen.getByTestId('tab-carousel-root');
+    const flat = StyleSheet.flatten(root.props.style) as { backgroundColor?: string };
+    expect(flat.backgroundColor).toBe(themes.dark.color.bg.canvas);
+  });
+
+  it('provides useTabCarousel’s own dragX through CarouselContext, for every tab root to read', async () => {
+    // `CarouselRoot` directly, not the full `TabLayout` — `Tabs.Screen`'s own stand-in above renders
+    // null, so it cannot carry a context probe as a descendant the way a real tab root would.
+    // `CarouselRoot` is the actual provider boundary either way (`TabLayout` only supplies its
+    // children), so this proves the same wiring without needing a heavier `Tabs` stub.
+    await render(
+      <ThemeContext.Provider value={themes.dark}>
+        <CarouselRoot color={themes.dark.color}>
+          <DragXProbe />
+        </CarouselRoot>
+      </ThemeContext.Provider>,
+    );
+    expect(screen.getByText('-7')).toBeTruthy();
   });
 });
