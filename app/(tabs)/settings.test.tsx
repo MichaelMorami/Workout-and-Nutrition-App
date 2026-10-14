@@ -4,7 +4,12 @@
  * #44's "TARGETS" group above it (`<TargetsGroup>` carries its own behavioural tests — this file
  * only checks the screen renders it and that the two groups do not collide). Behaviour only:
  * tapping "Foods" navigates to `/foods`, tapping "Meals" navigates to `/meals`.
+ *
+ * `<CarouselPage>` now wraps the screen (issue #82), which imports `react-native-reanimated` —
+ * mocked below with the navigation folder's own test-support mock, same as `index.test.tsx`.
  */
+jest.mock('react-native-reanimated', () => jest.requireActual('../../src/components/navigation/test-support/reanimated-mock'));
+
 import { fireEvent, render, screen } from '@testing-library/react-native';
 import React from 'react';
 import { DbProvider } from '../../src/components/db/DbProvider';

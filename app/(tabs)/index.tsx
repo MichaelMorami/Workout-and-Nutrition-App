@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 import { getSettings, localDateOf, todayTotals, type DayTotals, type LogReceipt, type SettingsView } from '../../src/db';
 import { DayLogList } from '../../src/components/day-log';
+import { CarouselPage } from '../../src/components/navigation/CarouselPage';
 import { QuickAddGrid, UndoToast } from '../../src/components/quick-add';
 import { CreateFoodSheet, SearchSheet } from '../../src/components/search';
 import { TodayHeader, WeightChip } from '../../src/components/today';
@@ -70,6 +71,12 @@ import { layout, space } from '../../src/theme/tokens';
  * own tiles do not reorder while Today stays focused, only when the search sheet's own log-then-
  * close (or a genuine refocus, `<QuickAddGrid>`'s own two other triggers) says the user is looking
  * at Today again.
+ *
+ * `<CarouselPage>` WRAPS THE WHOLE SCREEN (issue #82) — the one shared `dragX` from
+ * `useTabCarousel` (`app/(tabs)/_layout.tsx`'s `CarouselRoot`) slides this screen with the finger
+ * during a swipe to Workout/Charts/Settings. No behaviour here changes: outside that provider
+ * (e.g. this file's own test, which renders `<TodayScreen>` alone) it falls back to a static
+ * `SharedValue` at 0, per `<CarouselPage>`'s own module note.
  */
 export default function TodayScreen(): React.JSX.Element {
   const db = useDb();
@@ -130,42 +137,44 @@ export default function TodayScreen(): React.JSX.Element {
   };
 
   return (
-    <View style={styles.screen}>
-      <ScrollView
-        style={{ backgroundColor: theme.color.bg.canvas }}
-        contentContainerStyle={styles.content}
-        keyboardShouldPersistTaps="handled"
-        testID="today-screen"
-      >
-        <TodayHeader
-          kcal={totals.kcal}
-          protein={totals.protein}
-          kcalTarget={settings.kcalTarget}
-          proteinTarget={settings.proteinTarget}
-          isDefault={settings.isDefault}
-          at={when.at}
-          timeZone={when.timeZone}
-          theme={theme}
-          testID="today-header"
-        />
-        <View style={styles.quickAddGroup}>
-          <QuickAddGrid onLogged={handleLogged} onPortionAdded={handlePortionAdded} refreshToken={quickAddRefreshToken} />
-          <SearchSheet
-            db={db}
-            onLogged={handleSearchLogged}
-            onPortionAdded={handleSearchPortionAdded}
-            renderCreate={(create) => (
-              <CreateFoodSheet {...create} presentation="overlay" db={db} theme={theme} testID="today-create-food-sheet" />
-            )}
+    <CarouselPage testID="today-carousel-page">
+      <View style={styles.screen}>
+        <ScrollView
+          style={{ backgroundColor: theme.color.bg.canvas }}
+          contentContainerStyle={styles.content}
+          keyboardShouldPersistTaps="handled"
+          testID="today-screen"
+        >
+          <TodayHeader
+            kcal={totals.kcal}
+            protein={totals.protein}
+            kcalTarget={settings.kcalTarget}
+            proteinTarget={settings.proteinTarget}
+            isDefault={settings.isDefault}
+            at={when.at}
+            timeZone={when.timeZone}
             theme={theme}
-            testID="today-search-sheet"
+            testID="today-header"
           />
-        </View>
-        <DayLogList refreshToken={dayLogVersion} onChanged={handlePortionAdded} testID="day-log-list" />
-        <WeightChip testID="weight-chip" />
-      </ScrollView>
-      <UndoToast onUndo={handleUndo} testID="today-undo-toast" />
-    </View>
+          <View style={styles.quickAddGroup}>
+            <QuickAddGrid onLogged={handleLogged} onPortionAdded={handlePortionAdded} refreshToken={quickAddRefreshToken} />
+            <SearchSheet
+              db={db}
+              onLogged={handleSearchLogged}
+              onPortionAdded={handleSearchPortionAdded}
+              renderCreate={(create) => (
+                <CreateFoodSheet {...create} presentation="overlay" db={db} theme={theme} testID="today-create-food-sheet" />
+              )}
+              theme={theme}
+              testID="today-search-sheet"
+            />
+          </View>
+          <DayLogList refreshToken={dayLogVersion} onChanged={handlePortionAdded} testID="day-log-list" />
+          <WeightChip testID="weight-chip" />
+        </ScrollView>
+        <UndoToast onUndo={handleUndo} testID="today-undo-toast" />
+      </View>
+    </CarouselPage>
   );
 }
 

@@ -1,6 +1,7 @@
 import { useRouter } from 'expo-router';
 import React from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View, type TextStyle } from 'react-native';
+import { CarouselPage } from '../../src/components/navigation/CarouselPage';
 import { TargetsGroup } from '../../src/components/settings/TargetsGroup';
 import { useDb } from '../../src/hooks/useDb';
 import { useTheme } from '../../src/hooks/useTheme';
@@ -47,6 +48,10 @@ function SettingsRow({ label, onPress, theme, testID }: { label: string; onPress
  * `layout.groupGap` between the two groups, not the tighter `space[3]` #43 shipped with when this
  * screen only had one group — a single group's own top padding read fine alone, but two groups
  * back to back need the token actually named for the job so "Targets" and "Library" don't collide.
+ *
+ * `<CarouselPage>` WRAPS THE WHOLE SCREEN (issue #82) — the same `dragX` every other tab root
+ * reads through `app/(tabs)/_layout.tsx`'s `CarouselRoot`, so a swipe from Charts slides this
+ * screen with the finger. See `app/(tabs)/index.tsx`'s own module note.
  */
 export default function SettingsScreen(): React.JSX.Element {
   const theme = useTheme();
@@ -55,18 +60,20 @@ export default function SettingsScreen(): React.JSX.Element {
   const { color } = theme;
 
   return (
-    <ScrollView style={{ backgroundColor: color.bg.canvas }} contentContainerStyle={styles.content}>
-      <TargetsGroup db={db} theme={theme} testID="settings-targets" />
+    <CarouselPage testID="settings-carousel-page">
+      <ScrollView style={{ backgroundColor: color.bg.canvas }} contentContainerStyle={styles.content}>
+        <TargetsGroup db={db} theme={theme} testID="settings-targets" />
 
-      <View style={styles.group}>
-        <Text style={textStyle(type.micro, color.settings.groupTitleText)}>Library</Text>
-        <View style={[styles.card, { borderRadius: radius.lg, backgroundColor: color.settings.groupBg }]}>
-          <SettingsRow label="Foods" onPress={() => router.push('/foods')} theme={theme} testID="settings-foods" />
-          <View style={[styles.divider, { backgroundColor: color.line.hairline }]} />
-          <SettingsRow label="Meals" onPress={() => router.push('/meals')} theme={theme} testID="settings-meals" />
+        <View style={styles.group}>
+          <Text style={textStyle(type.micro, color.settings.groupTitleText)}>Library</Text>
+          <View style={[styles.card, { borderRadius: radius.lg, backgroundColor: color.settings.groupBg }]}>
+            <SettingsRow label="Foods" onPress={() => router.push('/foods')} theme={theme} testID="settings-foods" />
+            <View style={[styles.divider, { backgroundColor: color.line.hairline }]} />
+            <SettingsRow label="Meals" onPress={() => router.push('/meals')} theme={theme} testID="settings-meals" />
+          </View>
         </View>
-      </View>
-    </ScrollView>
+      </ScrollView>
+    </CarouselPage>
   );
 }
 
