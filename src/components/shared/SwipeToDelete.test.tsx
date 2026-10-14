@@ -16,8 +16,8 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { act, configure, fireEvent, render, screen } from '@testing-library/react-native';
 import { Pressable, StyleSheet, Text } from 'react-native';
-import { glyph, radius, size, themes, type Theme } from '../../theme/tokens';
-import { DELETE_SLIDE_WIDTH, SwipeToDelete, deleteLayerOpacity, dragOffset, releasesOpen } from './SwipeToDelete';
+import { glyph, motion, radius, size, themes, type Theme } from '../../theme/tokens';
+import { DELETE_SLIDE_WIDTH, SwipeToDelete, deleteLayerOpacity, dragOffset, releasesOpen, shouldClaimDrag } from './SwipeToDelete';
 
 // The delete layer intentionally leaves the accessibility tree at rest (the fix this file's own
 // "SwipeToDelete accessibility" describe block asserts directly). RNTL 14 filters every query,
@@ -74,6 +74,44 @@ describe('drag rules', () => {
 
   it('the geometry comes from tokens alone — never a restated artboard literal', () => {
     expect(DELETE_SLIDE_WIDTH).toBe(size.deleteButton.gap + size.deleteButton.side);
+  });
+});
+
+/**
+ * Issue #82's own fix inside its acceptance (flagged by the #249 token doc and PR #255's reviewer):
+ * a shut row may only claim a drag it can actually move — left while shut, either way once revealed
+ * — so a rightward drag on the day log is free to reach the swipe-between-tabs pager instead of being
+ * swallowed here and clamped to zero travel.
+ */
+describe('shouldClaimDrag (issue #82)', () => {
+  const { innerClaimPt } = motion.carousel.activation;
+
+  it('a shut row claims a leftward drag past the inner-claim threshold', () => {
+    expect(shouldClaimDrag(false, -(innerClaimPt + 1), 0)).toBe(true);
+  });
+
+  it('a shut row does not claim a rightward drag, however far — it has nowhere to move that way', () => {
+    expect(shouldClaimDrag(false, innerClaimPt + 1, 0)).toBe(false);
+    expect(shouldClaimDrag(false, 1000, 0)).toBe(false);
+  });
+
+  it('a revealed row claims a drag in either direction', () => {
+    expect(shouldClaimDrag(true, -(innerClaimPt + 1), 0)).toBe(true);
+    expect(shouldClaimDrag(true, innerClaimPt + 1, 0)).toBe(true);
+  });
+
+  it('a drag at or under the inner-claim threshold is never claimed, in either state', () => {
+    expect(shouldClaimDrag(false, -innerClaimPt, 0)).toBe(false);
+    expect(shouldClaimDrag(true, innerClaimPt, 0)).toBe(false);
+  });
+
+  it('a diagonal drag outside the horizontal axis is never claimed, in either state', () => {
+    expect(shouldClaimDrag(false, -(innerClaimPt + 1), innerClaimPt + 2)).toBe(false);
+    expect(shouldClaimDrag(true, innerClaimPt + 1, innerClaimPt + 2)).toBe(false);
+  });
+
+  it('reads the threshold from motion.carousel.activation.innerClaimPt, never a restated literal', () => {
+    expect(innerClaimPt).toBe(6);
   });
 });
 
@@ -313,5 +351,49 @@ describe('SwipeToDelete gesture', () => {
 
     expect(frontOffset()).toBe(0);
     expect(layerOpacity()).toBe(0);
+  });
+});
+
+/**
+ * `shouldClaimDrag`'s own tests above prove the predicate; these prove it is actually wired into the
+ * mounted `PanResponder` — i.e. that a real rightward drag on a real shut row is rejected by this
+ * component's own `onMoveShouldSetResponder`, which is what frees it to be claimed by an enclosing
+ * gesture (the #82 pager) instead of being swallowed here. Drives the two RN responder-system phases
+ * directly: `onMoveShouldSetResponderCapture` first (always runs top-down, and is what actually
+ * accumulates `gestureState.dx/dy` from the touch history), then `onMoveShouldSetResponder` (the
+ * bubble-phase poll that reads that accumulated state) — the same two calls the real responder system
+ * makes for a single touch-move, in the same order.
+ */
+describe('SwipeToDelete gesture arbitration (issue #82)', () => {
+  const claimAttempt = (dx: number, dy = 0): boolean => {
+    const front = frontProps() as unknown as {
+      onMoveShouldSetResponderCapture: (event: ResponderEvent) => boolean;
+      onMoveShouldSetResponder: (event: ResponderEvent) => boolean;
+    };
+    const event = touchEvent(200, 200 + dx, dy);
+    front.onMoveShouldSetResponderCapture(event);
+    return front.onMoveShouldSetResponder(event);
+  };
+
+  it('a shut row does not claim a rightward drag — it is left free for the pager', async () => {
+    await renderSwipe();
+    expect(claimAttempt(20)).toBe(false);
+  });
+
+  it('a shut row still claims a leftward drag, so delete keeps working on Today', async () => {
+    await renderSwipe();
+    expect(claimAttempt(-20)).toBe(true);
+  });
+
+  it('a revealed row claims a rightward drag (closing)', async () => {
+    await renderSwipe();
+    await swipeBy(-DELETE_SLIDE_WIDTH);
+    expect(claimAttempt(20)).toBe(true);
+  });
+
+  it('a revealed row claims a leftward drag too', async () => {
+    await renderSwipe();
+    await swipeBy(-DELETE_SLIDE_WIDTH);
+    expect(claimAttempt(-20)).toBe(true);
   });
 });

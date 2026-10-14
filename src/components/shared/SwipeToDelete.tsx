@@ -50,7 +50,7 @@ import {
   type StyleProp,
   type ViewStyle,
 } from 'react-native';
-import { glyph, radius, size, type Theme } from '../../theme/tokens';
+import { glyph, motion, radius, size, type Theme } from '../../theme/tokens';
 
 /** How far the row slides open: the theme-background gap, then the square button. */
 export const DELETE_SLIDE_WIDTH = size.deleteButton.gap + size.deleteButton.side;
@@ -71,6 +71,28 @@ const DELETE_HIT_SLOP = {
   left: size.deleteButton.sideHit - size.deleteButton.side,
   right: 0,
 };
+
+/**
+ * Whether this row claims a drag, rather than letting it pass through to an enclosing gesture — the
+ * #82 tab-swipe pager sitting outside every screen's root. `motion.carousel`'s own doc (issue #249)
+ * is the arbitration contract: the pager claims last and never takes a touch an inner gesture already
+ * holds, which only works if the inner gesture only ever holds a touch it can actually act on.
+ *
+ * A *shut* row can only move left (open); claiming a rightward drag it would immediately clamp to
+ * zero travel (`dragOffset`'s own `Math.min(0, …)`) swallowed every right-swipe on the day log before
+ * this fix, which left the pager dead on the most-used half of Today. Once revealed, the row can move
+ * either way — further open is a no-op via that same clamp, and closing is to the right — so both
+ * directions are fair game again.
+ *
+ * `motion.carousel.activation.innerClaimPt` (6), not a restated literal: the token's own doc fixes
+ * this exact number as the point the pager's `distancePt` (12) must stay above, so this file reading
+ * it from the token is what keeps that invariant true by construction instead of by two files
+ * agreeing on "6" independently.
+ */
+export function shouldClaimDrag(revealed: boolean, dx: number, dy: number): boolean {
+  const horizontal = Math.abs(dx) > motion.carousel.activation.innerClaimPt && Math.abs(dx) > Math.abs(dy);
+  return horizontal && (revealed || dx < 0);
+}
 
 /**
  * Where the row sits while the finger is down: the position it started this drag from, plus the
@@ -142,7 +164,7 @@ export function SwipeToDelete({ theme, deleteLabel, onDelete, style, testID = 's
       PanResponder.create({
         onStartShouldSetPanResponder: () => false,
         onMoveShouldSetPanResponder: (_: GestureResponderEvent, gesture: PanResponderGestureState) =>
-          Math.abs(gesture.dx) > 6 && Math.abs(gesture.dx) > Math.abs(gesture.dy),
+          shouldClaimDrag(revealed, gesture.dx, gesture.dy),
         onPanResponderGrant: () => setDragging(true),
         onPanResponderMove: (_: GestureResponderEvent, gesture: PanResponderGestureState) => {
           setOffset(dragOffset(revealed, gesture.dx));
