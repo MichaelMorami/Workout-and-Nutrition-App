@@ -4,12 +4,12 @@
  * context — any screen that is not a tab root, or a test that renders one in isolation — it falls
  * back to its own static `SharedValue`, so no consumer breaks for lack of a provider.
  */
-jest.mock('react-native-reanimated', () => jest.requireActual('./test-support/reanimated-mock'));
-
 import { render, screen } from '@testing-library/react-native';
 import { StyleSheet, Text } from 'react-native';
 import { useSharedValue } from 'react-native-reanimated';
 import { CarouselContext, CarouselPage } from './CarouselPage';
+
+jest.mock('react-native-reanimated', () => jest.requireActual('./test-support/reanimated-mock'));
 
 function translateXOf(testID: string): number {
   const style = StyleSheet.flatten(screen.getByTestId(testID).props.style) as {

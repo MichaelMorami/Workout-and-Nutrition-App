@@ -8,7 +8,13 @@
  * reused here by direct relative import rather than copied again, because this hook and that mock are
  * both ui-engineer's own files — no cross-agent dependency, just one fewer near-identical copy.
  */
-jest.mock('react-native-reanimated', () => require('../components/navigation/test-support/reanimated-mock'));
+import { act, renderHook } from '@testing-library/react-native';
+import { Dimensions, type GestureResponderEvent } from 'react-native';
+import * as ReanimatedMock from '../components/navigation/test-support/reanimated-mock';
+import { haptics, motion } from '../theme/tokens';
+import { TAB_PATHS, useTabCarousel, type UseTabCarouselResult } from './useTabCarousel';
+
+jest.mock('react-native-reanimated', () => jest.requireActual('../components/navigation/test-support/reanimated-mock'));
 
 const mockNavigate = jest.fn();
 let mockPathname = '/';
@@ -19,12 +25,6 @@ jest.mock('expo-router', () => ({
 
 const mockFireHaptic = jest.fn();
 jest.mock('./useHapticFeedback', () => ({ useHapticFeedback: () => mockFireHaptic }));
-
-import { act, renderHook } from '@testing-library/react-native';
-import { Dimensions, type GestureResponderEvent } from 'react-native';
-import * as ReanimatedMock from '../components/navigation/test-support/reanimated-mock';
-import { haptics, motion } from '../theme/tokens';
-import { TAB_PATHS, useTabCarousel, type UseTabCarouselResult } from './useTabCarousel';
 
 /**
  * `useWindowDimensions` is deliberately not mocked: jest-expo's own `ios` preset fixes

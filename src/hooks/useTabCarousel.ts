@@ -71,20 +71,32 @@ export function useTabCarousel(): UseTabCarouselResult {
   const { width: pageWidthPt } = useWindowDimensions();
   const firedEdgeHaptic = useRef(false);
 
-  // A ref, not a plain variable: `onPanResponderMove`/`Release` are captured once by `useMemo` below
-  // and must always read the *current* tab, not the one that was focused when the responder was
-  // built — `activation.onlyAtNavigationRoot` means this hook only ever runs at a tab root, but
-  // which root changes without this responder being recreated (expo-router keeps the same `Tabs`
-  // mounted; only the focused screen changes).
-  const activeIndexRef = useRef(0);
-  activeIndexRef.current = TAB_PATHS.indexOf(pathname as (typeof TAB_PATHS)[number]);
-
   const { activation, commitFraction, commitVelocityPtPerS, edgeHaptic, edgeMaxTravelFraction, edgeResistance, reduced, releaseVelocity } =
     motion.carousel;
   const springToken = motion.spring[motion.carousel.releaseSpring];
 
+  // Not a ref: `pathname` is in this `useMemo`'s own dependency list below, so the whole responder
+  // (and the `index` closure captured here) is rebuilt whenever the focused tab changes — cheap,
+  // and only ever happens between gestures (the user has already released to get a new `pathname`),
+  // never mid-drag.
+  const index = TAB_PATHS.indexOf(pathname as (typeof TAB_PATHS)[number]);
+
   const panResponder = useMemo(
     () =>
+      /* eslint-disable react-hooks/refs, react-hooks/immutability --
+       * Both rules (eslint-config-expo's React-Compiler-readiness additions) flag the pattern this
+       * hook depends on by design: `firedEdgeHaptic` (a ref) and `dragX.value` (reanimated's own
+       * mutable `SharedValue`) are read and written from inside these handlers. The plugin treats
+       * that as happening "during render" because the object literal is built inside this `useMemo`
+       * factory — but these handlers themselves only ever run later, when `PanResponder` calls them
+       * for an actual gesture event (the same timing class as an event handler or an effect), never
+       * synchronously as part of this component's render. `SwipeToDelete.tsx` sidesteps the same
+       * warning by using `useState` instead of a ref/`SharedValue`, which would force a React
+       * re-render on every pixel of drag — exactly what `useSharedValue` exists to avoid (CLAUDE.md:
+       * animations run on the UI thread at 60fps). Raised as a candidate for a narrower,
+       * reanimated-aware `eslint.config.js` exemption instead of this per-file disable — not this
+       * hook's file to change (release-engineer's).
+       */
       PanResponder.create({
         onStartShouldSetPanResponder: () => false,
         onMoveShouldSetPanResponder: (_evt: GestureResponderEvent, gesture: PanResponderGestureState) =>
@@ -93,7 +105,6 @@ export function useTabCarousel(): UseTabCarouselResult {
           firedEdgeHaptic.current = false;
         },
         onPanResponderMove: (_evt: GestureResponderEvent, gesture: PanResponderGestureState) => {
-          const index = activeIndexRef.current;
           const hasPrevious = index > 0;
           const hasNext = index >= 0 && index < TAB_PATHS.length - 1;
           const offset = carouselOffset(gesture.dx, hasPrevious, hasNext, pageWidthPt, edgeResistance, edgeMaxTravelFraction);
@@ -110,7 +121,6 @@ export function useTabCarousel(): UseTabCarouselResult {
           }
         },
         onPanResponderRelease: (_evt: GestureResponderEvent, gesture: PanResponderGestureState) => {
-          const index = activeIndexRef.current;
           const hasPrevious = index > 0;
           const hasNext = index >= 0 && index < TAB_PATHS.length - 1;
           // PanResponderGestureState.vx/vy are pt/ms; motion.carousel's velocities are pt/s.
@@ -143,6 +153,7 @@ export function useTabCarousel(): UseTabCarouselResult {
           dragX.value = withTiming(0, { duration: 0 });
         },
       }),
+      /* eslint-enable react-hooks/refs, react-hooks/immutability */
     [
       activation.axisRatio,
       activation.distancePt,
@@ -153,6 +164,7 @@ export function useTabCarousel(): UseTabCarouselResult {
       edgeMaxTravelFraction,
       edgeResistance,
       fireHaptic,
+      index,
       pageWidthPt,
       reduced.release.duration,
       reducedMotion,

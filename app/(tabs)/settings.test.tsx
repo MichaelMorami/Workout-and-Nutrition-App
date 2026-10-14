@@ -8,8 +8,6 @@
  * `<CarouselPage>` now wraps the screen (issue #82), which imports `react-native-reanimated` —
  * mocked below with the navigation folder's own test-support mock, same as `index.test.tsx`.
  */
-jest.mock('react-native-reanimated', () => jest.requireActual('../../src/components/navigation/test-support/reanimated-mock'));
-
 import { fireEvent, render, screen } from '@testing-library/react-native';
 import React from 'react';
 import { DbProvider } from '../../src/components/db/DbProvider';
@@ -17,6 +15,8 @@ import { ThemeContext } from '../../src/components/theme/theme-context';
 import { getSettings, type SettingsView } from '../../src/db';
 import { themes } from '../../src/theme/tokens';
 import SettingsScreen from './settings';
+
+jest.mock('react-native-reanimated', () => jest.requireActual('../../src/components/navigation/test-support/reanimated-mock'));
 
 jest.mock('../../src/db', () => ({
   ...jest.requireActual<typeof import('../../src/db')>('../../src/db'),

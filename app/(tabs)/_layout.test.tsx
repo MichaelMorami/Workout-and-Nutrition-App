@@ -17,22 +17,6 @@
  * `useTabCarousel`'s own module note). `useTabCarousel` itself is mocked so this file asserts only
  * the wiring — the hook's own behaviour is `useTabCarousel.test.tsx`'s job.
  */
-jest.mock('react-native-reanimated', () => jest.requireActual('../../src/components/navigation/test-support/reanimated-mock'));
-
-const mockPanHandlers = { onMoveShouldSetResponder: jest.fn(() => false) };
-const mockDragX = { value: -7 };
-jest.mock('../../src/hooks/useTabCarousel', () => ({
-  useTabCarousel: () => ({ dragX: mockDragX, panHandlers: mockPanHandlers }),
-}));
-jest.mock('expo-router', () => {
-  const react = jest.requireActual<typeof import('react')>('react');
-  function Tabs({ children }: { children?: React.ReactNode }) {
-    return react.createElement(react.Fragment, null, children);
-  }
-  Tabs.Screen = () => null;
-  return { Tabs };
-});
-
 import { render, screen } from '@testing-library/react-native';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import type React from 'react';
@@ -42,6 +26,25 @@ import { CarouselContext } from '../../src/components/navigation/CarouselPage';
 import { ThemeContext } from '../../src/components/theme/theme-context';
 import { glyph, size, themes } from '../../src/theme/tokens';
 import TabLayout, { CarouselRoot, sharedTabBarOptions, tabBarIcon, tabNames } from './_layout';
+
+jest.mock('react-native-reanimated', () => jest.requireActual('../../src/components/navigation/test-support/reanimated-mock'));
+
+const mockPanHandlers = { onMoveShouldSetResponder: jest.fn(() => false) };
+const mockDragX = { value: -7 };
+jest.mock('../../src/hooks/useTabCarousel', () => ({
+  useTabCarousel: () => ({ dragX: mockDragX, panHandlers: mockPanHandlers }),
+}));
+jest.mock('expo-router', () => {
+  const react = jest.requireActual<typeof import('react')>('react');
+  function StubTabs({ children }: { children?: React.ReactNode }) {
+    return react.createElement(react.Fragment, null, children);
+  }
+  function StubTabsScreen() {
+    return null;
+  }
+  StubTabs.Screen = StubTabsScreen;
+  return { Tabs: StubTabs };
+});
 
 describe('sharedTabBarOptions', () => {
   it('paints the bar with the theme’s translucent tabBar.bg token, not a hard-coded colour', () => {

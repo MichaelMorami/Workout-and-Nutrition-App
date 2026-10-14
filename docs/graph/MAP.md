@@ -1379,7 +1379,7 @@ _no exports_
 
 <sub>used by: `src/components/food-form/FoodForm.tsx`, `src/components/form/FormFrame.tsx`</sub>
 
-### `src/hooks/useTabCarousel.ts`  <sub>170 lines</sub>
+### `src/hooks/useTabCarousel.ts`  <sub>182 lines</sub>
 
 - `const TAB_PATHS: readonly ["/", "/workout", "/charts", "/settings"]`
 - `function useTabCarousel(): UseTabCarouselResult`
