@@ -145,35 +145,35 @@ export function UndoToast({ onUndo, testID = 'undo-toast' }: UndoToastProps) {
     if (toast) translateX.value = 0;
   }, [toast, translateX]);
 
-  const springBack = (): void => {
+  const panResponder = useMemo(() => {
+    /* eslint-disable react-hooks/immutability --
+     * Same case, same reason as `useTabCarousel.ts`: `translateX.value` is reanimated's own mutable
+     * `SharedValue`, written from handlers `PanResponder` calls later for a real gesture, never
+     * during this component's render. */
     const event = motion.events.toastOut;
-    const duration = reducedMotion ? event.reduced.duration : event.duration;
-    translateX.value = withTiming(0, { duration, easing: Easing.bezier(...motion.easing[event.easing]) });
-  };
-  const springBackRef = useRef(springBack);
-  springBackRef.current = springBack;
-
-  const panResponder = useMemo(
-    () =>
-      PanResponder.create({
-        onStartShouldSetPanResponder: () => false,
-        onMoveShouldSetPanResponder: (_: GestureResponderEvent, g: PanResponderGestureState) =>
-          Math.abs(g.dx) > motion.carousel.activation.innerClaimPt && Math.abs(g.dx) > Math.abs(g.dy),
-        onPanResponderMove: (_: GestureResponderEvent, g: PanResponderGestureState) => {
+    const springBack = (): void => {
+      const duration = reducedMotion ? event.reduced.duration : event.duration;
+      translateX.value = withTiming(0, { duration, easing: Easing.bezier(...motion.easing[event.easing]) });
+    };
+    return PanResponder.create({
+      onStartShouldSetPanResponder: () => false,
+      onMoveShouldSetPanResponder: (_: GestureResponderEvent, g: PanResponderGestureState) =>
+        Math.abs(g.dx) > motion.carousel.activation.innerClaimPt && Math.abs(g.dx) > Math.abs(g.dy),
+      onPanResponderMove: (_: GestureResponderEvent, g: PanResponderGestureState) => {
+        translateX.value = g.dx;
+      },
+      onPanResponderRelease: (_: GestureResponderEvent, g: PanResponderGestureState) => {
+        if (Math.abs(g.dx) >= size.toast.height) {
           translateX.value = g.dx;
-        },
-        onPanResponderRelease: (_: GestureResponderEvent, g: PanResponderGestureState) => {
-          if (Math.abs(g.dx) >= size.toast.height) {
-            translateX.value = g.dx;
-            useUndoToastStore.getState().dismiss();
-          } else {
-            springBackRef.current();
-          }
-        },
-        onPanResponderTerminate: () => springBackRef.current(),
-      }),
-    [translateX],
-  );
+          useUndoToastStore.getState().dismiss();
+        } else {
+          springBack();
+        }
+      },
+      onPanResponderTerminate: springBack,
+    });
+    /* eslint-enable react-hooks/immutability */
+  }, [translateX, reducedMotion]);
 
   const animatedStyle = useAnimatedStyle(() => ({
     opacity: opacity.value,

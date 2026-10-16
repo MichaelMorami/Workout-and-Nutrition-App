@@ -10,7 +10,7 @@ import { StyleSheet } from 'react-native';
 import { undo } from '../../db';
 import { DbProvider } from '../db/DbProvider';
 import { forgetLog } from '../../store/logTracker';
-import { useUndoToastStore, type UndoToastPayload } from '../../store/undoToast';
+import { useUndoToastStore, type LogDelta, type UndoToastPayload } from '../../store/undoToast';
 import { ThemeContext } from '../theme/theme-context';
 import { motion, size, themes } from '../../theme/tokens';
 import { UndoToast } from './UndoToast';
@@ -42,7 +42,7 @@ const payload = (overrides: Partial<UndoToastPayload> = {}): UndoToastPayload =>
   ...overrides,
 });
 
-const renderToast = (onUndo?: jest.Mock) =>
+const renderToast = (onUndo?: (delta: LogDelta) => void) =>
   render(
     <DbProvider db={{} as never}>
       <ThemeContext.Provider value={themes.dark}>
