@@ -13,8 +13,8 @@
  * not a UI one; raised as a follow-up, not guessed at here.
  *
  * ALWAYS A SERVINGS MULTIPLE, EVEN IN EXACT MODE. `onLog` reports a plain `portions` number in every
- * case — Presets multiplies the food's serving directly; Exact (for a food with `servingGrams`) is a
- * grams slider converted back to servings on Log, so `QuickAddGrid` has one `logFresh` path instead
+ * case — Presets multiplies the food's serving directly; Exact (for a food with `servingGrams` or
+ * `servingMl`) is a grams or ml slider converted back to servings on Log, so `QuickAddGrid` has one `logFresh` path instead
  * of two. A meal has no grams at all, so its Exact control is a servings stepper in 0.5 steps
  * instead of a slider — still no typing, just a coarser instrument for a candidate the data model
  * cannot weigh.
@@ -43,7 +43,7 @@ import {
   type TextStyle,
 } from 'react-native';
 import type { Candidate } from '../../db';
-import { formatGrams } from '../format/food';
+import { formatGrams, formatMl } from '../format/food';
 import { useEditableNumber } from '../../hooks/useEditableNumber';
 import { useHapticFeedback } from '../../hooks/useHapticFeedback';
 import { resolvePresetKey } from '../serving-preset';
@@ -151,7 +151,16 @@ function servingUnitLabel(candidate: Candidate): string {
   return /\bserving$/i.test(label.trim()) ? label : `${label} serving`;
 }
 
-/** Nearest 0.5-serving multiple to `portions`, for the Exact grams slider's detents. */
+/** The unit an Exact control counts a candidate in, and the size of one serving in it; `null` for a
+ * candidate the data model cannot measure (a meal), which counts in servings. */
+function measureOf(candidate: Candidate): { unit: 'g' | 'ml'; size: number } | null {
+  if (candidate.kind !== 'food') return null;
+  if (candidate.servingGrams != null) return { unit: 'g', size: candidate.servingGrams };
+  if (candidate.servingMl != null) return { unit: 'ml', size: candidate.servingMl };
+  return null;
+}
+
+/** Nearest 0.5-serving multiple to `portions`, for the Exact slider's detents. */
 function nearestHalfServing(portions: number): number {
   return Math.round(portions * 2) / 2;
 }
@@ -162,9 +171,9 @@ function nearestHalfServing(portions: number): number {
  * introduces drift of its own.
  *
  * ISSUE #264. The track used to round the finger's position with a bare `Math.round`, i.e. to a
- * whole *unit* — right for grams, but a whole serving for a candidate the data model cannot weigh,
- * up to sixteen times coarser than the half-serving detents the readout, the nudge, the Log button
- * and the release snap all work in. See `ExactControl`'s `valueStep`.
+ * whole *unit* — right for grams and ml, but a whole serving for a meal, which the data model cannot
+ * measure: twice as coarse (1 serving vs a 0.5 detent) as the half-serving detents the readout, the
+ * nudge, the Log button and the release snap all work in. See `ExactControl`'s `valueStep`.
  */
 function quantise(amount: number, step: number): number {
   return Math.round(amount / step) * step;
@@ -326,7 +335,7 @@ function NudgeButton({
   );
 }
 
-/** The Exact slider track — `PanResponder`-driven, `value` and `max` in the same unit (grams for a
+/** The Exact slider track — `PanResponder`-driven, `value` and `max` in the same unit (grams or ml for a
  * food, servings for a meal). Detents fall at every half of `unitSize` (one serving), snapped within
  * `interaction.sliderDetentSnapG` of a detent with `haptics.sliderDetent`.
  *
@@ -501,13 +510,18 @@ function ExactControl({
 }) {
   const { portionSheet, foodForm } = theme.color;
   const fireHaptic = useHapticFeedback();
-  const isGrams = candidate.kind === 'food' && candidate.servingGrams != null;
-  const unitSize = isGrams ? (candidate as { servingGrams: number }).servingGrams : 1;
+  // Issue #265: the unit the candidate is *measured* in — grams for a weight food, ml for a volume
+  // food, neither for a meal. `servingGrams`/`servingMl` are descriptors of the serving, not storage
+  // (the log row's `grams`/`ml` follow the basis in `resolveAmount`); `onLog` still reports servings.
+  const measure = measureOf(candidate);
+  const isMeasured = measure !== null;
+  const unitSize = measure === null ? 1 : measure.size;
+  const formatAmount = measure?.unit === 'ml' ? formatMl : formatGrams;
   // The slider's starting range — not a cap. See `growRangeTo`. Issue #93: opens at the candidate's
   // own preset max (`interaction.servingSteps[key].max`), not a flat `sliderMaxServings` for every
   // serving kind — a 100 g food's Exact range starts wider than a teaspoon's.
   const baseRange = unitSize * interaction.servingSteps[presetKeyOf(candidate)].max;
-  const nudgeStep = isGrams ? interaction.sliderNudgeG : 0.5;
+  const nudgeStep = isMeasured ? interaction.sliderNudgeG : 0.5;
   /**
    * The finest amount this control can *show*, and therefore the step the track quantises the
    * finger's position to (issue #264). It is the precision of the readout's own formatter, not a
@@ -517,7 +531,7 @@ function ExactControl({
    * is a token (#107 moved `sliderNudgeG` 5 → 1) and so would silently coarsen the drag if design
    * ever moved it again.
    */
-  const valueStep = isGrams ? 1 : 0.5;
+  const valueStep = isMeasured ? 1 : 0.5;
 
   const [amount, setAmount] = useState<number>(unitSize * initialPortions);
   // A log-entry edit (issue #42) can open already above `baseRange` — start the range grown to fit
@@ -575,7 +589,7 @@ function ExactControl({
     value: amount,
     min: 0,
     onCommit: (parsed) => {
-      const rounded = isGrams ? Math.round(parsed) : nearestHalfServing(parsed);
+      const rounded = isMeasured ? Math.round(parsed) : nearestHalfServing(parsed);
       if (rounded <= 0) return;
       applyAbsolute(rounded);
     },
@@ -584,8 +598,8 @@ function ExactControl({
   const portions = amount / unitSize;
   const kcalText = Math.round(candidate.kcal * portions).toLocaleString(locale);
   const proteinText = formatGrams(candidate.protein * portions, locale);
-  const readout = isGrams ? formatGrams(amount, locale) : `×${nearestHalfServing(portions)}`;
-  const logLabel = isGrams ? `Log ${formatGrams(amount, locale)}` : `Log ×${nearestHalfServing(portions)}`;
+  const readout = isMeasured ? formatAmount(amount, locale) : `×${nearestHalfServing(portions)}`;
+  const logLabel = isMeasured ? `Log ${formatAmount(amount, locale)}` : `Log ×${nearestHalfServing(portions)}`;
 
   return (
     <View testID={testID}>
@@ -643,7 +657,7 @@ function ExactControl({
 
       <Pressable
         testID={`${testID}-log`}
-        onPress={() => onLog(isGrams ? portions : nearestHalfServing(portions))}
+        onPress={() => onLog(isMeasured ? portions : nearestHalfServing(portions))}
         accessibilityRole="button"
         accessibilityLabel={logLabel}
         style={[
