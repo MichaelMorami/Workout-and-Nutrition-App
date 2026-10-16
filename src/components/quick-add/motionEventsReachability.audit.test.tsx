@@ -47,7 +47,7 @@ const PENDING_EXCEPTIONS: readonly { readonly key: keyof typeof motion.events; r
   { key: 'sheetIn', issue: 231, note: "#224 ruled DEFER, blocked on a dependency: both sheets present through RN core Modal's animationType=slide (PortionSheet.tsx:24-27, SearchSheet.tsx:67); #231 decides the bottom-sheet dependency, then wires or retires this" },
   { key: 'sheetOut', issue: 231, note: 'same — deferred on the same dependency' },
   { key: 'portionModeSwap', issue: 225, note: "the original trigger for #210 — PortionSheet's Presets/Exact cross-fade is not wired; wiring already decided" },
-  { key: 'sliderSnap', issue: 230, note: "#224 ruled WIRE, not retire: SliderTrack already snaps the value and fires haptics.sliderDetent on release (PortionSheet.tsx:368-375) — only the 120 ms visual settle is missing" },
+  { key: 'sliderSnap', issue: 230, note: "#224 ruled WIRE, not retire: SliderTrack already snaps the value and fires haptics.sliderDetent on release (PortionSheet.tsx:407-419) — only the 120 ms visual settle is missing" },
   { key: 'rowPress', issue: 229, note: '#224 ruled WIRE: every row/chip press colour is a one-frame swap today (e.g. DayLogRow.tsx:107)' },
   { key: 'setCollapse', issue: 232, note: '#224 ruled DEFER, blocked on a screen that does not exist: app/(tabs)/workout.tsx is a placeholder, so there is no set row to collapse' },
   { key: 'restPulse', issue: 232, note: 'same — no rest ring exists until the Workout screen is built' },
