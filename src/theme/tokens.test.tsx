@@ -347,10 +347,11 @@ describe('arc target states (issue #272)', () => {
      calls a hit target a blown one. `arcStateFor` is the sanctioned route for #273; the canvas
      calls it too, so the specimen cannot disagree with the spec it is drawn to prove. */
   describe('arcStateFor maps a value and a target to a state', () => {
-    it.each([
+    const cases: [metric: ArcMetricName, target: number, over: ArcStateName][] = [
       ['kcal', 2400, 'exceeded'],
       ['protein', 180, 'surplus'],
-    ] as const)('%s, target %i: target−1 is under, target is met, target+1 is %s', (metric, target, over) => {
+    ];
+    it.each(cases)('%s, target %i: target−1 is under, target is met, target+1 is %s', (metric, target, over) => {
       expect(arcStateFor(metric, target - 1, target)).toBe('under');
       expect(arcStateFor(metric, target, target)).toBe('met');
       expect(arcStateFor(metric, target + 1, target)).toBe(over);

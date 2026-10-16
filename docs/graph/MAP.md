@@ -1493,7 +1493,7 @@ _no exports_
 
 ## `src/theme/`
 
-### `src/theme/tokens.ts`  <sub>2247 lines</sub>
+### `src/theme/tokens.ts`  <sub>2278 lines</sub>
 
 - `const MIN_TEXT_CONTRAST: 4.5`
 - `const arcState: { readonly under: ArcStateSpec; readonly met: ArcStateSpec; readonly exceeded: ArcStateSpec; readonly surplus: ArcStateSpec; }`
@@ -1515,6 +1515,7 @@ _no exports_
 - `const type: { readonly displayXl: { readonly fontFamily: "Archivo-DisplayXl"; readonly fontSize: 33; readonly lineHeight: 33; readonly letterSpacing: -0.73; readonly fontVariant: readonly ["tabular-nums"]; }; readonly displayLg: { readonly fontFamily: "Archivo-Display"; readonly fontSize: 25; readonly lineHeight: 27; readonly letterSpacing: -0.45; }; readonly statHero: { readonly fontFamily: "A...`
 - `function arcOverState(metric: ArcMetricName): ArcStateName`
 - `function arcStateColors(color: ColorTokens, metric: ArcMetricName, state: ArcStateName): ArcStateColors`
+- `function arcStateFor(metric: ArcMetricName, value: number, target: number): ArcStateName`
 - `function formFooterPaddingBottom(keyboardVisible: boolean, safeAreaBottom: number): number`
 - `function resolveThemeName(preference: ThemePreference, system: string | null | undefined): ThemeName`
 - `type ArcMetricName = keyof typeof arcTargetKind`
