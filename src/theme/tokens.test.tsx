@@ -296,7 +296,8 @@ describe('arc target states (issue #272)', () => {
   });
 
   it('defines four below/at/over states and leaves the no-target ring out of them', () => {
-    expect([...arcStateNames]).toEqual(['under', 'met', 'exceeded', 'surplus']);
+    const expected: readonly ArcStateName[] = ['under', 'met', 'exceeded', 'surplus'];
+    expect([...arcStateNames]).toEqual([...expected]);
     expect(Object.keys(arcState).sort()).toEqual([...arcStateNames].sort());
     // `noTarget` is `arc-math.ts`'s fifth status and this issue does not touch it: no state here
     // means no new colour, shape or word can reach it.

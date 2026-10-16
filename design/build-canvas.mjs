@@ -250,7 +250,7 @@ function chip(T, { icon, label, value, sub, accent, spark, cta }) {
 
 function todayScreen(T, { empty = false, tiles = ['logged', 'rest', 'rest', 'rest', 'rest', 'rest'], toastData = null } = {}) {
   const PAD = layout.gutterToday;
-  const A = T.c.arc, L = T.c.logRow;
+  const L = T.c.logRow;
   const head = `<header style="${s({ height: '48px', padding: `0 ${PAD}px`, display: 'flex', alignItems: 'center' })}">
   <div style="${s({ display: 'flex', flexDirection: 'column', gap: '4px' })}">
     <div style="${t('displayLg', { color: T.t1 })}">Today</div>
