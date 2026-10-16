@@ -28,7 +28,8 @@ import { layout, space } from '../../src/theme/tokens';
  * same frame as the tile's own "Logged" wash — no second database read, no network involved either
  * way (`CLAUDE.md` — the app never blocks on the network).
  *
- * The "Search foods" bar (#69, decision 4 in `docs/decisions.md`) sits right under the grid, in the
+ * The "Search foods" bar (#69, decision 4 in `docs/decisions.md`) sits right under the grid, sharing
+ * its row with a "+ Food" control (#267: one tap to the blank create form), in the
  * same `layout.tileGap` rhythm as the tiles themselves — `<SearchSheet>` owns the bar and the sheet
  * it opens. Row tap-to-log and long-press (#70) write through the exact same `onLogged`/
  * `onPortionAdded` shape `<QuickAddGrid>` uses, so they feed this screen's rings from the same two

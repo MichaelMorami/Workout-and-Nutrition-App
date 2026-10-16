@@ -25,7 +25,7 @@ jq -r '.modules["src/db/queries/nutrition.ts"].exports[]' docs/graph/symbols.jso
 
 - `function default(): import("react").JSX.Element`
 
-### `app/(tabs)/index.tsx`  <sub>197 lines</sub>
+### `app/(tabs)/index.tsx`  <sub>198 lines</sub>
 
 - `function default(): React.JSX.Element`
 
@@ -808,7 +808,7 @@ jq -r '.modules["src/db/queries/nutrition.ts"].exports[]' docs/graph/symbols.jso
   /** Fires with the fresh log's receipt after a successful save — the same shape `QuickAddGrid`/
    * `SearchSheet...`
 
-### `src/components/search/SearchSheet.tsx`  <sub>828 lines</sub>
+### `src/components/search/SearchSheet.tsx`  <sub>872 lines</sub>
 
 - `function SearchSheet({ db, onLogged, onPortionAdded, onCreate, renderCreate, locale, theme, testID = 'search-sheet' }: SearchSheetProps): import("react").JSX.Element`
 - `type CreateSlotArgs = { query: string; onLogged: (receipt: LogReceipt) => void; onClose: () => void }`

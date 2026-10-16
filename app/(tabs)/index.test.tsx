@@ -359,6 +359,36 @@ describe('TodayScreen', () => {
     expect(screen.queryByTestId('today-create-food-sheet')).toBeNull();
   });
 
+  it('the Add food control opens the blank create form in one tap, and its Save logs and re-ranks like any search log (issue #267)', async () => {
+    mockCreateFoodAndLog.mockReturnValue({
+      food: { ...yoghurt, id: 'food-9', name: 'Rice cake' } as never,
+      receipt: { ...receipt, target: { kind: 'food', id: 'food-9' } },
+    });
+    await renderScreen();
+    const callsAtMount = mockQuickAddCandidates.mock.calls.length;
+
+    // Tap 1 — straight onto the blank form; no sheet-then-row detour.
+    await fireEvent.press(screen.getByTestId('today-search-sheet-add'));
+    expect(screen.getByTestId('today-create-food-sheet-form-name').props.value).toBe('');
+
+    await fireEvent.changeText(screen.getByTestId('today-create-food-sheet-form-name'), 'Rice cake');
+    // Tap 2 — Save.
+    await fireEvent.press(screen.getByTestId('today-create-food-sheet-form-save'));
+
+    expect(mockCreateFoodAndLog).toHaveBeenCalledTimes(1);
+    expect(screen.queryByTestId('today-create-food-sheet')).toBeNull();
+    expect(mockQuickAddCandidates).toHaveBeenCalledTimes(callsAtMount + 1);
+  });
+
+  it('the search bar and the Add food control share one row inside the ScrollView that persists taps (issues #79, #267)', async () => {
+    await renderScreen();
+
+    const bar = screen.getByTestId('today-search-sheet-bar');
+    const add = screen.getByTestId('today-search-sheet-add');
+    expect(bar.parent?.parent).toBe(add.parent?.parent);
+    expect(screen.getByTestId('today-screen').props.keyboardShouldPersistTaps).toBe('handled');
+  });
+
   it("a quick-add tile tap does not re-rank the grid — Today stays focused (issue #103)", async () => {
     mockQuickAddCandidates.mockReturnValue([yoghurt]);
     mockLogFood.mockReturnValue(receipt);
