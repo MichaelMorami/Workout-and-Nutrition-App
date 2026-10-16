@@ -6,7 +6,7 @@
 import { fireEvent, render, screen, within } from '@testing-library/react-native';
 import type { ComponentProps } from 'react';
 import { StyleSheet } from 'react-native';
-import type { FoodCandidate, MealCandidate } from '../../db';
+import type { Candidate, FoodCandidate, MealCandidate } from '../../db';
 import { interaction, size, space, themes } from '../../theme/tokens';
 import { PortionSheet, servingSteps } from './PortionSheet';
 
@@ -656,5 +656,218 @@ describe('PortionSheet', () => {
 
     await fireEvent.press(screen.getByTestId('sheet-scrim'));
     expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  /**
+   * Issue #264 — value correctness on a fast drag. Every expectation below is derived from what the
+   * person holding the phone can observe (the readout's own text, the thumb's rendered centre, the
+   * `onLog` payload, one press of the + nudge) or from a contract this sheet already publishes
+   * elsewhere (the 0.5-serving detent its Log button reports, the range its own a11y value exposes).
+   * None of it replays `SliderTrack`'s arithmetic or reads `PanResponder`'s `gestureState`: a
+   * harness that recomputes its expectation from the implementation passes by construction and
+   * proves nothing — that is how PR #261 shipped a 10× velocity conversion green.
+   */
+  describe('issue #264: a fast drag commits the amount the thumb is sitting on', () => {
+    const TRACK_WIDTH = 400;
+
+    /** A food the data model cannot weigh (volume only, `servingGrams: null`), so its Exact control
+     * counts in servings rather than grams — the same unit a meal's does. */
+    const volumeFood: FoodCandidate = {
+      ...food,
+      servingLabel: '1 tbsp',
+      basis: 'volume',
+      servingAmount: 15,
+      servingGrams: null,
+      servingMl: 15,
+    };
+
+    /** Each candidate shape, with how the app itself renders an amount in that shape's unit — used
+     * to check the figure handed to `onLog` against the figure the readout showed, without either
+     * side borrowing the slider's own maths. */
+    const shapes = [
+      {
+        name: 'a food the model can weigh',
+        candidate: food as Candidate,
+        rendered: (portions: number) => `${Math.round(portions * 170).toLocaleString()} g`,
+      },
+      { name: 'a volume-only food', candidate: volumeFood as Candidate, rendered: (portions: number) => `×${portions}` },
+      { name: 'a meal', candidate: meal as Candidate, rendered: (portions: number) => `×${portions}` },
+    ];
+    const servingsShapes = shapes.filter((shape) => shape.candidate !== food);
+
+    const track = () => screen.getByTestId('sheet-exact-track');
+
+    const openExact = async (candidate: Candidate, props: Partial<ComponentProps<typeof PortionSheet>> = {}) => {
+      const view = await renderSheet({ candidate, initialMode: 'exact', ...props });
+      await fireEvent(track(), 'layout', { nativeEvent: { layout: { width: TRACK_WIDTH, height: size.slider.thumbHit, x: 0, y: 0 } } });
+      return view;
+    };
+
+    /** The readout exactly as it is read: `×3.5` for a servings candidate, `1,173 g` for grams. */
+    const displayed = (): string => String(screen.getByTestId('sheet-exact-readout-value').props.children);
+    /** That readout's number, in whichever unit this candidate counts in. */
+    const displayedValue = (): number => Number(displayed().replace(/[×,\sg]/g, ''));
+    /** Where the thumb actually sits, in track pixels. Rendered from the value by a different code
+     * path than the readout, so the two agreeing is evidence rather than a tautology. */
+    const thumbCentre = (): number =>
+      (StyleSheet.flatten(screen.getByTestId('sheet-exact-track-thumb').props.style).left as number) + size.slider.thumb / 2;
+    const announced = (): number => track().props.accessibilityValue.now as number;
+    const rangeTop = (): number => track().props.accessibilityValue.max as number;
+
+    /** A flick: a handful of widely spaced move events, each with its own timestamp — the way a fast
+     * drag reaches the responder, rather than the dozens of small ones a slow drag delivers. */
+    const flickTo = async (positions: readonly number[]): Promise<void> => {
+      let timeStamp = 1;
+      for (const locationX of positions) {
+        await fireEvent(track(), 'responderMove', responderEvent(locationX, timeStamp));
+        timeStamp += 1;
+      }
+    };
+
+    /** The control's finest increment, *measured* rather than assumed: one press of + moves the
+     * readout by exactly one step, in whatever unit this candidate counts in. */
+    const measureStep = async (): Promise<number> => {
+      const before = displayedValue();
+      await fireEvent.press(screen.getByTestId('sheet-exact-nudge-up'));
+      return displayedValue() - before;
+    };
+
+    it.each(servingsShapes)(
+      '$name: a drag across the full track can land on every 0.5-serving detent — none is unreachable',
+      async ({ candidate }) => {
+        await openExact(candidate);
+        const top = rangeTop();
+
+        const seen = new Set<number>();
+        let timeStamp = 1;
+        for (let locationX = 0; locationX <= TRACK_WIDTH; locationX += 1) {
+          await fireEvent(track(), 'responderMove', responderEvent(locationX, timeStamp));
+          timeStamp += 1;
+          seen.add(displayedValue());
+        }
+
+        // The detents this sheet already commits to everywhere else: its Log button reports a
+        // 0.5-serving multiple and its nudge moves in halves, so every half from 0 to the top of
+        // the range has to be a value a drag can actually put under the thumb.
+        const detents: number[] = [];
+        for (let half = 0; half <= top * 2; half += 1) detents.push(half / 2);
+        expect(detents.filter((detent) => !seen.has(detent))).toEqual([]);
+      },
+    );
+
+    it.each(shapes)(
+      '$name: lifting the finger commits what the last move displayed — the readout and the thumb do not jump on release',
+      async ({ candidate, rendered }) => {
+        const onLog = jest.fn();
+        await openExact(candidate, { onLog });
+
+        // 271 of 400 is 5.42 of an 8-serving range and 2.71 of a 4-serving one: between two whole
+        // servings, and nearer the half than either.
+        await flickTo([60, 140, 220, 271]);
+        const underFinger = displayed();
+        const thumbUnderFinger = thumbCentre();
+
+        await fireEvent(track(), 'responderRelease', responderEvent(271, 9));
+
+        expect(displayed()).toBe(underFinger);
+        expect(thumbCentre()).toBe(thumbUnderFinger);
+
+        await fireEvent.press(screen.getByTestId('sheet-exact-log'));
+        const loggedPortions = onLog.mock.calls[0]?.[1] as number;
+        expect(rendered(loggedPortions)).toBe(underFinger);
+      },
+    );
+
+    it.each(servingsShapes)('$name: the track announces the amount the readout shows, not a rounded-off whole serving', async ({ candidate }) => {
+      await openExact(candidate);
+
+      await flickTo([60, 140, 220, 271]);
+      await fireEvent(track(), 'responderRelease', responderEvent(271, 9));
+
+      expect(announced()).toBe(displayedValue());
+    });
+
+    it.each(shapes)('$name: dragging back and forth without releasing never drifts — the amount depends on where the finger is, not how it got there', async ({ candidate }) => {
+      await openExact(candidate);
+
+      const seenAt = new Map<number, Set<string>>();
+      let timeStamp = 1;
+      for (const locationX of [120, 300, 120, 300, 40, 300, 120, 360, 120, 40]) {
+        await fireEvent(track(), 'responderMove', responderEvent(locationX, timeStamp));
+        timeStamp += 1;
+        const atThisPosition = seenAt.get(locationX) ?? new Set<string>();
+        atThisPosition.add(displayed());
+        seenAt.set(locationX, atThisPosition);
+      }
+
+      // Back at a position the finger has already visited, the readout has to show what it showed
+      // there before. An accumulated delta — or one move applied twice — makes the value a function
+      // of the path instead of the position, and this is what that looks like from outside.
+      const drifted = [...seenAt.entries()]
+        .filter(([, amounts]) => amounts.size > 1)
+        .map(([locationX, amounts]) => `${locationX}px showed ${[...amounts].join(' then ')}`);
+      expect(drifted).toEqual([]);
+    });
+
+    it.each(shapes)('$name: a rapid drag rightwards is monotonic, and no one move moves the amount further than the finger moved', async ({ candidate }) => {
+      await openExact(candidate);
+      const top = rangeTop();
+      const step = await measureStep();
+      const perPixel = top / TRACK_WIDTH;
+
+      await fireEvent(track(), 'responderMove', responderEvent(0, 1));
+      let previousValue = displayedValue();
+      let previousX = 0;
+      let timeStamp = 2;
+
+      for (const locationX of [37, 98, 176, 243, 311, 388]) {
+        await fireEvent(track(), 'responderMove', responderEvent(locationX, timeStamp));
+        timeStamp += 1;
+        const value = displayedValue();
+
+        expect(value).toBeGreaterThanOrEqual(previousValue);
+        // The thumb is under the finger, so a move of n pixels is worth n pixels of the range — plus
+        // at most the one step the readout rounds by, never a multiple of the distance travelled.
+        expect(value - previousValue).toBeLessThanOrEqual((locationX - previousX) * perPixel + step);
+
+        previousValue = value;
+        previousX = locationX;
+      }
+    });
+
+    it('a flick that lifts past its last move event commits where the finger lifted, not where that move was', async () => {
+      await openExact(meal);
+
+      // The move events stop at 200 and the finger leaves the glass at 345 — every flick ends this
+      // way, because the last move is always behind the lift.
+      await flickTo([60, 140, 200]);
+      await fireEvent(track(), 'responderRelease', responderEvent(345, 9));
+
+      const halfServingInPixels = (TRACK_WIDTH * 0.5) / rangeTop();
+      expect(thumbCentre()).toBeGreaterThan((200 + 345) / 2);
+      expect(Math.abs(thumbCentre() - 345)).toBeLessThanOrEqual(halfServingInPixels);
+    });
+
+    it.each(shapes)('$name: reopening the entry for edit shows the amount that was logged', async ({ candidate }) => {
+      const onLog = jest.fn();
+      const { rerender } = await openExact(candidate, { onLog });
+
+      await flickTo([60, 140, 220, 271]);
+      await fireEvent(track(), 'responderRelease', responderEvent(271, 9));
+      const atLogTime = displayed();
+      await fireEvent.press(screen.getByTestId('sheet-exact-log'));
+      const loggedPortions = onLog.mock.calls[0]?.[1] as number;
+
+      // The sheet closes on Log (`candidate={null}`) and the day-log row's edit reopens it in Exact
+      // at the amount that was stored (issue #42) — the round trip as the app performs it, so the
+      // control's own drag state cannot be what carries the figure through.
+      const sheet = (props: Partial<ComponentProps<typeof PortionSheet>>) => (
+        <PortionSheet candidate={candidate} theme={themes.dark} onLog={jest.fn()} onClose={jest.fn()} testID="sheet" {...props} />
+      );
+      await rerender(sheet({ candidate: null }));
+      await rerender(sheet({ initialMode: 'exact', initialPortions: loggedPortions }));
+
+      expect(displayed()).toBe(atLogTime);
+    });
   });
 });
