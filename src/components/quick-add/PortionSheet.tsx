@@ -156,6 +156,20 @@ function nearestHalfServing(portions: number): number {
   return Math.round(portions * 2) / 2;
 }
 
+/**
+ * Rounds a raw amount to `step` — the finest amount the Exact control can actually *show*. Both
+ * steps this is ever called with (1 g, 0.5 servings) are exact binary floats, so this never
+ * introduces drift of its own.
+ *
+ * ISSUE #264. The track used to round the finger's position with a bare `Math.round`, i.e. to a
+ * whole *unit* — right for grams, but a whole serving for a candidate the data model cannot weigh,
+ * up to sixteen times coarser than the half-serving detents the readout, the nudge, the Log button
+ * and the release snap all work in. See `ExactControl`'s `valueStep`.
+ */
+function quantise(amount: number, step: number): number {
+  return Math.round(amount / step) * step;
+}
+
 function Segmented({
   theme,
   mode,
@@ -328,12 +342,21 @@ function NudgeButton({
  * `locationX` stays in one consistent frame for the whole gesture — no ref, no `gestureState.dx` math
  * needed. The thumb hit area (`size.slider.thumbHit`, 44pt) is this same outer view, so a drag can
  * start from the thumb or anywhere else on the track.
+ *
+ * ISSUE #264 FIX (the value the thumb was not sitting on). Every value this component produces is a
+ * pure function of the finger's position quantised to `step` — the move handler, the release
+ * handler and the announced `accessibilityValue` all go through the same `quantise`, so the amount
+ * under the thumb mid-drag is the amount that lands on release. Before, the move handler rounded to
+ * a whole unit while release snapped to a `detentStep` half-serving, so the two disagreed by up to
+ * half a serving on any candidate counted in servings: the thumb stalled between servings while the
+ * finger moved on, and the number jumped the instant the finger lifted.
  */
 function SliderTrack({
   theme,
   value,
   max,
   unitSize,
+  step,
   onChange,
   onSnap,
   testID,
@@ -342,6 +365,8 @@ function SliderTrack({
   value: number;
   max: number;
   unitSize: number;
+  /** The finest amount the readout can show — see `ExactControl`'s `valueStep`. */
+  step: number;
   onChange: (next: number) => void;
   onSnap: () => void;
   testID: string;
@@ -353,6 +378,14 @@ function SliderTrack({
   const [trackWidth, setTrackWidth] = useState(0);
   const detentStep = unitSize / 2;
 
+  /** The raw amount under the finger for this event — the one place the gesture reads a position,
+   * so the move handler and the release handler cannot drift apart in how they interpret one. */
+  const amountUnder = useCallback(
+    (event: GestureResponderEvent): number =>
+      Math.min(1, Math.max(0, event.nativeEvent.locationX / trackWidth)) * max,
+    [max, trackWidth],
+  );
+
   const panResponder = useMemo(
     () =>
       PanResponder.create({
@@ -360,26 +393,27 @@ function SliderTrack({
         onMoveShouldSetPanResponder: () => true,
         onPanResponderMove: (event: GestureResponderEvent) => {
           if (trackWidth <= 0) return;
-          const ratio = Math.min(1, Math.max(0, event.nativeEvent.locationX / trackWidth));
-          onChange(Math.round(ratio * max));
+          onChange(quantise(amountUnder(event), step));
         },
         onPanResponderRelease: (event: GestureResponderEvent) => {
           if (trackWidth <= 0) return;
-          const ratio = Math.min(1, Math.max(0, event.nativeEvent.locationX / trackWidth));
-          const raw = ratio * max;
+          // Deliberately the *released* position, not the last move's value: the final move event
+          // always lags where the finger actually leaves the glass, by more the faster the drag.
+          const raw = amountUnder(event);
           const nearestDetent = Math.round(raw / detentStep) * detentStep;
           if (Math.abs(raw - nearestDetent) <= interaction.sliderDetentSnapG) {
             onSnap();
             onChange(nearestDetent);
           } else {
-            onChange(Math.round(raw));
+            onChange(quantise(raw, step));
           }
         },
       }),
-    // `onChange`/`onSnap` are `useCallback`-stabilised by `ExactControl`, so this only actually
-    // rebuilds on the rare events that change `max` (range growth) or `trackWidth` (first layout) —
-    // never once per drag-move the way a fresh inline arrow would force it to.
-    [max, detentStep, trackWidth, onChange, onSnap],
+    // `onChange`/`onSnap` are `useCallback`-stabilised by `ExactControl` and `amountUnder` carries
+    // `max` for both handlers, so this only actually rebuilds on the rare events that change the
+    // range (growth) or `trackWidth` (first layout) — never once per drag-move the way a fresh
+    // inline arrow would force it to.
+    [detentStep, step, trackWidth, amountUnder, onChange, onSnap],
   );
 
   const handleLayout = (event: LayoutChangeEvent): void => {
@@ -398,7 +432,10 @@ function SliderTrack({
       {...panResponder.panHandlers}
       accessibilityRole="adjustable"
       accessibilityLabel="Amount"
-      accessibilityValue={{ min: 0, max: Math.round(max), now: Math.round(value) }}
+      // Quantised to the same `step` as the readout, not to a whole unit: a screen reader has to
+      // hear the amount that is on screen, and "4" for a readout of "×3.5" is the issue #264
+      // disagreement in its least visible form.
+      accessibilityValue={{ min: 0, max: quantise(max, step), now: quantise(value, step) }}
       style={[styles.trackHitArea, { minHeight: size.slider.thumbHit }]}
     >
       <View
@@ -471,6 +508,16 @@ function ExactControl({
   // serving kind — a 100 g food's Exact range starts wider than a teaspoon's.
   const baseRange = unitSize * interaction.servingSteps[presetKeyOf(candidate)].max;
   const nudgeStep = isGrams ? interaction.sliderNudgeG : 0.5;
+  /**
+   * The finest amount this control can *show*, and therefore the step the track quantises the
+   * finger's position to (issue #264). It is the precision of the readout's own formatter, not a
+   * style value: `formatGrams` renders whole grams, and a candidate the data model cannot weigh
+   * reads as a 0.5-servings multiple (`nearestHalfServing`) — the same half this sheet's detents,
+   * its nudge and `docs/decisions.md` ruling 11 all work in. Deliberately *not* `nudgeStep`, which
+   * is a token (#107 moved `sliderNudgeG` 5 → 1) and so would silently coarsen the drag if design
+   * ever moved it again.
+   */
+  const valueStep = isGrams ? 1 : 0.5;
 
   const [amount, setAmount] = useState<number>(unitSize * initialPortions);
   // A log-entry edit (issue #42) can open already above `baseRange` — start the range grown to fit
@@ -585,6 +632,7 @@ function ExactControl({
             value={amount}
             max={rangeMax}
             unitSize={unitSize}
+            step={valueStep}
             onChange={applyAbsolute}
             onSnap={onSnap}
             testID={`${testID}-track`}
