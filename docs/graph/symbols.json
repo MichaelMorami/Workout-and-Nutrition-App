@@ -51,7 +51,7 @@
         "src/store/undoToast.ts",
         "src/theme/tokens.ts"
       ],
-      "loc": 197
+      "loc": 198
     },
     "app/(tabs)/settings.tsx": {
       "exports": [
@@ -868,7 +868,7 @@
         "src/store/undoToast.ts",
         "src/theme/tokens.ts"
       ],
-      "loc": 828
+      "loc": 872
     },
     "src/components/search/index.ts": {
       "exports": [

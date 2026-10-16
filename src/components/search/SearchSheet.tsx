@@ -1,6 +1,8 @@
 /**
  * `<SearchSheet>` — issue #69 (`docs/decisions.md` §"One search bar, under the grid"): the only way
- * into the food library beyond the six quick-add tiles. Owns the full-width "Search foods" bar and
+ * into the food library beyond the six quick-add tiles. Owns the "Search foods" bar, the "+ Food"
+ * control sharing its row (#267: one tap to the blank create form; hidden on day one, when the bar
+ * already reads "Add your first food" and needs the width), and
  * the sheet it opens — a section header, six ranked tiles is `<QuickAddGrid>`'s job; finding the
  * rest of the library is this one's.
  *
@@ -97,7 +99,7 @@ import { deviceWhen } from '../../hooks/deviceWhen';
 import { useHapticFeedback } from '../../hooks/useHapticFeedback';
 import { forgetLog, logTrackerKey, recentLog, trackLog } from '../../store/logTracker';
 import { useUndoToastStore, type LogDelta } from '../../store/undoToast';
-import { haptics, interaction, radius, size, space, type, type Theme, type TypeStyle } from '../../theme/tokens';
+import { haptics, interaction, layout, radius, size, space, type, type Theme, type TypeStyle } from '../../theme/tokens';
 import { PortionSheet } from '../quick-add/PortionSheet';
 
 /** The layered-plates glyph a saved meal carries — same choice `QuickAddTile` made: plain Unicode,
@@ -349,7 +351,7 @@ function CreateSlot({ render, ...create }: CreateSlotArgs & { readonly render: (
 }
 
 export function SearchSheet({ db, onLogged, onPortionAdded, onCreate, renderCreate, locale, theme, testID = 'search-sheet' }: SearchSheetProps) {
-  const { searchBar, searchSheet } = theme.color;
+  const { searchBar, searchSheet, resultRow } = theme.color;
   const fireHaptic = useHapticFeedback();
 
   const [when] = useState(deviceWhen);
@@ -446,8 +448,10 @@ export function SearchSheet({ db, onLogged, onPortionAdded, onCreate, renderCrea
   };
 
   // Focus only once the Modal has finished presenting (issue #79) — see the module note.
+  // Skipped when the sheet was opened straight onto the create form (the "+ Food" control): the
+  // form owns the keyboard then, and `refocusSearch` hands it back to the field on Cancel.
   const handleShow = (): void => {
-    inputRef.current?.focus();
+    if (createQuery === null) inputRef.current?.focus();
   };
 
   // Both overlays sit at the bottom of the sheet — exactly where the keyboard is. Nothing else
@@ -561,6 +565,14 @@ export function SearchSheet({ db, onLogged, onPortionAdded, onCreate, renderCrea
 
   const trimmedQuery = query.trim();
 
+  // Issue #267: the "+ Food" control next to the bar — open the sheet already on the blank create
+  // form (what the pinned "Create new food" row does, one tap sooner).
+  const handleAddPress = (): void => {
+    openSheet();
+    onCreate?.('');
+    if (renderCreate) setCreateQuery('');
+  };
+
   const handleCreatePress = (): void => {
     dismissKeyboard();
     onCreate?.(trimmedQuery);
@@ -626,6 +638,7 @@ export function SearchSheet({ db, onLogged, onPortionAdded, onCreate, renderCrea
 
   return (
     <View testID={testID}>
+      <View style={styles.barRow}>
       <Pressable
         testID={`${testID}-bar`}
         onPress={openSheet}
@@ -634,6 +647,7 @@ export function SearchSheet({ db, onLogged, onPortionAdded, onCreate, renderCrea
         style={[
           styles.bar,
           {
+            flex: 1,
             height: size.searchBar.heightHit,
             minHeight: size.tapTargetMin,
             borderRadius: radius.lg,
@@ -644,10 +658,26 @@ export function SearchSheet({ db, onLogged, onPortionAdded, onCreate, renderCrea
         ]}
       >
         <Text style={{ fontSize: size.icon.lg, color: libraryEmpty ? searchBar.emphasisIcon : searchBar.searchIcon, marginRight: space[3] }}>{SEARCH_GLYPH}</Text>
-        <Text style={textStyle(type.body, libraryEmpty ? searchBar.emphasisLabelText : searchBar.labelText)}>
+        <Text numberOfLines={1} style={[textStyle(type.body, libraryEmpty ? searchBar.emphasisLabelText : searchBar.labelText), styles.barLabel]}>
           {libraryEmpty ? 'Add your first food' : 'Search foods'}
         </Text>
       </Pressable>
+      {libraryEmpty ? null : (
+        <Pressable
+          testID={`${testID}-add`}
+          onPress={handleAddPress}
+          accessibilityRole="button"
+          accessibilityLabel="Add a new food"
+          style={[
+            styles.addControl,
+            { height: size.searchBar.heightHit, minWidth: size.tapTargetMin, borderRadius: radius.lg, backgroundColor: resultRow.createIconBg },
+          ]}
+        >
+          <Text style={{ fontSize: size.icon.md, color: resultRow.createIcon, marginRight: space[1] }}>+</Text>
+          <Text numberOfLines={1} style={textStyle(type.button, resultRow.createIcon)}>Food</Text>
+        </Pressable>
+      )}
+      </View>
 
       {visible ? (
         <Modal
@@ -738,6 +768,20 @@ export function SearchSheet({ db, onLogged, onPortionAdded, onCreate, renderCrea
 }
 
 const styles = StyleSheet.create({
+  barRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: layout.tileGap,
+  },
+  barLabel: {
+    flexShrink: 1,
+  },
+  addControl: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: space[4],
+  },
   bar: {
     flexDirection: 'row',
     alignItems: 'center',
