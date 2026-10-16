@@ -143,6 +143,44 @@ describe('SearchSheet — the bar', () => {
   });
 });
 
+describe('SearchSheet — the Add food control (issue #267)', () => {
+  it('shares a row with the bar and says what it adds', async () => {
+    await renderSheet();
+
+    const add = screen.getByTestId('search-sheet-add');
+    expect(add.props.accessibilityRole).toBe('button');
+    expect(add.props.accessibilityLabel).toBe('Add a new food');
+    expect(screen.getByTestId('search-sheet-bar').parent?.parent).toBe(add.parent?.parent);
+  });
+
+  it('one tap opens the blank create form directly, without the keyboard stealing focus', async () => {
+    const focus = jest.spyOn(TextInput.prototype, 'focus');
+    focus.mockClear();
+    const onCreate = jest.fn();
+    await renderSheet({ onCreate, renderCreate: ({ query }) => <Text testID="create-query">{`[${query}]`}</Text> });
+
+    await fireEvent.press(screen.getByTestId('search-sheet-add'));
+    await fireEvent(screen.getByTestId('search-sheet-modal'), 'show');
+
+    expect(screen.getByTestId('create-query').props.children).toBe('[]');
+    expect(onCreate).toHaveBeenCalledWith('');
+    expect(focus).not.toHaveBeenCalled();
+  });
+
+  it('cancelling the form it opened returns to the search with the field focused', async () => {
+    const focus = jest.spyOn(TextInput.prototype, 'focus');
+    focus.mockClear();
+    await renderSheet({ renderCreate: ({ onClose }) => <Pressable testID="create-cancel" onPress={onClose} /> });
+
+    await fireEvent.press(screen.getByTestId('search-sheet-add'));
+    await fireEvent.press(screen.getByTestId('create-cancel'));
+
+    expect(screen.queryByTestId('create-cancel')).toBeNull();
+    expect(screen.getByTestId('search-sheet-input')).toBeTruthy();
+    expect(focus).toHaveBeenCalledTimes(1);
+  });
+});
+
 describe('SearchSheet — opening', () => {
   it('opens the sheet with the query field focused, keyboard up, the moment the sheet is shown', async () => {
     const focus = jest.spyOn(TextInput.prototype, 'focus');
