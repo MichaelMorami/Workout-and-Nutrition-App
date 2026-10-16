@@ -98,8 +98,9 @@ artboard showed a search. Left alone, Checkpoint 2 could only ever log six foods
 
 ### 4. One search bar, under the grid
 
-A full-width **"Search foods"** bar directly under the quick-add grid. The header search button is
-removed — there is one way in.
+A **"Search foods"** bar directly under the quick-add grid, sharing its row with a compact **+ Food**
+control (amended 2026-10-16, see #267 and PR #274 — the bar was full-width until then). The header
+search button is removed — there is one way in.
 
 It sits in the thumb zone, so it works one-handed, and the six tiles keep their size — decision 1 is
 untouched. Rejected: the header button (a stretch to reach one-handed on a large phone) and search as
@@ -125,6 +126,20 @@ the pinned blank-sheet row, the same **3** taps with *no query text at all* (ame
 The blank-sheet route does not lower the tap count; it removes the throwaway query. Before #97 the
 Create row existed only while typing, so reaching a blank form meant inventing letters first. Three
 fixed taps is the budget either way — bar, Create, Save.
+
+**Amended 2026-10-16 (see #267, PR #274) — the + Food control, and a brand-new food in 2 taps.**
+The bar no longer spans the row on its own: a compact **+ Food** control sits beside it and opens the
+blank create form directly, so a brand-new food is **2** taps (+ Food, Save) rather than three. The
+paragraph above still describes the *pinned blank-sheet row inside the sheet*, which is unchanged and
+still three taps; + Food is a second, shorter route to the same form. Two consequences recorded
+deliberately:
+
+- **On day one the control is hidden.** With an empty library the bar reads "Add your first food" and
+  takes the full width, so the shared row — and the 2-tap route — appears only once a food exists.
+  The reviewer of #274 confirmed a non-empty library cannot hide it.
+- **The 2-tap route is not yet enforced.** `test/tap-budget.test.tsx:567` still budgets the blank
+  route at three taps, which passes as a cap but would not catch a regression back to three. #275
+  adds the 2-tap budget; #276 covers the two behaviours #274 shipped untested.
 
 No full-text-search index: a `LIKE` over a library of a few hundred foods is instant. Add one only
 with a measurement that says otherwise.
