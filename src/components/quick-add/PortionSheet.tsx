@@ -409,10 +409,11 @@ function SliderTrack({
           }
         },
       }),
-    // `onChange`/`onSnap` are `useCallback`-stabilised by `ExactControl`, so this only actually
-    // rebuilds on the rare events that change `max` (range growth) or `trackWidth` (first layout) —
-    // never once per drag-move the way a fresh inline arrow would force it to.
-    [max, detentStep, step, trackWidth, amountUnder, onChange, onSnap],
+    // `onChange`/`onSnap` are `useCallback`-stabilised by `ExactControl` and `amountUnder` carries
+    // `max` for both handlers, so this only actually rebuilds on the rare events that change the
+    // range (growth) or `trackWidth` (first layout) — never once per drag-move the way a fresh
+    // inline arrow would force it to.
+    [detentStep, step, trackWidth, amountUnder, onChange, onSnap],
   );
 
   const handleLayout = (event: LayoutChangeEvent): void => {
