@@ -428,6 +428,22 @@ describe('PortionSheet', () => {
       expect(onLog).toHaveBeenCalledWith(milk, 180 / 240);
     });
 
+    it.each([
+      { typed: '180.4', shown: '180 ml', logged: 180 / 240 },
+      { typed: '180.6', shown: '181 ml', logged: 181 / 240 },
+    ])('typing $typed rounds to whole ml ($shown), the way grams do', async ({ typed, shown, logged }) => {
+      const onLog = jest.fn();
+      await renderSheet({ candidate: milk, onLog });
+      await fireEvent.press(screen.getByTestId('sheet-mode-exact'));
+      await fireEvent.press(screen.getByTestId('sheet-exact-readout'));
+      await fireEvent.changeText(screen.getByTestId('sheet-exact-readout-input'), typed);
+      await fireEvent(screen.getByTestId('sheet-exact-readout-input'), 'blur');
+
+      expect(screen.getByTestId('sheet-exact-readout')).toHaveTextContent(shown);
+      await fireEvent.press(screen.getByTestId('sheet-exact-log'));
+      expect(onLog).toHaveBeenCalledWith(milk, logged);
+    });
+
     it('a log-entry edit pre-fills the ml amount', async () => {
       await renderSheet({ candidate: milk, initialMode: 'exact', initialPortions: 0.75 });
 
@@ -745,7 +761,7 @@ describe('PortionSheet', () => {
       { name: 'a meal', candidate: meal as Candidate, rendered: (portions: number) => `×${portions}` },
     ];
     /** Only the meal counts in servings now. The two measured shapes (grams, ml) are left out of the
-     * every-0.5-serving-detent and announced-value cases because their step is one whole g/ml
+     * every-0.5-serving-detent reachability case alone, because their step is one whole g/ml
      * (`formatGrams`/`formatMl` render whole units), while a half serving is often fractional in that
      * unit (7.5 ml of a 15 ml tbsp) — so a drag cannot put every detent under the thumb by design; the
      * release snap reaches them within `sliderDetentSnapG` instead. */
@@ -834,7 +850,18 @@ describe('PortionSheet', () => {
       },
     );
 
-    it.each(servingsShapes)('$name: the track announces the amount the readout shows, not a rounded-off whole serving', async ({ candidate }) => {
+    it.each(shapes.filter((shape) => shape.candidate !== meal))(
+      '$name: a drag lands on whole units only — the track never quantises finer than the readout can show',
+      async ({ candidate }) => {
+        await openExact(candidate);
+        for (let locationX = 0; locationX <= TRACK_WIDTH; locationX += 1) {
+          await fireEvent(track(), 'responderMove', responderEvent(locationX, locationX + 1));
+          expect(Number.isInteger(announced())).toBe(true);
+        }
+      },
+    );
+
+    it.each(shapes)('$name: the track announces the amount the readout shows, not a rounded-off whole serving', async ({ candidate }) => {
       await openExact(candidate);
 
       await flickTo([60, 140, 220, 271]);
