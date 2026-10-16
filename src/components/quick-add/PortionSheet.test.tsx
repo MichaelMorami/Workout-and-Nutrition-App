@@ -387,6 +387,70 @@ describe('PortionSheet', () => {
     expect(onClose).toHaveBeenCalledTimes(1);
   });
 
+  describe('issue #265: a volume food edits in ml', () => {
+    const milk: FoodCandidate = {
+      ...food,
+      name: 'Milk',
+      servingLabel: '1 cup',
+      basis: 'volume',
+      servingAmount: 240,
+      servingGrams: null,
+      servingMl: 240,
+    };
+
+    it('Exact opens at the serving in ml, labelled ml, not a servings multiple', async () => {
+      await renderSheet({ candidate: milk });
+      await fireEvent.press(screen.getByTestId('sheet-mode-exact'));
+
+      expect(screen.getByTestId('sheet-exact-readout')).toHaveTextContent('240 ml');
+      expect(screen.getByTestId('sheet-exact-readout')).not.toHaveTextContent('×');
+      expect(screen.getByTestId('sheet-exact-log').props.accessibilityLabel).toBe('Log 240 ml');
+    });
+
+    it('the nudge steps by one ml, not by half a serving', async () => {
+      await renderSheet({ candidate: milk });
+      await fireEvent.press(screen.getByTestId('sheet-mode-exact'));
+      await fireEvent.press(screen.getByTestId('sheet-exact-nudge-up'));
+
+      expect(screen.getByTestId('sheet-exact-readout')).toHaveTextContent('241 ml');
+    });
+
+    it('a typed amount is kept in whole ml, off any serving increment, and Log reports it as servings', async () => {
+      const onLog = jest.fn();
+      await renderSheet({ candidate: milk, onLog });
+      await fireEvent.press(screen.getByTestId('sheet-mode-exact'));
+      await fireEvent.press(screen.getByTestId('sheet-exact-readout'));
+      await fireEvent.changeText(screen.getByTestId('sheet-exact-readout-input'), '180');
+      await fireEvent(screen.getByTestId('sheet-exact-readout-input'), 'blur');
+
+      expect(screen.getByTestId('sheet-exact-readout')).toHaveTextContent('180 ml');
+      await fireEvent.press(screen.getByTestId('sheet-exact-log'));
+      expect(onLog).toHaveBeenCalledWith(milk, 180 / 240);
+    });
+
+    it.each([
+      { typed: '180.4', shown: '180 ml', logged: 180 / 240 },
+      { typed: '180.6', shown: '181 ml', logged: 181 / 240 },
+    ])('typing $typed rounds to whole ml ($shown), the way grams do', async ({ typed, shown, logged }) => {
+      const onLog = jest.fn();
+      await renderSheet({ candidate: milk, onLog });
+      await fireEvent.press(screen.getByTestId('sheet-mode-exact'));
+      await fireEvent.press(screen.getByTestId('sheet-exact-readout'));
+      await fireEvent.changeText(screen.getByTestId('sheet-exact-readout-input'), typed);
+      await fireEvent(screen.getByTestId('sheet-exact-readout-input'), 'blur');
+
+      expect(screen.getByTestId('sheet-exact-readout')).toHaveTextContent(shown);
+      await fireEvent.press(screen.getByTestId('sheet-exact-log'));
+      expect(onLog).toHaveBeenCalledWith(milk, logged);
+    });
+
+    it('a log-entry edit pre-fills the ml amount', async () => {
+      await renderSheet({ candidate: milk, initialMode: 'exact', initialPortions: 0.75 });
+
+      expect(screen.getByTestId('sheet-exact-readout')).toHaveTextContent('180 ml');
+    });
+  });
+
   it('for a meal, Exact mode is a 0.5-servings stepper starting at ×1, no grams', async () => {
     await renderSheet({ candidate: meal });
     await fireEvent.press(screen.getByTestId('sheet-mode-exact'));
@@ -670,8 +734,7 @@ describe('PortionSheet', () => {
   describe('issue #264: a fast drag commits the amount the thumb is sitting on', () => {
     const TRACK_WIDTH = 400;
 
-    /** A food the data model cannot weigh (volume only, `servingGrams: null`), so its Exact control
-     * counts in servings rather than grams — the same unit a meal's does. */
+    /** A volume-basis food (`servingGrams: null`, `servingMl: 15`): its Exact control counts in ml. */
     const volumeFood: FoodCandidate = {
       ...food,
       servingLabel: '1 tbsp',
@@ -690,10 +753,19 @@ describe('PortionSheet', () => {
         candidate: food as Candidate,
         rendered: (portions: number) => `${Math.round(portions * 170).toLocaleString()} g`,
       },
-      { name: 'a volume-only food', candidate: volumeFood as Candidate, rendered: (portions: number) => `×${portions}` },
+      {
+        name: 'a volume-only food',
+        candidate: volumeFood as Candidate,
+        rendered: (portions: number) => `${Math.round(portions * 15).toLocaleString()} ml`,
+      },
       { name: 'a meal', candidate: meal as Candidate, rendered: (portions: number) => `×${portions}` },
     ];
-    const servingsShapes = shapes.filter((shape) => shape.candidate !== food);
+    /** Only the meal counts in servings now. The two measured shapes (grams, ml) are left out of the
+     * every-0.5-serving-detent reachability case alone, because their step is one whole g/ml
+     * (`formatGrams`/`formatMl` render whole units), while a half serving is often fractional in that
+     * unit (7.5 ml of a 15 ml tbsp) — so a drag cannot put every detent under the thumb by design; the
+     * release snap reaches them within `sliderDetentSnapG` instead. */
+    const servingsShapes = shapes.filter((shape) => shape.candidate === meal);
 
     const track = () => screen.getByTestId('sheet-exact-track');
 
@@ -703,10 +775,10 @@ describe('PortionSheet', () => {
       return view;
     };
 
-    /** The readout exactly as it is read: `×3.5` for a servings candidate, `1,173 g` for grams. */
+    /** The readout exactly as it is read: `×3.5` for a servings candidate, `1,173 g` / `180 ml` for measured foods. */
     const displayed = (): string => String(screen.getByTestId('sheet-exact-readout-value').props.children);
     /** That readout's number, in whichever unit this candidate counts in. */
-    const displayedValue = (): number => Number(displayed().replace(/[×,\sg]/g, ''));
+    const displayedValue = (): number => Number(displayed().replace(/[×,\sgml]/g, ''));
     /** Where the thumb actually sits, in track pixels. Rendered from the value by a different code
      * path than the readout, so the two agreeing is evidence rather than a tautology. */
     const thumbCentre = (): number =>
@@ -778,7 +850,18 @@ describe('PortionSheet', () => {
       },
     );
 
-    it.each(servingsShapes)('$name: the track announces the amount the readout shows, not a rounded-off whole serving', async ({ candidate }) => {
+    it.each(shapes.filter((shape) => shape.candidate !== meal))(
+      '$name: a drag lands on whole units only — the track never quantises finer than the readout can show',
+      async ({ candidate }) => {
+        await openExact(candidate);
+        for (let locationX = 0; locationX <= TRACK_WIDTH; locationX += 1) {
+          await fireEvent(track(), 'responderMove', responderEvent(locationX, locationX + 1));
+          expect(Number.isInteger(announced())).toBe(true);
+        }
+      },
+    );
+
+    it.each(shapes)('$name: the track announces the amount the readout shows, not a rounded-off whole serving', async ({ candidate }) => {
       await openExact(candidate);
 
       await flickTo([60, 140, 220, 271]);
