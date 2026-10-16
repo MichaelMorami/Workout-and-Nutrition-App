@@ -902,6 +902,37 @@ export function arcOverState(metric: ArcMetricName): ArcStateName {
   return arcTargetKind[metric] === 'ceiling' ? 'exceeded' : 'surplus';
 }
 
+/**
+ * The state one ring is in — the single place the at-target boundary is computed, and the only
+ * sanctioned way to turn a (value, target) pair into a state.
+ *
+ * It resolves through `position`, not through a second opinion about the comparison: a value is
+ * `'below'`, `'at'` or `'above'` its target, and exactly one of the four states claims that
+ * position for the metric's target direction. So `position` is load-bearing data rather than
+ * documentation — move it one step and this function returns the wrong state, which
+ * `tokens.test.tsx` fails on.
+ *
+ * Boundary, spelled out because three copies of it once existed: `value === target` is `met`, never
+ * `under` and never over. One `>=` for a `>` is a day that hit its calorie budget exactly being
+ * told it blew it.
+ *
+ * `target` must be a real target. A ring with `target: 0` is `arc-math.ts`'s separate `noTarget`
+ * status — #272 leaves it untouched and it has no state here, so resolve it before calling.
+ */
+export function arcStateFor(metric: ArcMetricName, value: number, target: number): ArcStateName {
+  const position: ArcStateSpec['position'] = value > target ? 'above' : value === target ? 'at' : 'below';
+  const kind = arcTargetKind[metric];
+  const state = arcStateNames.find(
+    (s) =>
+      arcState[s].position === position && (arcState[s].appliesTo === 'both' || arcState[s].appliesTo === kind),
+  );
+  // Unreachable while the four states cover below/at/above for both target directions — which is
+  // asserted, not assumed. It throws rather than falling back to a guess, because a silent default
+  // would mask precisely the `position` slip the assertions exist to catch.
+  if (state === undefined) throw new Error(`arcStateFor: no state for a value ${position} a ${kind} target`);
+  return state;
+}
+
 /** The colours one ring actually draws, roles already resolved. */
 export type ArcStateColors = {
   /** The first lap — the target's own worth of ring. */

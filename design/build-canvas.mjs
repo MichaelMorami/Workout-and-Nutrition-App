@@ -9,7 +9,7 @@ import { fileURLToPath } from 'node:url';
 import * as tokens from '../src/theme/tokens.ts';
 
 const { themes, fontInstances, space, radius, size, layout, motion, interaction, haptics, contrastPairs, MIN_TEXT_CONTRAST } = tokens;
-const { arcState, arcStateColors, arcStateNames, arcOverState, arcTargetKind } = tokens;
+const { arcState, arcStateColors, arcStateFor, arcStateNames, arcTargetKind } = tokens;
 const TT = tokens.type;
 const EV = motion.events;
 
@@ -184,16 +184,18 @@ function toast(T, { title, meta }, { inline = false } = {}) {
    - exceeded a ceiling blown: the completed lap mutes, the overage is a knocked-out second lap in
               the caution hue, and the caption turns caution.
    - surplus  a floor beaten: identical shape, but the overage keeps the metric's own colour and the
-              caption turns success. Past a floor is never a warning. */
-const ringState = (metric, value, target) => (value > target ? arcOverState(metric) : value === target ? 'met' : 'under');
+              caption turns success. Past a floor is never a warning.
+   The state itself comes from `tokens.arcStateFor` and never from a comparison of this
+   file's own: the generator used to carry a third copy of the at-target boundary, so a `>=`
+   slip here would have drawn a canvas that contradicts the spec it exists to prove. */
 const ringCaption = (metric, value, target, amount) =>
-  arcState[ringState(metric, value, target)].caption.replace('{amount}', amount);
-const ringCaptionColor = (T, metric, value, target) => arcStateColors(T.c, metric, ringState(metric, value, target)).caption;
+  arcState[arcStateFor(metric, value, target)].caption.replace('{amount}', amount);
+const ringCaptionColor = (T, metric, value, target) => arcStateColors(T.c, metric, arcStateFor(metric, value, target)).caption;
 
 function ring(T, { metric, value, target, label, shown, of, dia = size.arc.diameter, sw = size.arc.stroke }) {
   const A = T.c.arc;
-  const spec = arcState[ringState(metric, value, target)];
-  const col = arcStateColors(T.c, metric, ringState(metric, value, target));
+  const spec = arcState[arcStateFor(metric, value, target)];
+  const col = arcStateColors(T.c, metric, arcStateFor(metric, value, target));
   const r = (dia - sw) / 2, C = 2 * Math.PI * r, cx = dia / 2;
   const circle = (stroke, width, extra = '') => `<circle cx="${cx}" cy="${cx}" r="${r}" fill="none" stroke="${stroke}" stroke-width="${width}"${extra}/>`;
   const L = size.arc.targetTickLength;
@@ -1126,7 +1128,7 @@ const ARC_CASES = [
 ];
 
 function arcCard(T, title) {
-  const cell = (c) => `<div style="${s({ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' })}">${ring(T, c)}<div style="${t('label', { fontWeight: 650, color: ringCaptionColor(T, c.metric, c.value, c.target) })}">${ringCaption(c.metric, c.value, c.target, c.amount)}</div><div style="${t('micro', { fontSize: '9.5px', color: T.t2 })}">${ringState(c.metric, c.value, c.target)}</div><div style="${t('caption', { color: T.t3, textWrap: 'pretty' })}">${c.note}</div></div>`;
+  const cell = (c) => `<div style="${s({ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' })}">${ring(T, c)}<div style="${t('label', { fontWeight: 650, color: ringCaptionColor(T, c.metric, c.value, c.target) })}">${ringCaption(c.metric, c.value, c.target, c.amount)}</div><div style="${t('micro', { fontSize: '9.5px', color: T.t2 })}">${arcStateFor(c.metric, c.value, c.target)}</div><div style="${t('caption', { color: T.t3, textWrap: 'pretty' })}">${c.note}</div></div>`;
   return `<div style="${s({ flex: '1', minWidth: '0', background: T.c.card.bg, border: `1px solid ${BOARD_HAIR}`, borderRadius: '20px', padding: '20px' })}">
   <div style="${t('micro', { color: T.t2, marginBottom: '16px' })}">${title}</div>
   <div style="${s({ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: '22px 12px' })}">
