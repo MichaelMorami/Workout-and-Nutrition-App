@@ -1493,9 +1493,12 @@ _no exports_
 
 ## `src/theme/`
 
-### `src/theme/tokens.ts`  <sub>2060 lines</sub>
+### `src/theme/tokens.ts`  <sub>2247 lines</sub>
 
 - `const MIN_TEXT_CONTRAST: 4.5`
+- `const arcState: { readonly under: ArcStateSpec; readonly met: ArcStateSpec; readonly exceeded: ArcStateSpec; readonly surplus: ArcStateSpec; }`
+- `const arcStateNames: readonly ["under", "met", "exceeded", "surplus"]`
+- `const arcTargetKind: { readonly kcal: "ceiling"; readonly protein: "floor"; }`
 - `const contrastPairs: readonly ContrastPair[]`
 - `const fontInstances: { readonly 'Archivo-Book': { readonly wght: 450; readonly wdth: 100; }; readonly 'Archivo-Medium': { readonly wght: 500; readonly wdth: 100; }; readonly 'Archivo-SemiBold': { readonly wght: 650; readonly wdth: 100; }; readonly 'Archivo-Bold': { readonly wght: 700; readonly wdth: 100; }; readonly 'Archivo-Title': { readonly wght: 700; readonly wdth: 104; }; readonly 'Archivo...`
 - `const glyph: { readonly family: "Ionicons"; readonly tab: { readonly today: { readonly active: "today"; readonly inactive: "today-outline"; }; readonly workout: { readonly active: "barbell"; readonly inactive: "barbell-outline"; }; readonly charts: { readonly active: "stats-chart"; readonly inactive: "stats-chart-outline"; }; readonly settings: { readonly active: "settings"; readonly inactive: ...`
@@ -1510,8 +1513,28 @@ _no exports_
 - `const themeNames: readonly ["dark", "light"]`
 - `const themes: { readonly dark: Theme; readonly light: Theme; }`
 - `const type: { readonly displayXl: { readonly fontFamily: "Archivo-DisplayXl"; readonly fontSize: 33; readonly lineHeight: 33; readonly letterSpacing: -0.73; readonly fontVariant: readonly ["tabular-nums"]; }; readonly displayLg: { readonly fontFamily: "Archivo-Display"; readonly fontSize: 25; readonly lineHeight: 27; readonly letterSpacing: -0.45; }; readonly statHero: { readonly fontFamily: "A...`
+- `function arcOverState(metric: ArcMetricName): ArcStateName`
+- `function arcStateColors(color: ColorTokens, metric: ArcMetricName, state: ArcStateName): ArcStateColors`
 - `function formFooterPaddingBottom(keyboardVisible: boolean, safeAreaBottom: number): number`
 - `function resolveThemeName(preference: ThemePreference, system: string | null | undefined): ThemeName`
+- `type ArcMetricName = keyof typeof arcTargetKind`
+- `type ArcStateColors = {
+  /** The first lap — the target's own worth of ring. */
+  readonly firstLap: string;
+  /** The overage lap, or `null` when the value has not passed target. */
+  readonly overage: string | null;
+  /** The caption under the ring. */
+  readonly caption: string;
+}`
+- `type ArcStateName = (typeof arcStateNames)[number]`
+- `type ArcStateSpec = {
+  /** The target direction this state can occur on. `'both'` for the two states below/at target. */
+  readonly appliesTo: ArcTargetKind | 'both';
+  /** Where the value sits against the target. */
+  readonly position: 'below' | 'at' | 'above';
+  /** First lap: `'metric'` → `arc[metric]`, `'metricOverBase'` → `arc[metric + 'OverBase']`. */
+  readonly firstLap: 'metric' | 'me...`
+- `type ArcTargetKind = (typeof arcTargetKind)[ArcMetricName]`
 - `type BaseColors = Widen<typeof darkBase>`
 - `type Bezier = readonly [number, number, number, number]`
 - `type ColorPath = Paths<ColorTokens>`
