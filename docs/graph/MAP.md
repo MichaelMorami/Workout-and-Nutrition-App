@@ -700,7 +700,7 @@ jq -r '.modules["src/db/queries/nutrition.ts"].exports[]' docs/graph/symbols.jso
 
 <sub>used by: `src/components/quick-add/QuickAddGrid.tsx`</sub>
 
-### `src/components/quick-add/UndoToast.tsx`  <sub>229 lines</sub>
+### `src/components/quick-add/UndoToast.tsx`  <sub>298 lines</sub>
 
 - `function UndoToast({ onUndo, testID = 'undo-toast' }: UndoToastProps): import("react").JSX.Element | null`
 - `type UndoToastProps = {
