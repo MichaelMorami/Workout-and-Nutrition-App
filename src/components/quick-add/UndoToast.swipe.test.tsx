@@ -82,6 +82,7 @@ const touchEvent = (fromX: number, toX: number, fromY = 0, toY = 0) => {
 type ResponderEvent = ReturnType<typeof touchEvent>;
 type ResponderProps = {
   readonly onMoveShouldSetResponder: (event: ResponderEvent) => boolean;
+  readonly onMoveShouldSetResponderCapture: (event: ResponderEvent) => boolean;
   readonly onResponderGrant: (event: ResponderEvent) => void;
   readonly onResponderMove: (event: ResponderEvent) => void;
   readonly onResponderRelease: (event: ResponderEvent) => void;
@@ -90,7 +91,14 @@ type ResponderProps = {
 const toastProps = (): ResponderProps => screen.getByTestId('toast').props as ResponderProps;
 
 /** Whether the toast would take this drag, asked the way the responder system asks. */
-const claims = (dx: number, dy = 0): boolean => toastProps().onMoveShouldSetResponder(touchEvent(200, 200 + dx, 400, 400 + dy));
+const claims = (dx: number, dy = 0): boolean => {
+  const t = toastProps();
+  const event = touchEvent(200, 200 + dx, 400, 400 + dy);
+  // The responder system runs the capture pass first; that is where PanResponder folds the move
+  // into its gesture state, so a bare bubble-phase call would see dx = 0.
+  t.onMoveShouldSetResponderCapture(event);
+  return t.onMoveShouldSetResponder(event);
+};
 
 const swipeBy = async (dx: number): Promise<void> => {
   const t = toastProps();
@@ -169,7 +177,7 @@ describe('<UndoToast> swipe to dismiss (issue #271)', () => {
     expect(toastOffset()).toBe(-20);
 
     await act(() => {
-      t.onResponderMove(touchEvent(200, 200 + 30));
+      t.onResponderMove(touchEvent(180, 230));
     });
     expect(toastOffset()).toBe(30);
   });
@@ -218,13 +226,20 @@ describe('<UndoToast> swipe to dismiss (issue #271)', () => {
       await renderToast();
     });
 
-    it('claims a clearly horizontal drag, either way', () => {
+    // One drag per test: PanResponder accumulates travel across calls on the same element.
+    it('claims a clearly horizontal drag to the left', () => {
       expect(claims(-FAR)).toBe(true);
+    });
+
+    it('claims a clearly horizontal drag to the right', () => {
       expect(claims(FAR)).toBe(true);
     });
 
-    it('leaves vertical scrolling beneath alone', () => {
+    it('leaves downward scrolling beneath alone', () => {
       expect(claims(0, FAR)).toBe(false);
+    });
+
+    it('leaves upward scrolling beneath alone', () => {
       expect(claims(0, -FAR)).toBe(false);
     });
 

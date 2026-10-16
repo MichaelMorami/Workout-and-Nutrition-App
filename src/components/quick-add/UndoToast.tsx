@@ -23,13 +23,36 @@
  * therefore optional. `verb` swaps the accessibility label's "Undo **logging** X" for whatever the
  * action actually reverses ("Undo **deleting** X").
  *
+ * SWIPE AWAY, EITHER WAY (issue #271). A horizontal drag past `size.toast.height` dismisses; a shorter
+ * one springs back. It calls the store's `dismiss()` and nothing else: dismissing is not undoing, so
+ * no `undo()`, `action`, `forgetLog`, `onUndo` or undo haptic fires (`interaction.undoDismissedBy`
+ * already lists `swipedAway`). `SwipeToDelete`'s whole component cannot be reused, since it reveals a
+ * button rather than flinging its content off and its `shouldClaimDrag` refuses a rightward drag on a
+ * shut row, but the pattern is: a `PanResponder` that never claims at touch start, claims a move only
+ * once it is `motion.carousel.activation.innerClaimPt` (6) of horizontal-dominant travel (so the Undo
+ * press stays a press, vertical scrolling beneath is left alone, and the #82 tab pager, which claims
+ * at 12, still arbitrates correctly), and treats terminate as "spring back". The travel is a
+ * reanimated shared value, so the toast tracks the finger on the UI thread. Screen readers get a
+ * `dismiss` accessibility action on the live region (the swipe has no AT equivalent otherwise).
+ * The dismiss distance reuses `size.toast.height`; a dedicated token is requested from design-lead.
+ *
  * STAYS MOUNTED THROUGH ITS OWN EXIT. The store's `toast` field is either a payload or `null` —
  * there is no third "leaving" state — so this component keeps the last payload in local state
  * until `toastOut` finishes, the same hold-then-clear shape `QuickAddTile` uses for its own
  * "Logged" wash, rather than vanishing mid-animation the instant `dismiss()` fires.
  */
-import { useEffect, useRef, useState } from 'react';
-import { Pressable, StyleSheet, Text, View, type TextStyle } from 'react-native';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import {
+  PanResponder,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+  type AccessibilityActionEvent,
+  type GestureResponderEvent,
+  type PanResponderGestureState,
+  type TextStyle,
+} from 'react-native';
 import Animated, { Easing, useAnimatedStyle, useReducedMotion, useSharedValue, withTiming } from 'react-native-reanimated';
 import { undo, VitalsDbError } from '../../db';
 import { deviceWhen } from '../../hooks/deviceWhen';
@@ -114,7 +137,48 @@ export function UndoToast({ onUndo, testID = 'undo-toast' }: UndoToastProps) {
     translateY.value = reducedMotion ? 0 : withTiming(shown ? 0 : space[6], { duration, easing: Easing.bezier(...curve) });
   }, [shown, reducedMotion, opacity, translateY]);
 
-  const animatedStyle = useAnimatedStyle(() => ({ opacity: opacity.value, transform: [{ translateY: translateY.value }] }));
+  const translateX = useSharedValue(0);
+
+  // Every fresh payload starts at rest; a swipe-dismissed toast stays where it was thrown while it
+  // fades (the store goes null, this does not run), and is reset only when the next one arrives.
+  useEffect(() => {
+    if (toast) translateX.value = 0;
+  }, [toast, translateX]);
+
+  const springBack = (): void => {
+    const event = motion.events.toastOut;
+    const duration = reducedMotion ? event.reduced.duration : event.duration;
+    translateX.value = withTiming(0, { duration, easing: Easing.bezier(...motion.easing[event.easing]) });
+  };
+  const springBackRef = useRef(springBack);
+  springBackRef.current = springBack;
+
+  const panResponder = useMemo(
+    () =>
+      PanResponder.create({
+        onStartShouldSetPanResponder: () => false,
+        onMoveShouldSetPanResponder: (_: GestureResponderEvent, g: PanResponderGestureState) =>
+          Math.abs(g.dx) > motion.carousel.activation.innerClaimPt && Math.abs(g.dx) > Math.abs(g.dy),
+        onPanResponderMove: (_: GestureResponderEvent, g: PanResponderGestureState) => {
+          translateX.value = g.dx;
+        },
+        onPanResponderRelease: (_: GestureResponderEvent, g: PanResponderGestureState) => {
+          if (Math.abs(g.dx) >= size.toast.height) {
+            translateX.value = g.dx;
+            useUndoToastStore.getState().dismiss();
+          } else {
+            springBackRef.current();
+          }
+        },
+        onPanResponderTerminate: () => springBackRef.current(),
+      }),
+    [translateX],
+  );
+
+  const animatedStyle = useAnimatedStyle(() => ({
+    opacity: opacity.value,
+    transform: [{ translateY: translateY.value }, { translateX: translateX.value }],
+  }));
 
   if (!rendered) return null;
 
@@ -149,6 +213,11 @@ export function UndoToast({ onUndo, testID = 'undo-toast' }: UndoToastProps) {
       testID={testID}
       accessible
       accessibilityLiveRegion="polite"
+      accessibilityActions={[{ name: 'dismiss', label: 'Dismiss' }]}
+      onAccessibilityAction={(event: AccessibilityActionEvent) => {
+        if (event.nativeEvent.actionName === 'dismiss') dismiss();
+      }}
+      {...panResponder.panHandlers}
       pointerEvents={shown ? 'box-none' : 'none'}
       style={[
         styles.root,
