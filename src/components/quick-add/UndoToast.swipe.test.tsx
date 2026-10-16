@@ -182,6 +182,33 @@ describe('<UndoToast> swipe to dismiss (issue #271)', () => {
     expect(toastOffset()).toBe(30);
   });
 
+  describe('the dismiss distance is size.toast.height', () => {
+    it.each([
+      ['left', -1],
+      ['right', 1],
+    ])('one point short, %s, springs back and keeps the toast', async (_name, sign) => {
+      useUndoToastStore.getState().show(payload());
+      await renderToast();
+
+      await swipeBy(sign * (size.toast.height - 1));
+
+      expect(useUndoToastStore.getState().toast).not.toBeNull();
+      expect(toastOffset()).toBe(0);
+    });
+
+    it.each([
+      ['left', -1],
+      ['right', 1],
+    ])('exactly that far, %s, dismisses', async (_name, sign) => {
+      useUndoToastStore.getState().show(payload());
+      await renderToast();
+
+      await swipeBy(sign * size.toast.height);
+
+      expect(useUndoToastStore.getState().toast).toBeNull();
+    });
+  });
+
   it('a short drag springs back to rest and leaves the toast up', async () => {
     useUndoToastStore.getState().show(payload());
     await renderToast();
