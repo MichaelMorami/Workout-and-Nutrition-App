@@ -23,6 +23,7 @@ import {
   arcOverState,
   arcState,
   arcStateColors,
+  arcStateFor,
   arcStateNames,
   arcTargetKind,
   contrastPairs,
@@ -315,6 +316,68 @@ describe('arc target states (issue #272)', () => {
     expect(arcState.met.appliesTo).toBe('both');
   });
 
+  /* `position` is the only machine-readable statement of WHERE the at-target boundary sits, so it
+     is pinned twice: the four values directly, here, and behaviourally through `arcStateFor` below
+     — which derives the state from `position`, so the field has a consumer rather than a promise. */
+  it('says where each state sits against the target, and exactly one state answers each case', () => {
+    expect(Object.fromEntries(arcStateNames.map((s) => [s, arcState[s].position]))).toEqual({
+      under: 'below',
+      met: 'at',
+      // Both over-states sit above target; what separates them is `appliesTo`, i.e. which way the
+      // target points — never the position.
+      exceeded: 'above',
+      surplus: 'above',
+    });
+    // Totality: every (position, target kind) pair resolves to one state and never two, which is
+    // what lets `arcStateFor` look the state up instead of branching on the comparison again.
+    for (const kind of ['ceiling', 'floor'] as const) {
+      for (const position of ['below', 'at', 'above'] as const) {
+        const matches = arcStateNames.filter(
+          (s) =>
+            arcState[s].position === position &&
+            (arcState[s].appliesTo === 'both' || arcState[s].appliesTo === kind),
+        );
+        expect({ kind, position, matches: matches.length }).toEqual({ kind, position, matches: 1 });
+      }
+    }
+  });
+
+  /* THE BOUNDARY, in the one place it now lives. It used to exist three times over — here, in
+     `arc-math.ts` and in the design canvas — and a `>=` for a `>` in any copy ships a ring that
+     calls a hit target a blown one. `arcStateFor` is the sanctioned route for #273; the canvas
+     calls it too, so the specimen cannot disagree with the spec it is drawn to prove. */
+  describe('arcStateFor maps a value and a target to a state', () => {
+    it.each([
+      ['kcal', 2400, 'exceeded'],
+      ['protein', 180, 'surplus'],
+    ] as const)('%s, target %i: target−1 is under, target is met, target+1 is %s', (metric, target, over) => {
+      expect(arcStateFor(metric, target - 1, target)).toBe('under');
+      expect(arcStateFor(metric, target, target)).toBe('met');
+      expect(arcStateFor(metric, target + 1, target)).toBe(over);
+      // Away from the boundary, and at the far end: nothing saturates into another state.
+      expect(arcStateFor(metric, 0, target)).toBe('under');
+      expect(arcStateFor(metric, target * 3, target)).toBe(over);
+      // The over-state is the one the metric's direction earns, not a second opinion about it.
+      expect(arcStateFor(metric, target + 1, target)).toBe(arcOverState(metric));
+    });
+
+    it('agrees with the spec it resolves to, state for state', () => {
+      for (const metric of metrics) {
+        for (const [value, expected] of [[179, 'under'], [180, 'met'], [181, arcOverState(metric)]] as const) {
+          const state = arcStateFor(metric, value, 180);
+          const spec = arcState[state];
+          expect({ metric, value, state, position: spec.position }).toEqual({
+            metric,
+            value,
+            state: expected,
+            position: value < 180 ? 'below' : value === 180 ? 'at' : 'above',
+          });
+          expect(spec.appliesTo === 'both' || spec.appliesTo === arcTargetKind[metric]).toBe(true);
+        }
+      }
+    });
+  });
+
   /* The criterion most likely to pass vacuously: at 99.4 % of target the ring's round end caps
      already close the gap, so a met ring and a nearly-met one are the same picture. Three
      independent channels separate them, and each is asserted on its own. */
@@ -365,6 +428,13 @@ describe('arc target states (issue #272)', () => {
     expect(surplus.caption).toBe(color.state.success);
     expect(surplus.caption).not.toBe(color.state.caution);
     expect(surplus.caption).not.toBe(color.state.danger);
+    // The twin of the ceiling's muted first lap, and it bites harder here: `arc.proteinOverage` IS
+    // `data.protein`, so if the first lap kept protein's full-brightness colour too, both laps
+    // would be the same hue and "12 g past" would render as a plain closed ring — the "reads as
+    // complete when it is not" bug this issue exists to kill. The 3 pt knockout cut would be the
+    // only thing left saying otherwise.
+    expect(surplus.firstLap).toBe(color.arc.proteinOverBase);
+    expect(surplus.firstLap).not.toBe(surplus.overage);
     // And a met target says success on both metrics, not just on the floor.
     for (const metric of metrics) expect(arcStateColors(color, metric, 'met').caption).toBe(color.state.success);
   });
