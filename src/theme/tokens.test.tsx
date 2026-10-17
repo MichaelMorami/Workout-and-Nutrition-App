@@ -15,8 +15,17 @@
  *   4. The non-colour rules the design depends on: the 44 pt floor, the 16.5 pt tile name
  *      (decision 1), a reduce-motion answer for every animation, and an over-target arc that does
  *      not rely on colour alone.
+ *   5. The four below/at/over arc states (issue #272): kcal is a ceiling, protein is a floor, and
+ *      "at target" is separated from "just under" by shape, by colour AND by word — asserted on the
+ *      colours `arcStateColors` actually hands the ring, not on token names.
  */
 import {
+  arcOverState,
+  arcState,
+  arcStateColors,
+  arcStateFor,
+  arcStateNames,
+  arcTargetKind,
   contrastPairs,
   fontInstances,
   formFooterPaddingBottom,
@@ -34,6 +43,8 @@ import {
   themes,
   type,
   type ColorPath,
+  type ArcMetricName,
+  type ArcStateName,
 } from './tokens';
 
 /* ------------------------------------------------------------------ helpers */
@@ -260,6 +271,243 @@ describe('glyph (issue #80)', () => {
     // A real gap of theme background between the protein figure and the button — a space step.
     expect(b.gap).toBeGreaterThan(0);
     expect(Object.values(space)).toContain(b.gap);
+  });
+});
+
+/* ============================================= arc target states (issue #272) */
+
+/**
+ * The visual language for going over a target. The product decision (#272) is fixed: kcal is a
+ * ceiling, protein is a floor, there is no target-type column and no migration — the direction is
+ * hard-coded per metric. `src/components/charts/**` draws it (#273); these tests pin what it draws
+ * against.
+ *
+ * Every colour assertion below reads `arcStateColors`, the same resolver the ring calls, so it is
+ * measuring what lands on screen rather than re-deriving it from the token tree.
+ */
+describe('arc target states (issue #272)', () => {
+  const metrics: readonly ArcMetricName[] = ['kcal', 'protein'];
+
+  it('names the two targets the schema actually has, and which way each one points', () => {
+    // `kcalTarget` and `proteinTarget` (src/db/schema.ts) are the only targets that exist, so these
+    // are the only two directions the design has to answer for.
+    expect(Object.keys(arcTargetKind).sort()).toEqual(['kcal', 'protein']);
+    expect(arcTargetKind.kcal).toBe('ceiling');
+    expect(arcTargetKind.protein).toBe('floor');
+  });
+
+  it('defines four below/at/over states and leaves the no-target ring out of them', () => {
+    const expected: readonly ArcStateName[] = ['under', 'met', 'exceeded', 'surplus'];
+    expect([...arcStateNames]).toEqual([...expected]);
+    expect(Object.keys(arcState).sort()).toEqual([...arcStateNames].sort());
+    // `noTarget` is `arc-math.ts`'s fifth status and this issue does not touch it: no state here
+    // means no new colour, shape or word can reach it.
+    expect(arcStateNames).not.toContain('noTarget');
+  });
+
+  it('sends each metric over its target into the state its direction earns', () => {
+    expect(arcOverState('kcal')).toBe('exceeded');
+    expect(arcOverState('protein')).toBe('surplus');
+    for (const metric of metrics) {
+      const state = arcOverState(metric);
+      expect({ metric, appliesTo: arcState[state].appliesTo }).toEqual({ metric, appliesTo: arcTargetKind[metric] });
+    }
+    expect(arcState.under.appliesTo).toBe('both');
+    expect(arcState.met.appliesTo).toBe('both');
+  });
+
+  /* `position` is the only machine-readable statement of WHERE the at-target boundary sits, so it
+     is pinned twice: the four values directly, here, and behaviourally through `arcStateFor` below
+     — which derives the state from `position`, so the field has a consumer rather than a promise. */
+  it('says where each state sits against the target, and exactly one state answers each case', () => {
+    expect(Object.fromEntries(arcStateNames.map((s) => [s, arcState[s].position]))).toEqual({
+      under: 'below',
+      met: 'at',
+      // Both over-states sit above target; what separates them is `appliesTo`, i.e. which way the
+      // target points — never the position.
+      exceeded: 'above',
+      surplus: 'above',
+    });
+    // Totality: every (position, target kind) pair resolves to one state and never two, which is
+    // what lets `arcStateFor` look the state up instead of branching on the comparison again.
+    for (const kind of ['ceiling', 'floor'] as const) {
+      for (const position of ['below', 'at', 'above'] as const) {
+        const matches = arcStateNames.filter(
+          (s) =>
+            arcState[s].position === position &&
+            (arcState[s].appliesTo === 'both' || arcState[s].appliesTo === kind),
+        );
+        expect({ kind, position, matches: matches.length }).toEqual({ kind, position, matches: 1 });
+      }
+    }
+  });
+
+  /* THE BOUNDARY, in the one place it now lives. It used to exist three times over — here, in
+     `arc-math.ts` and in the design canvas — and a `>=` for a `>` in any copy ships a ring that
+     calls a hit target a blown one. `arcStateFor` is the sanctioned route for #273; the canvas
+     calls it too, so the specimen cannot disagree with the spec it is drawn to prove. */
+  describe('arcStateFor maps a value and a target to a state', () => {
+    const cases: [metric: ArcMetricName, target: number, over: ArcStateName][] = [
+      ['kcal', 2400, 'exceeded'],
+      ['protein', 180, 'surplus'],
+    ];
+    it.each(cases)('%s, target %i: target−1 is under, target is met, target+1 is %s', (metric, target, over) => {
+      expect(arcStateFor(metric, target - 1, target)).toBe('under');
+      expect(arcStateFor(metric, target, target)).toBe('met');
+      expect(arcStateFor(metric, target + 1, target)).toBe(over);
+      // Away from the boundary, and at the far end: nothing saturates into another state.
+      expect(arcStateFor(metric, 0, target)).toBe('under');
+      expect(arcStateFor(metric, target * 3, target)).toBe(over);
+      // The over-state is the one the metric's direction earns, not a second opinion about it.
+      expect(arcStateFor(metric, target + 1, target)).toBe(arcOverState(metric));
+    });
+
+    it('agrees with the spec it resolves to, state for state', () => {
+      for (const metric of metrics) {
+        for (const [value, expected] of [[179, 'under'], [180, 'met'], [181, arcOverState(metric)]] as const) {
+          const state = arcStateFor(metric, value, 180);
+          const spec = arcState[state];
+          expect({ metric, value, state, position: spec.position }).toEqual({
+            metric,
+            value,
+            state: expected,
+            position: value < 180 ? 'below' : value === 180 ? 'at' : 'above',
+          });
+          expect(spec.appliesTo === 'both' || spec.appliesTo === arcTargetKind[metric]).toBe(true);
+        }
+      }
+    });
+  });
+
+  /* The criterion most likely to pass vacuously: at 99.4 % of target the ring's round end caps
+     already close the gap, so a met ring and a nearly-met one are the same picture. Three
+     independent channels separate them, and each is asserted on its own. */
+  describe('"at target" is distinguishable from "just under"', () => {
+    it('by shape: only a reached target draws the 12 o’clock tick', () => {
+      expect(arcState.under.tick).toBe(false);
+      expect(arcState.met.tick).toBe(true);
+      // The tick is long enough to break the ring's silhouette, which is what makes it readable at
+      // arm's length rather than a detail.
+      expect(size.arc.targetTickLength).toBeGreaterThan(size.arc.stroke);
+    });
+
+    it.each(themeNames)('by colour, in %s: the caption changes colour the moment the target is reached', (name) => {
+      const { color } = themes[name];
+      for (const metric of metrics) {
+        const under = arcStateColors(color, metric, 'under').caption;
+        const met = arcStateColors(color, metric, 'met').caption;
+        expect({ name, metric, under, met, differ: under !== met }).toEqual({ name, metric, under, met, differ: true });
+      }
+    });
+
+    it('by word: "Target hit" is not a countdown', () => {
+      expect(arcState.met.caption).toBe('Target hit');
+      expect(arcState.under.caption).toBe('{amount} left');
+      expect(arcState.met.caption).not.toBe(arcState.under.caption);
+    });
+  });
+
+  it.each(themeNames)('%s: a blown ceiling gets a caution hue of its own — never danger, never the metric', (name) => {
+    const { color } = themes[name];
+    const exceeded = arcStateColors(color, 'kcal', 'exceeded');
+    expect(exceeded.overage).toBe(color.state.caution);
+    // Reading the overage as "calories" would lose the whole state; reading it as danger would say
+    // something failed or something is about to be destroyed. Neither is true.
+    expect(exceeded.overage).not.toBe(color.data.kcal);
+    expect(exceeded.overage).not.toBe(color.state.danger);
+    expect(exceeded.caption).toBe(color.state.caution);
+    // The completed lap stays muted, so the ring never reads as a triumphant full circle.
+    expect(exceeded.firstLap).toBe(color.arc.kcalOverBase);
+  });
+
+  it.each(themeNames)('%s: a beaten floor keeps protein’s own colour and reads as success', (name) => {
+    const { color } = themes[name];
+    const surplus = arcStateColors(color, 'protein', 'surplus');
+    expect(surplus.overage).toBe(color.data.protein);
+    expect(surplus.overage).not.toBe(color.state.caution);
+    expect(surplus.overage).not.toBe(color.state.danger);
+    expect(surplus.caption).toBe(color.state.success);
+    expect(surplus.caption).not.toBe(color.state.caution);
+    expect(surplus.caption).not.toBe(color.state.danger);
+    // The twin of the ceiling's muted first lap, and it bites harder here: `arc.proteinOverage` IS
+    // `data.protein`, so if the first lap kept protein's full-brightness colour too, both laps
+    // would be the same hue and "12 g past" would render as a plain closed ring — the "reads as
+    // complete when it is not" bug this issue exists to kill. The 3 pt knockout cut would be the
+    // only thing left saying otherwise.
+    expect(surplus.firstLap).toBe(color.arc.proteinOverBase);
+    expect(surplus.firstLap).not.toBe(surplus.overage);
+    // And a met target says success on both metrics, not just on the floor.
+    for (const metric of metrics) expect(arcStateColors(color, metric, 'met').caption).toBe(color.state.success);
+  });
+
+  it('cuts the knockout only where there is an overage to cut it around', () => {
+    for (const state of arcStateNames) {
+      const spec = arcState[state];
+      const over = spec.appliesTo !== 'both';
+      expect({ state, overage: spec.overage !== null, knockout: spec.knockout, tick: spec.tick }).toEqual({
+        state,
+        overage: over,
+        knockout: over,
+        tick: state !== 'under',
+      });
+    }
+    expect(size.arc.overKnockout).toBeGreaterThan(0);
+  });
+
+  it.each(themeNames)('%s: hands the ring no overage colour at all below or at target', (name) => {
+    const { color } = themes[name];
+    for (const metric of metrics) {
+      for (const state of ['under', 'met'] as const) {
+        const resolved = arcStateColors(color, metric, state);
+        expect({ metric, state, overage: resolved.overage }).toEqual({ metric, state, overage: null });
+        // Below and at target the first lap is the metric's own, full-brightness colour.
+        expect(resolved.firstLap).toBe(color.arc[metric]);
+      }
+    }
+  });
+
+  it('words each state once, with the amount only where there is one', () => {
+    expect(Object.fromEntries(arcStateNames.map((s) => [s, arcState[s].caption]))).toEqual({
+      under: '{amount} left',
+      met: 'Target hit',
+      // "over" is a budget blown; "past" is a floor beaten. The words carry the difference when the
+      // colour cannot — greyscale, a screenshot, a colourblind reader.
+      exceeded: '{amount} over',
+      surplus: '{amount} past',
+    });
+    const withAmount = arcStateNames.filter((s) => arcState[s].caption.includes('{amount}'));
+    expect([...withAmount]).toEqual(['under', 'exceeded', 'surplus']);
+  });
+
+  /* "The unset-target ring is left exactly as it is" (#272). The no-target ring draws `arc.track`
+     plus the three texts inside it and nothing else, so pinning those four values in both themes is
+     the whole of that promise. Hexes, not aliases: an alias would follow a retuned base colour and
+     the pin would never fire. */
+  it.each(themeNames)('%s: leaves every colour the no-target ring draws byte-identical', (name) => {
+    const expected = {
+      dark: { track: '#32353D', valueText: '#F5F7FA', labelText: '#9598A0', captionText: '#B4B7BE' },
+      light: { track: '#DBDEE3', valueText: '#1A1D24', labelText: '#63666F', captionText: '#575B63' },
+    }[name];
+    const { track, valueText, labelText, captionText } = themes[name].color.arc;
+    expect({ track, valueText, labelText, captionText }).toEqual(expected);
+  });
+
+  it('measures every new colour against the ground it is drawn on, both themes', () => {
+    const declared = new Set(contrastPairs.map((p) => `${p.fg} on ${p.on.join(' + ')}`));
+    for (const fg of ['arc.metText', 'arc.exceededText', 'arc.surplusText', 'arc.kcalOverage', 'arc.proteinOverage']) {
+      expect({ fg, measured: declared.has(`${fg} on card.bg`) }).toEqual({ fg, measured: true });
+    }
+    // `state.caution` is a semantic colour like `success` and `danger`: measured on all three grounds.
+    for (const on of ['bg.canvas', 'bg.surface', 'bg.raised']) {
+      expect({ on, measured: declared.has(`state.caution on ${on}`) }).toEqual({ on, measured: true });
+    }
+  });
+
+  it('needs no reduce-motion answer of its own: the state change rides the existing sweep', () => {
+    // A ring crossing its target changes colour, gains a tick and gains a lap — all inside the one
+    // sweep that already runs after a log, which already answers reduce motion with an instant cut.
+    expect(motion.events.arcSweep.reduced.kind).toBe('instant');
+    expect(Object.keys(motion.events).filter((k) => /exceed|surplus|target/i.test(k))).toEqual([]);
   });
 });
 

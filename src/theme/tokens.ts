@@ -120,6 +120,13 @@ const darkBase = {
   state: {
     /** A target met, a trend going the right way, sync healthy. */
     success: '#7BD77F',
+    /**
+     * A ceiling exceeded: calories past `kcalTarget` (issue #272). Hot orange — hotter than
+     * `data.kcal`'s amber so the overage cannot be mistaken for more calories, and a clear 20° of
+     * hue away from `state.danger`'s red. It is NOT danger: nothing failed and nothing is about to
+     * be destroyed, so it never appears on a button and never on a destructive action.
+     */
+    caution: '#FA7A32',
     /** Delete, discard a session, sync failure. Nothing else. */
     danger: '#F66D67',
   },
@@ -181,6 +188,7 @@ const lightBase = {
   },
   state: {
     success: '#007936',
+    caution: '#A02F04',
     danger: '#BE222A',
   },
   fill: {
@@ -221,9 +229,19 @@ function withComponents(c: BaseColors) {
       kcalOverBase: c.data.kcalMuted,
       /** Over target: the protein ring's completed first lap. */
       proteinOverBase: c.data.proteinMuted,
+      /**
+       * The second, overage lap on the calorie ring — the amount past `kcalTarget`. Calories are a
+       * CEILING, so the overage is the thing to notice and it takes the caution hue (issue #272).
+       */
+      kcalOverage: c.state.caution,
+      /**
+       * The second, overage lap on the protein ring. Protein is a FLOOR, so passing it is success:
+       * the overage keeps protein's own colour and is never tinted toward caution or danger.
+       */
+      proteinOverage: c.data.protein,
       /** Over target: the gap stroke cut around the second lap, so the overlap is visible in shape, not hue. */
       overKnockout: c.bg.surface,
-      /** The target tick at 12 o'clock, drawn across the ring once a ring passes its target. */
+      /** The target tick at 12 o'clock, drawn across the ring from the moment the target is reached. */
       targetTickIcon: c.text.primary,
       /** The big number inside a ring. */
       valueText: c.text.primary,
@@ -231,10 +249,19 @@ function withComponents(c: BaseColors) {
       labelText: c.text.tertiary,
       /** "of 2,400" under the number. */
       captionText: c.text.secondary,
-      /** "1,160 left" / "180 over" under the calorie ring. */
+      /** "1,160 left" under the calorie ring — the under-target caption, on either metric's own colour. */
       kcalText: c.data.kcal,
-      /** "84 g left" / "12 g past" under the protein ring. */
+      /** "84 g left" under the protein ring. */
       proteinText: c.data.protein,
+      /**
+       * "Target hit", on either ring. The caption's colour is what separates a met ring from a ring
+       * at 99 % of target, whose round end caps already close the gap (issue #272).
+       */
+      metText: c.state.success,
+      /** "180 over" — a ceiling blown. The same caution hue as the overage lap it describes. */
+      exceededText: c.state.caution,
+      /** "12 g past" — a floor beaten. Success, because that is what it is. */
+      surplusText: c.state.success,
     },
 
     tile: {
@@ -757,6 +784,193 @@ type Paths<T> = {
 /** A dotted path to a colour token, e.g. `'tile.nameText'`. A typo is a type error. */
 export type ColorPath = Paths<ColorTokens>;
 
+/* ============================================================== arc states */
+
+/**
+ * WHAT A TARGET MEANS, PER METRIC (issue #272).
+ *
+ * The schema has exactly two targets — `kcalTarget` and `proteinTarget` — and no column saying
+ * which way either one points, so the direction is a design decision hard-coded here. There is no
+ * maximum-limit nutrient in the data model, so no third direction is defined for one.
+ *
+ *   - `ceiling` — the target is a budget. Going over is the thing to notice.
+ *   - `floor`   — the target is a minimum. Going over is the point.
+ *
+ * Going over the SAME distance means opposite things on the two rings, which is the bug this
+ * answers: beating a protein goal used to look exactly like blowing a calorie budget.
+ */
+export const arcTargetKind = { kcal: 'ceiling', protein: 'floor' } as const;
+
+/** The two things Today rings. Mirrors `ArcMetric` in `src/components/charts/arc-math.ts`. */
+export type ArcMetricName = keyof typeof arcTargetKind;
+
+/** Which way a metric's target points. */
+export type ArcTargetKind = (typeof arcTargetKind)[ArcMetricName];
+
+/**
+ * The four states a ring with a target can be in, below → at → over.
+ *
+ * `noTarget` (`target: 0`, drawn as "No target set") is deliberately NOT one of them: it is
+ * `arc-math.ts`'s fifth status and #272 leaves it exactly as it was, so it gets no state here and
+ * therefore no new colour, shape or word can reach it.
+ */
+export const arcStateNames = ['under', 'met', 'exceeded', 'surplus'] as const;
+export type ArcStateName = (typeof arcStateNames)[number];
+
+/**
+ * How one state is drawn. The colour fields are ROLES, not values — `arcStateColors` resolves them
+ * against a theme and a metric, so the ring never has to know which token a state wants.
+ */
+export type ArcStateSpec = {
+  /** The target direction this state can occur on. `'both'` for the two states below/at target. */
+  readonly appliesTo: ArcTargetKind | 'both';
+  /** Where the value sits against the target. */
+  readonly position: 'below' | 'at' | 'above';
+  /** First lap: `'metric'` → `arc[metric]`, `'metricOverBase'` → `arc[metric + 'OverBase']`. */
+  readonly firstLap: 'metric' | 'metricOverBase';
+  /** Second lap: `'metricOverage'` → `arc[metric + 'Overage']`, or `null` when there is no overage. */
+  readonly overage: 'metricOverage' | null;
+  /** Caption: `'metricText'` → `arc[metric + 'Text']`, otherwise that literal key of `arc`. */
+  readonly captionColor: 'metricText' | 'metText' | 'exceededText' | 'surplusText';
+  /**
+   * Draw the 12 o'clock target tick? This is the SHAPE half of separating a met ring from a ring at
+   * 99 % of target: at that distance the progress stroke's round end caps already overlap, so the
+   * two are the same picture until one of them carries a mark the other does not.
+   */
+  readonly tick: boolean;
+  /** Cut the knockout gap either side of the overage lap, so two laps read as two in shape alone. */
+  readonly knockout: boolean;
+  /**
+   * The caption under the ring. `{amount}` is the difference from target, already formatted with
+   * its unit by the caller ("180", "12 g"). This is the design's wording: "over" for a ceiling
+   * blown, "past" for a floor beaten — the half of the state that survives greyscale, a screenshot
+   * and a colourblind reader.
+   */
+  readonly caption: string;
+};
+
+/** The four states. The ring reads this, not a branch of its own. */
+export const arcState: { readonly [S in ArcStateName]: ArcStateSpec } = {
+  /** Below target, either direction: the metric's own colour, climbing. Nothing to flag. */
+  under: {
+    appliesTo: 'both',
+    position: 'below',
+    firstLap: 'metric',
+    overage: null,
+    captionColor: 'metricText',
+    tick: false,
+    knockout: false,
+    caption: '{amount} left',
+  },
+  /** Exactly on target, either direction. A closed bright ring, the tick on the line, and success. */
+  met: {
+    appliesTo: 'both',
+    position: 'at',
+    firstLap: 'metric',
+    overage: null,
+    captionColor: 'metText',
+    tick: true,
+    knockout: false,
+    caption: 'Target hit',
+  },
+  /** Over a CEILING — calories past target. The completed lap mutes; the overage takes caution. */
+  exceeded: {
+    appliesTo: 'ceiling',
+    position: 'above',
+    firstLap: 'metricOverBase',
+    overage: 'metricOverage',
+    captionColor: 'exceededText',
+    tick: true,
+    knockout: true,
+    caption: '{amount} over',
+  },
+  /** Over a FLOOR — protein past target. Same shape, the metric's own colour, and success wording. */
+  surplus: {
+    appliesTo: 'floor',
+    position: 'above',
+    firstLap: 'metricOverBase',
+    overage: 'metricOverage',
+    captionColor: 'surplusText',
+    tick: true,
+    knockout: true,
+    caption: '{amount} past',
+  },
+};
+
+/** The state a metric over its target is in: a ceiling is `exceeded`, a floor is `surplus`. */
+export function arcOverState(metric: ArcMetricName): ArcStateName {
+  return arcTargetKind[metric] === 'ceiling' ? 'exceeded' : 'surplus';
+}
+
+/**
+ * The state one ring is in — the single place the at-target boundary is computed, and the only
+ * sanctioned way to turn a (value, target) pair into a state.
+ *
+ * It resolves through `position`, not through a second opinion about the comparison: a value is
+ * `'below'`, `'at'` or `'above'` its target, and exactly one of the four states claims that
+ * position for the metric's target direction. So `position` is load-bearing data rather than
+ * documentation — move it one step and this function returns the wrong state, which
+ * `tokens.test.tsx` fails on.
+ *
+ * Boundary, spelled out because three copies of it once existed: `value === target` is `met`, never
+ * `under` and never over. One `>=` for a `>` is a day that hit its calorie budget exactly being
+ * told it blew it.
+ *
+ * `target` must be a real target. A ring with `target: 0` is `arc-math.ts`'s separate `noTarget`
+ * status — #272 leaves it untouched and it has no state here, so resolve it before calling.
+ */
+export function arcStateFor(metric: ArcMetricName, value: number, target: number): ArcStateName {
+  const position: ArcStateSpec['position'] = value > target ? 'above' : value === target ? 'at' : 'below';
+  const kind = arcTargetKind[metric];
+  const state = arcStateNames.find(
+    (s) =>
+      arcState[s].position === position && (arcState[s].appliesTo === 'both' || arcState[s].appliesTo === kind),
+  );
+  // Unreachable while the four states cover below/at/above for both target directions — which is
+  // asserted, not assumed. It throws rather than falling back to a guess, because a silent default
+  // would mask precisely the `position` slip the assertions exist to catch.
+  if (state === undefined) throw new Error(`arcStateFor: no state for a value ${position} a ${kind} target`);
+  return state;
+}
+
+/** The colours one ring actually draws, roles already resolved. */
+export type ArcStateColors = {
+  /** The first lap — the target's own worth of ring. */
+  readonly firstLap: string;
+  /** The overage lap, or `null` when the value has not passed target. */
+  readonly overage: string | null;
+  /** The caption under the ring. */
+  readonly caption: string;
+};
+
+/** The four arc tokens that depend on which metric is being drawn. */
+function arcMetricColors(arc: ColorTokens['arc'], metric: ArcMetricName) {
+  return metric === 'kcal'
+    ? { lap: arc.kcal, overBase: arc.kcalOverBase, overage: arc.kcalOverage, caption: arc.kcalText }
+    : { lap: arc.protein, overBase: arc.proteinOverBase, overage: arc.proteinOverage, caption: arc.proteinText };
+}
+
+/**
+ * Resolve a state's colour roles for one metric in one theme. The single place the mapping lives,
+ * so a ring, a chart legend and the design canvas cannot each resolve it differently:
+ *
+ *   const { firstLap, overage, caption } = arcStateColors(color, 'kcal', arcOverState('kcal'));
+ */
+export function arcStateColors(color: ColorTokens, metric: ArcMetricName, state: ArcStateName): ArcStateColors {
+  const m = arcMetricColors(color.arc, metric);
+  const spec = arcState[state];
+  const caption =
+    spec.captionColor === 'metricText' ? m.caption
+    : spec.captionColor === 'metText' ? color.arc.metText
+    : spec.captionColor === 'exceededText' ? color.arc.exceededText
+    : color.arc.surplusText;
+  return {
+    firstLap: spec.firstLap === 'metric' ? m.lap : m.overBase,
+    overage: spec.overage === null ? null : m.overage,
+    caption,
+  };
+}
+
 /* ================================================================== depth */
 
 export type ShadowTokens = {
@@ -845,7 +1059,7 @@ export const contrastPairs: readonly ContrastPair[] = [
   // semantic foundations
   ...measure(['text.primary', 'text.secondary', 'text.tertiary'], ['bg.canvas'], ['bg.surface'], ['bg.raised'], ['bg.tile'], ['bg.press'], ['bg.floating']),
   ...measure(['data.kcal', 'data.protein', 'data.body', 'data.strength'], ['bg.canvas'], ['bg.surface'], ['bg.raised'], ['bg.tile'], ['bg.press']),
-  ...measure(['state.success', 'state.danger'], ['bg.canvas'], ['bg.surface'], ['bg.raised']),
+  ...measure(['state.success', 'state.caution', 'state.danger'], ['bg.canvas'], ['bg.surface'], ['bg.raised']),
   ...measure(['text.onKcal'], ['data.kcal'], ['fill.kcalPress']),
   ...measure(['text.onStrength'], ['data.strength'], ['fill.strengthPress']),
   ...measure(['text.onBody'], ['data.body'], ['fill.bodyPress']),
@@ -855,6 +1069,10 @@ export const contrastPairs: readonly ContrastPair[] = [
   // Today
   ...measure(['sectionLabel.labelText', 'sectionLabel.metaText'], ['bg.canvas'], ['card.bg']),
   ...measure(['arc.targetTickIcon', 'arc.valueText', 'arc.labelText', 'arc.captionText', 'arc.kcalText', 'arc.proteinText'], ['card.bg']),
+  // The over-target state's own colours (issue #272). The two overage laps are strokes rather than
+  // text, and they are held to the text bar anyway: a 10 pt lap is the only thing on the ring that
+  // says how far past target the day went, so it has to be legible, not merely visible.
+  ...measure(['arc.metText', 'arc.exceededText', 'arc.surplusText', 'arc.kcalOverage', 'arc.proteinOverage'], ['card.bg']),
   ...measure(['tile.nameText', 'tile.kcalText', 'tile.proteinText', 'tile.unitText', 'tile.servingText', 'tile.mealIcon'], ['tile.bg'], ['tile.bgPress']),
   ...measure(['tile.nameText', 'tile.loggedText', 'tile.loggedServingText', 'tile.loggedMealIcon'], ['tile.bgLogged']),
   ...measure(['tile.repeatBadgeText'], ['tile.repeatBadgeBg']),

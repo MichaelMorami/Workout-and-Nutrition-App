@@ -9,6 +9,7 @@ import { fileURLToPath } from 'node:url';
 import * as tokens from '../src/theme/tokens.ts';
 
 const { themes, fontInstances, space, radius, size, layout, motion, interaction, haptics, contrastPairs, MIN_TEXT_CONTRAST } = tokens;
+const { arcState, arcStateColors, arcStateFor, arcStateNames, arcTargetKind } = tokens;
 const TT = tokens.type;
 const EV = motion.events;
 
@@ -176,24 +177,43 @@ function toast(T, { title, meta }, { inline = false } = {}) {
 }
 
 /* --------------------------------------------------------------- ring gauge */
-/* Past target the first lap drops to muted, the overage is drawn as a knocked-out second lap, and a
-   target tick crosses the ring at 12 o'clock — shape and words carry "over", not hue alone. */
-function ring(T, { value, target, label, color, dim, shown, of, dia = size.arc.diameter, sw = size.arc.stroke }) {
+/* The four states of `tokens.arcState` (issue #272), drawn from the tokens and nothing else:
+   - under    the metric's own colour climbing a track. No tick.
+   - met      the same colour, closed, plus the 12 o'clock tick. The tick is what separates this
+              from 99 % of target, where the stroke's round end caps already close the gap.
+   - exceeded a ceiling blown: the completed lap mutes, the overage is a knocked-out second lap in
+              the caution hue, and the caption turns caution.
+   - surplus  a floor beaten: identical shape, but the overage keeps the metric's own colour and the
+              caption turns success. Past a floor is never a warning.
+   The state itself comes from `tokens.arcStateFor` and never from a comparison of this
+   file's own: the generator used to carry a third copy of the at-target boundary, so a `>=`
+   slip here would have drawn a canvas that contradicts the spec it exists to prove. */
+const ringCaption = (metric, value, target, amount) =>
+  arcState[arcStateFor(metric, value, target)].caption.replace('{amount}', amount);
+const ringCaptionColor = (T, metric, value, target) => arcStateColors(T.c, metric, arcStateFor(metric, value, target)).caption;
+
+function ring(T, { metric, value, target, label, shown, of, dia = size.arc.diameter, sw = size.arc.stroke }) {
   const A = T.c.arc;
+  const spec = arcState[arcStateFor(metric, value, target)];
+  const col = arcStateColors(T.c, metric, arcStateFor(metric, value, target));
   const r = (dia - sw) / 2, C = 2 * Math.PI * r, cx = dia / 2;
   const circle = (stroke, width, extra = '') => `<circle cx="${cx}" cy="${cx}" r="${r}" fill="none" stroke="${stroke}" stroke-width="${width}"${extra}/>`;
+  const L = size.arc.targetTickLength;
+  const tick = spec.tick
+    ? `<line x1="${cx + r - L / 2}" y1="${cx}" x2="${cx + r + L / 2}" y2="${cx}" stroke="${A.targetTickIcon}" stroke-width="${size.arc.targetTickWidth}" stroke-linecap="round"/>`
+    : '';
   let strokes;
-  if (value <= target) {
+  if (col.overage === null) {
     const off = C * (1 - value / target);
-    strokes = circle(A.track, sw) + circle(color, sw, ` stroke-linecap="round" stroke-dasharray="${C.toFixed(1)}" stroke-dashoffset="${off.toFixed(1)}"`);
+    strokes = circle(A.track, sw) + circle(col.firstLap, sw, ` stroke-linecap="round" stroke-dasharray="${C.toFixed(1)}" stroke-dashoffset="${off.toFixed(1)}"`) + tick;
   } else {
-    const lap = C * Math.min(1, (value - target) / target), k = size.arc.overKnockout, L = size.arc.targetTickLength;
+    const lap = C * Math.min(1, (value - target) / target), k = size.arc.overKnockout;
     const dash = ` stroke-linecap="round" stroke-dasharray="${lap.toFixed(1)} ${C.toFixed(1)}"`;
-    strokes = circle(dim, sw) + circle(A.overKnockout, sw + 2 * k, dash) + circle(color, sw, dash)
-      + `<line x1="${cx + r - L / 2}" y1="${cx}" x2="${cx + r + L / 2}" y2="${cx}" stroke="${A.targetTickIcon}" stroke-width="${size.arc.targetTickWidth}" stroke-linecap="round"/>`;
+    strokes = circle(col.firstLap, sw) + (spec.knockout ? circle(A.overKnockout, sw + 2 * k, dash) : '') + circle(col.overage, sw, dash) + tick;
   }
+  const glowOn = col.overage ?? col.firstLap;
   return `<div style="${s({ position: 'relative', width: dia + 'px', height: dia + 'px', flex: 'none' })}">
-    <svg width="${dia}" height="${dia}" viewBox="0 0 ${dia} ${dia}" style="display:block;transform:rotate(-90deg);filter:${T.glow(color)}">${strokes}</svg>
+    <svg width="${dia}" height="${dia}" viewBox="0 0 ${dia} ${dia}" style="display:block;transform:rotate(-90deg);filter:${T.glow(glowOn)}">${strokes}</svg>
     <div style="${s({ position: 'absolute', inset: '0', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '6px' })}">
       <div style="${t('microSm', { color: A.labelText })}">${label}</div>
       <div style="${t('displayXl', { color: A.valueText })}">${shown}</div>
@@ -232,7 +252,7 @@ function chip(T, { icon, label, value, sub, accent, spark, cta }) {
 
 function todayScreen(T, { empty = false, tiles = ['logged', 'rest', 'rest', 'rest', 'rest', 'rest'], toastData = null } = {}) {
   const PAD = layout.gutterToday;
-  const A = T.c.arc, L = T.c.logRow;
+  const L = T.c.logRow;
   const head = `<header style="${s({ height: '48px', padding: `0 ${PAD}px`, display: 'flex', alignItems: 'center' })}">
   <div style="${s({ display: 'flex', flexDirection: 'column', gap: '4px' })}">
     <div style="${t('displayLg', { color: T.t1 })}">Today</div>
@@ -243,9 +263,9 @@ function todayScreen(T, { empty = false, tiles = ['logged', 'rest', 'rest', 'res
   const kcalNow = empty ? 0 : 1240, protNow = empty ? 0 : 96;
   const ringCol = (inner, caption, col) => `<div style="${s({ flex: '1', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' })}">${inner}<div style="${t('label', { fontWeight: 650, color: col })}">${caption}</div></div>`;
   const rings = card(T, `<div style="${s({ display: 'flex', gap: space[4] + 'px' })}">
-  ${ringCol(ring(T, { value: kcalNow, target: 2400, shown: kcalNow.toLocaleString('en-GB'), of: '2,400', label: 'Kcal', color: A.kcal, dim: A.kcalOverBase }), `${empty ? '2,400' : '1,160'} left`, A.kcalText)}
+  ${ringCol(ring(T, { metric: 'kcal', value: kcalNow, target: 2400, shown: kcalNow.toLocaleString('en-GB'), of: '2,400', label: 'Kcal' }), ringCaption('kcal', kcalNow, 2400, empty ? '2,400' : '1,160'), ringCaptionColor(T, 'kcal', kcalNow, 2400))}
   <div style="${s({ width: '1px', background: T.hair, margin: '6px 0' })}"></div>
-  ${ringCol(ring(T, { value: protNow, target: 180, shown: protNow, of: '180 g', label: 'Protein', color: A.protein, dim: A.proteinOverBase }), `${empty ? '180' : '84'} g left`, A.proteinText)}
+  ${ringCol(ring(T, { metric: 'protein', value: protNow, target: 180, shown: protNow, of: '180 g', label: 'Protein' }), ringCaption('protein', protNow, 180, `${empty ? '180' : '84'} g`), ringCaptionColor(T, 'protein', protNow, 180))}
 </div>`);
 
   const grid = (inner) => `<div style="${s({ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: layout.tileGap + 'px' })}">${inner}</div>`;
@@ -1019,6 +1039,7 @@ const TOKENS = [
     ['data.strength', 'Sets, reps, e1RM. Owns the Workout tab and the rest timer.', { on: 'bg.press' }],
     ['data.strengthMuted', 'Quiet strength marks behind the e1RM line. Never text.'],
     ['state.success', 'A target met, a trend going the right way, sync healthy.', { on: 'bg.surface' }],
+    ['state.caution', 'A ceiling exceeded — calories past target. Hotter than the amber so the overage cannot read as more calories, and 20° of hue off danger, because nothing failed.', { on: 'bg.surface' }],
     ['state.danger', 'Delete, discard a session, sync failure. Nothing else.', { on: 'bg.surface' }],
   ]],
   ['Pressed fills &amp; washes', [
@@ -1094,17 +1115,39 @@ const RADIUS_USE = {
   pill: 'Genuinely pill-shaped things: avatars, dots, grabbers, the slider.',
 };
 
+/* The six rings that prove the four states, per theme. Every colour and every caption below comes
+   out of `tokens.arcState` / `arcStateColors` — the board cannot say something the app will not do.
+   "Just under" is on the board deliberately: it is the state `met` has to be told apart from. */
+const ARC_CASES = [
+  { metric: 'kcal', value: 2380, target: 2400, shown: '2,380', of: '2,400', label: 'Kcal', amount: '20', note: 'Just under — 99 % of target. The round caps have all but closed the ring already.' },
+  { metric: 'kcal', value: 2400, target: 2400, shown: '2,400', of: '2,400', label: 'Kcal', amount: '0', note: 'At target. The tick and the green caption are what separate it from the ring on its left.' },
+  { metric: 'kcal', value: 2580, target: 2400, shown: '2,580', of: '2,400', label: 'Kcal', amount: '180', note: 'Over a ceiling: muted lap, a cut, and the overage in caution.' },
+  { metric: 'protein', value: 178, target: 180, shown: '178', of: '180 g', label: 'Protein', amount: '2 g', note: 'Just under, the floor version. Same picture, same problem.' },
+  { metric: 'protein', value: 180, target: 180, shown: '180', of: '180 g', label: 'Protein', amount: '0', note: 'At target. One met state, both metrics.' },
+  { metric: 'protein', value: 192, target: 180, shown: '192', of: '180 g', label: 'Protein', amount: '12 g', note: 'Over a floor: the same shape, protein’s own colour, success wording.' },
+];
+
 function arcCard(T, title) {
-  const A = T.c.arc;
-  const cell = (ringHtml, caption, col, note) => `<div style="${s({ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' })}">${ringHtml}<div style="${t('label', { fontWeight: 650, color: col })}">${caption}</div><div style="${t('caption', { color: T.t3 })}">${note}</div></div>`;
+  const cell = (c) => `<div style="${s({ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' })}">${ring(T, c)}<div style="${t('label', { fontWeight: 650, color: ringCaptionColor(T, c.metric, c.value, c.target) })}">${ringCaption(c.metric, c.value, c.target, c.amount)}</div><div style="${t('micro', { fontSize: '9.5px', color: T.t2 })}">${arcStateFor(c.metric, c.value, c.target)}</div><div style="${t('caption', { color: T.t3, textWrap: 'pretty' })}">${c.note}</div></div>`;
   return `<div style="${s({ flex: '1', minWidth: '0', background: T.c.card.bg, border: `1px solid ${BOARD_HAIR}`, borderRadius: '20px', padding: '20px' })}">
   <div style="${t('micro', { color: T.t2, marginBottom: '16px' })}">${title}</div>
-  <div style="${s({ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '22px 12px' })}">
-    ${cell(ring(T, { value: 1240, target: 2400, shown: '1,240', of: '2,400', label: 'Kcal', color: A.kcal, dim: A.kcalOverBase }), '1,160 left', A.kcalText, 'Under target')}
-    ${cell(ring(T, { value: 2400, target: 2400, shown: '2,400', of: '2,400', label: 'Kcal', color: A.kcal, dim: A.kcalOverBase }), 'Target hit', A.kcalText, 'Exactly on — the only full bright ring')}
-    ${cell(ring(T, { value: 2580, target: 2400, shown: '2,580', of: '2,400', label: 'Kcal', color: A.kcal, dim: A.kcalOverBase }), '180 over', A.kcalText, 'Over: muted lap, knocked-out second lap, tick')}
-    ${cell(ring(T, { value: 192, target: 180, shown: '192', of: '180 g', label: 'Protein', color: A.protein, dim: A.proteinOverBase }), '12 g past', A.proteinText, 'Same shape; protein past target is not a warning')}
+  <div style="${s({ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: '22px 12px' })}">
+    ${ARC_CASES.map(cell).join('\n    ')}
   </div>
+</div>`;
+}
+
+/* The four states as a table, generated from `tokens.arcState`: what each one applies to, how it is
+   drawn, and the word it uses. This is the contract #273 implements. */
+function arcStateTable() {
+  const yn = (b) => (b ? '●' : '—');
+  const row = (cells, head = false) => `<div style="${s({ display: 'grid', gridTemplateColumns: '1.1fr 0.9fr 1.3fr 1.4fr 1.3fr 0.45fr 0.45fr 1.2fr', gap: '10px', padding: '8px 0', borderTop: `1px solid ${BOARD_HAIR}` })}">${cells.map((x) => `<span style="${head ? t('micro', { fontSize: '9.5px', color: BOARD_T3 }) : t('caption', { fontSize: '11.5px', color: BOARD_T2 })}">${x}</span>`).join('')}</div>`;
+  const kindOf = (spec) => (spec.appliesTo === 'both' ? 'both' : `${spec.appliesTo} only`);
+  return `<div>${row(['State', 'Target', 'First lap', 'Overage lap', 'Caption colour', 'Tick', 'Cut', 'Wording'], true)}${arcStateNames.map((name) => {
+    const spec = arcState[name];
+    return row([hl(name), kindOf(spec), spec.firstLap, spec.overage ?? '—', spec.captionColor, yn(spec.tick), yn(spec.knockout), hl(spec.caption)]);
+  }).join('')}
+  <div style="${t('caption', { fontSize: '11.5px', color: BOARD_T3, marginTop: '12px', textWrap: 'pretty' })}">Roles resolve per metric: ${hl('metric')} → <code>arc[metric]</code>, ${hl('metricOverBase')} → <code>arc[metric + &#39;OverBase&#39;]</code>, ${hl('metricOverage')} → <code>arc[metric + &#39;Overage&#39;]</code>, ${hl('metricText')} → <code>arc[metric + &#39;Text&#39;]</code>. One function does it: <code>arcStateColors(color, metric, state)</code>. ${Object.entries(arcTargetKind).map(([m, k]) => `${hl(m)} is a ${k}`).join('; ')} — hard-coded, because the schema has no column that says so.</div>
 </div>`;
 }
 
@@ -1127,7 +1170,7 @@ ${tokenTable(DARK, 'Dark — primary')}
 ${tokenTable(LIGHT, 'Light')}
 </div>
 
-${panel('Arcs — under, on, and over target', `Past target a ring must never read as a triumphant full circle, and “over” must survive greyscale. The completed lap drops to ${hl('arc.kcalOverBase')}; the overage is a second bright lap with a ${size.arc.overKnockout} pt ${hl('arc.overKnockout')} cut either side; a ${size.arc.targetTickLength} pt ${hl('arc.targetTickIcon')} crosses the ring at 12 o’clock; and the caption changes from “left” to “over”.`, `<div style="${s({ display: 'flex', gap: '20px' })}">${arcCard(DARK, 'Dark')}${arcCard(LIGHT, 'Light')}</div>`, { marginTop: '34px' })}
+${panel('Arcs — below, at and over target (issue #272)', `Going over a target means opposite things on the two rings, so it is drawn two ways. Calories are a ${hl('ceiling')}: the completed lap drops to ${hl('arc.kcalOverBase')} and the overage is a second lap in ${hl('arc.kcalOverage')} — the caution hue, which is deliberately not ${hl('state.danger')}, because nothing failed and nothing is about to be destroyed. Protein is a ${hl('floor')}: identical shape, but the overage keeps ${hl('arc.proteinOverage')}, protein’s own colour, and the caption turns ${hl('state.success')}. Beating a goal never wears a warning. Both over states keep the ${size.arc.overKnockout} pt ${hl('arc.overKnockout')} cut, so two laps read as two in shape alone.<br><br>The ring that needed fixing most is the middle one in each row. At 99 % of target the stroke’s round end caps have already closed the gap, so “nearly” and “done” are the same picture — which is why ${hl('met')} is the first state to draw the ${size.arc.targetTickLength} pt ${hl('arc.targetTickIcon')} across 12 o’clock, and why the caption changes colour and word at the same moment. Shape, colour and word: three independent channels, so the state survives greyscale, a screenshot and a colourblind reader. ${hl('No target set')} is untouched by all of it.`, `<div style="${s({ display: 'flex', gap: '20px' })}">${arcCard(DARK, 'Dark')}${arcCard(LIGHT, 'Light')}</div><div style="${s({ marginTop: '22px' })}">${arcStateTable()}</div>`, { marginTop: '34px' })}
 
 ${panel('New components, both themes', 'The search bar, rows, undo toast, portion steps and slider on the grounds they actually sit on. Light is not an afterthought: every state here is in the contrast suite.', `<div style="${s({ display: 'flex', gap: '20px', alignItems: 'flex-start' })}">${componentColumn(DARK, 'Dark')}${componentColumn(LIGHT, 'Light')}</div>`)}
 
@@ -1355,7 +1398,7 @@ const canvas = {
     { file: 'SettingsLight.dc.html',    title: 'Settings — light',         x: 1500, y: 0, w: 390, h: SETTINGS_H, page: 'page-2' },
     { file: 'SearchLight.dc.html',      title: 'Search — recent, light',   x: 2000, y: 0, w: 390, h: 844,  page: 'page-2' },
     { file: 'SearchTypedLight.dc.html', title: 'Search — typed, light',    x: 2500, y: 0, w: 390, h: 844,  page: 'page-2' },
-    { file: 'Specimen.dc.html',         title: 'Colour, type & components', x: 3000, y: 0, w: 1240, h: 6560, page: 'page-2' },
+    { file: 'Specimen.dc.html',         title: 'Colour, type & components', x: 3000, y: 0, w: 1240, h: 6880, page: 'page-2' },
     { file: 'Motion.dc.html',           title: 'Motion, gestures, haptics & access', x: 4360, y: 0, w: 1240, h: 5900, page: 'page-2' },
   ],
   annotations: [
