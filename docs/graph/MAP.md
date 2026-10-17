@@ -1493,15 +1493,21 @@ _no exports_
 
 ## `src/theme/`
 
-### `src/theme/tokens.ts`  <sub>2278 lines</sub>
+### `src/theme/tokens.ts`  <sub>2465 lines</sub>
 
+- `const MIN_DIM_SEPARATION: 1.7`
+- `const MIN_GRAPHIC_CONTRAST: 3`
 - `const MIN_TEXT_CONTRAST: 4.5`
+- `const arcRingState: { readonly under: ArcRingStateSpec; readonly met: ArcRingStateSpec; readonly exceeded: ArcRingStateSpec; readonly surplus: ArcRingStateSpec; readonly noTarget: ArcRingStateSpec; }`
+- `const arcRingStateNames: readonly ["noTarget", "under", "met", "exceeded", "surplus"]`
 - `const arcState: { readonly under: ArcStateSpec; readonly met: ArcStateSpec; readonly exceeded: ArcStateSpec; readonly surplus: ArcStateSpec; }`
 - `const arcStateNames: readonly ["under", "met", "exceeded", "surplus"]`
 - `const arcTargetKind: { readonly kcal: "ceiling"; readonly protein: "floor"; }`
 - `const contrastPairs: readonly ContrastPair[]`
+- `const dimPairs: readonly (readonly [dim: ColorPath, bright: ColorPath])[]`
 - `const fontInstances: { readonly 'Archivo-Book': { readonly wght: 450; readonly wdth: 100; }; readonly 'Archivo-Medium': { readonly wght: 500; readonly wdth: 100; }; readonly 'Archivo-SemiBold': { readonly wght: 650; readonly wdth: 100; }; readonly 'Archivo-Bold': { readonly wght: 700; readonly wdth: 100; }; readonly 'Archivo-Title': { readonly wght: 700; readonly wdth: 104; }; readonly 'Archivo...`
 - `const glyph: { readonly family: "Ionicons"; readonly tab: { readonly today: { readonly active: "today"; readonly inactive: "today-outline"; }; readonly workout: { readonly active: "barbell"; readonly inactive: "barbell-outline"; }; readonly charts: { readonly active: "stats-chart"; readonly inactive: "stats-chart-outline"; }; readonly settings: { readonly active: "settings"; readonly inactive: ...`
+- `const graphicPairs: readonly ContrastPair[]`
 - `const haptics: { readonly foodLogged: { readonly ios: "impactMedium"; readonly android: "EFFECT_HEAVY_CLICK"; }; readonly setLogged: { readonly ios: "impactLight"; readonly android: "EFFECT_TICK"; }; readonly undo: { readonly ios: "impactLight"; readonly android: "EFFECT_CLICK"; }; readonly sliderDetent: { readonly ios: "selection"; readonly android: "EFFECT_TICK"; }; readonly restFinished: { r...`
 - `const interaction: { readonly longPressMs: 220; readonly repeatWindowMs: 5000; readonly tileLoggedHoldMs: 900; readonly rowLoggedHoldMs: 240; readonly undoAutoDismissMs: 10000; readonly undoDismissedBy: readonly ["anotherLog", "sheetOpened", "tabChanged", "swipedAway"]; readonly undoSurvives: readonly ["scroll", "screenLock", "appBackgrounded"]; readonly stepperRepeatDelayMs: 400; readonly slid...`
 - `const layout: { readonly gutterToday: 20; readonly gutter: 16; readonly cardPadding: 16; readonly cardGap: 12; readonly tileGap: 10; readonly groupGap: 24; readonly floatAboveTabBar: 12; readonly formFooterPadTop: 10; readonly formFooterPadBottom: 10; readonly formFooterRowGap: 10; readonly formBodyPadBottom: 16; }`
@@ -1514,19 +1520,28 @@ _no exports_
 - `const themes: { readonly dark: Theme; readonly light: Theme; }`
 - `const type: { readonly displayXl: { readonly fontFamily: "Archivo-DisplayXl"; readonly fontSize: 33; readonly lineHeight: 33; readonly letterSpacing: -0.73; readonly fontVariant: readonly ["tabular-nums"]; }; readonly displayLg: { readonly fontFamily: "Archivo-Display"; readonly fontSize: 25; readonly lineHeight: 27; readonly letterSpacing: -0.45; }; readonly statHero: { readonly fontFamily: "A...`
 - `function arcOverState(metric: ArcMetricName): ArcStateName`
-- `function arcStateColors(color: ColorTokens, metric: ArcMetricName, state: ArcStateName): ArcStateColors`
-- `function arcStateFor(metric: ArcMetricName, value: number, target: number): ArcStateName`
+- `function arcStateColors(color: ColorTokens, metric: ArcMetricName, state: ArcRingStateName): ArcStateColors`
+- `function arcStateFor(metric: ArcMetricName, value: number, target: number): ArcRingStateName`
 - `function formFooterPaddingBottom(keyboardVisible: boolean, safeAreaBottom: number): number`
 - `function resolveThemeName(preference: ThemePreference, system: string | null | undefined): ThemeName`
 - `type ArcMetricName = keyof typeof arcTargetKind`
+- `type ArcRingStateName = (typeof arcRingStateNames)[number]`
+- `type ArcRingStateSpec = {
+  /** As `ArcStateSpec`, or `null` when there is no target to apply to. */
+  readonly appliesTo: ArcTargetKind | 'both' | null;
+  /** As `ArcStateSpec`, or `null` when there is no target to sit below, at or above. */
+  readonly position: ArcStateSpec['position'] | null;
+  /** As `ArcStateSpec`, or `null` when the state draws no lap of its own — the bare `arc.track`. */...`
 - `type ArcStateColors = {
-  /** The first lap — the target's own worth of ring. */
-  readonly firstLap: string;
+  /**
+   * The first lap — the target's own worth of ring. `null` in `noTarget`: there is no lap, so the
+   * ring is `arc.track` alone and nothing is drawn over it (issue #289).
+   */
+  readonly firstLap: string | null;
   /** The overage lap, or `null` when the value has not passed target. */
   readonly overage: string | null;
   /** The caption under the ring. */
-  readonly caption: string;
-}`
+  read...`
 - `type ArcStateName = (typeof arcStateNames)[number]`
 - `type ArcStateSpec = {
   /** The target direction this state can occur on. `'both'` for the two states below/at target. */

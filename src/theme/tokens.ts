@@ -19,6 +19,9 @@
  *   - A colour meant to be READ — text, glyphs, icons — lives under `text.*`, `data.*`, `state.*`, or
  *     ends in `Text` / `Icon`. Every such token must appear in `contrastPairs`, measured ≥ 4.5:1.
  *   - A pressed surface has `Press` in its name, and is measured as a background in `contrastPairs`.
+ *   - A colour that is never read but still carries meaning — a ring stroke, a `*Muted` data colour —
+ *     is measured in `graphicPairs` at `MIN_GRAPHIC_CONTRAST` instead. "Never text" is not a licence
+ *     to be invisible: see issue #287.
  *   - A size that is a touch area ends in `Hit` and is ≥ `size.tapTargetMin`.
  */
 
@@ -68,6 +71,16 @@ const darkBase = {
   line: {
     /** Every 1 pt divider and card border. */
     hairline: '#32353D',
+    /**
+     * The unfilled track of a progress ring, and nothing else (issue #287).
+     *
+     * It is NOT `hairline`, which it used to be: a 1 pt divider must stay quiet, while a 10 pt
+     * track is the only thing on the ring that says how much of the target is left — the lap says
+     * how much is done. At `hairline` (1.43:1 dark, 1.35:1 light) the ring read as a short bright
+     * stub floating on the card instead of as a proportion. Held to `MIN_GRAPHIC_CONTRAST`, not to
+     * the text bar: see `dimPairs` for the ceiling that stops it reading as filled.
+     */
+    ring: '#64666D',
     /** Dashed "add" affordances, selected-segment outlines, sheet grabbers. */
     strong: '#494D55',
     /** Dashed outlines for things that do not exist yet: an unlearned tile, an empty chart. */
@@ -92,11 +105,18 @@ const darkBase = {
   data: {
     /** Calories, everywhere: the ring, the tile, the average line. Also the primary action colour on Today. */
     kcal: '#FAAB3F',
-    /** Daily calorie points behind the average, and the base lap of an over-target calorie ring. Never text. */
+    /**
+     * Daily calorie points behind the average, and the base lap of an over-target calorie ring.
+     * Never text — held to `MIN_GRAPHIC_CONTRAST` (3.27:1 on `card.bg`, already clear of the bar;
+     * the light theme's twin is what issue #287 had to lift).
+     */
     kcalMuted: '#8F6127',
     /** Protein, everywhere. Never used for anything that is not protein. */
     protein: '#57E0C6',
-    /** Daily protein points behind the average, and the base lap of an over-target protein ring. Never text. */
+    /**
+     * Daily protein points behind the average, and the base lap of an over-target protein ring.
+     * Never text — held to `MIN_GRAPHIC_CONTRAST` (3.32:1 on `card.bg`).
+     */
     proteinMuted: '#307769',
     /** Body weight and its trend line. Owns the Charts tab. */
     body: '#96C0FE',
@@ -158,6 +178,8 @@ const lightBase = {
   },
   line: {
     hairline: '#DBDEE3',
+    /** 3.11:1 on `card.bg`. Darker than the divider, where dark is what "visible" means on white. */
+    ring: '#919296',
     strong: '#C1C4CB',
     ghost: 'rgba(20,24,34,0.07)',
   },
@@ -172,9 +194,11 @@ const lightBase = {
   },
   data: {
     kcal: '#A25302',
-    kcalMuted: '#D79553',
+    /** 3.10:1 on `card.bg` (was #D79553, 2.53:1 — invisible on a white card). Issue #287. */
+    kcalMuted: '#C1864B',
     protein: '#037567',
-    proteinMuted: '#63B4A3',
+    /** 3.07:1 on `card.bg` (was #63B4A3, 2.45:1). Issue #287. */
+    proteinMuted: '#58A090',
     body: '#2E62C9',
     bodyMuted: '#7FA5E6',
     strength: '#8E3EAE',
@@ -219,8 +243,12 @@ function withComponents(c: BaseColors) {
     },
 
     arc: {
-      /** The unfilled track of a calorie or protein ring. */
-      track: c.line.hairline,
+      /**
+       * The unfilled track of a calorie or protein ring — how much of the target is LEFT, which is
+       * half of what the ring is for. Its own colour since #287, because a 1 pt divider's grey
+       * cannot do this job: see `line.ring`.
+       */
+      track: c.line.ring,
       /** The calorie progress stroke, up to the target. */
       kcal: c.data.kcal,
       /** The protein progress stroke, up to the target. */
@@ -808,14 +836,25 @@ export type ArcMetricName = keyof typeof arcTargetKind;
 export type ArcTargetKind = (typeof arcTargetKind)[ArcMetricName];
 
 /**
- * The four states a ring with a target can be in, below → at → over.
+ * The four states a ring **with a target** can be in, below → at → over.
  *
- * `noTarget` (`target: 0`, drawn as "No target set") is deliberately NOT one of them: it is
- * `arc-math.ts`'s fifth status and #272 leaves it exactly as it was, so it gets no state here and
- * therefore no new colour, shape or word can reach it.
+ * `noTarget` is deliberately not one of them: it is not a position against a target, so it has no
+ * `appliesTo` and no `position`, and keeping it out is what makes "exactly one state answers each
+ * (position, target kind)" true. For every state a ring can be in, including that one, use
+ * `arcRingStateNames` — which is what a renderer wants (issue #289).
  */
 export const arcStateNames = ['under', 'met', 'exceeded', 'surplus'] as const;
 export type ArcStateName = (typeof arcStateNames)[number];
+
+/**
+ * Every state a ring can be in: the four target states, plus `noTarget` for a day with no target
+ * configured (issue #289).
+ *
+ * `noTarget` leads the list because it is the first state the app ever draws — a fresh install has
+ * no targets, so it is the day-one picture, not an edge case.
+ */
+export const arcRingStateNames = ['noTarget', ...arcStateNames] as const;
+export type ArcRingStateName = (typeof arcRingStateNames)[number];
 
 /**
  * How one state is drawn. The colour fields are ROLES, not values — `arcStateColors` resolves them
@@ -897,46 +936,135 @@ export const arcState: { readonly [S in ArcStateName]: ArcStateSpec } = {
   },
 };
 
+/**
+ * How a ring in ANY state is drawn, including the one that is not a position against a target.
+ * A widening of `ArcStateSpec`: `null` wherever "against the target" has no meaning.
+ */
+export type ArcRingStateSpec = {
+  /** As `ArcStateSpec`, or `null` when there is no target to apply to. */
+  readonly appliesTo: ArcTargetKind | 'both' | null;
+  /** As `ArcStateSpec`, or `null` when there is no target to sit below, at or above. */
+  readonly position: ArcStateSpec['position'] | null;
+  /** As `ArcStateSpec`, or `null` when the state draws no lap of its own — the bare `arc.track`. */
+  readonly firstLap: ArcStateSpec['firstLap'] | null;
+  /** As `ArcStateSpec`. */
+  readonly overage: ArcStateSpec['overage'];
+  /** As `ArcStateSpec`. */
+  readonly captionColor: ArcStateSpec['captionColor'];
+  /** As `ArcStateSpec`. */
+  readonly tick: boolean;
+  /** As `ArcStateSpec`. */
+  readonly knockout: boolean;
+  /** As `ArcStateSpec`. */
+  readonly caption: string;
+};
+
+/**
+ * EVERY state a ring can be in — **this is the table a renderer reads** (issue #289).
+ *
+ * It is `arcState` plus `noTarget`, spread from the same objects rather than retyped, so the four
+ * target states cannot say one thing here and another there.
+ *
+ * `arcState` stays the four for the invariants that are about targets; reach for this one whenever
+ * the state came out of `arcStateFor`, because that function can answer `noTarget` and a lookup in
+ * the four-state table would hand back `undefined` — a crash dressed as a missing colour.
+ */
+export const arcRingState: { readonly [S in ArcRingStateName]: ArcRingStateSpec } = {
+  /**
+   * No target configured: `target` is zero, negative or not a number. Day one of a fresh install,
+   * and the state the app draws before Settings is ever opened.
+   *
+   * It draws what it has always drawn and nothing more: the bare `arc.track`, no lap, no overage,
+   * no tick, no cut, and "No target set" in the metric's own colour. #272 promised not to touch the
+   * no-target ring and this keeps that promise — what #289 changes is that the state now has a NAME
+   * in the one table that names states, instead of being a fifth status computed somewhere else.
+   *
+   * `firstLap: null` is load-bearing. A colour here would paint a full lap of track grey, which
+   * reads as a completed ring — "complete when it isn't", the exact failure #272 exists to kill,
+   * arrived at from the opposite end.
+   */
+  noTarget: {
+    appliesTo: null,
+    position: null,
+    firstLap: null,
+    overage: null,
+    captionColor: 'metricText',
+    tick: false,
+    knockout: false,
+    caption: 'No target set',
+  },
+  ...arcState,
+};
+
 /** The state a metric over its target is in: a ceiling is `exceeded`, a floor is `surplus`. */
 export function arcOverState(metric: ArcMetricName): ArcStateName {
   return arcTargetKind[metric] === 'ceiling' ? 'exceeded' : 'surplus';
 }
 
 /**
+ * A number that is a real amount: finite and above zero, or else zero. Mirrors `arc-math.ts`'s
+ * `amount(finiteOrZero(n))` exactly, so the two cannot disagree about a negative or a `NaN`.
+ */
+const arcAmount = (n: number): number => (Number.isFinite(n) && n > 0 ? n : 0);
+
+/**
  * The state one ring is in — the single place the at-target boundary is computed, and the only
- * sanctioned way to turn a (value, target) pair into a state.
+ * sanctioned way to turn a (metric, value, target) triple into a state.
  *
- * It resolves through `position`, not through a second opinion about the comparison: a value is
- * `'below'`, `'at'` or `'above'` its target, and exactly one of the four states claims that
+ * **SAFE TO CALL FROM A RENDER PATH.** It is total: every `number` pair resolves to a member of
+ * `arcRingStateNames`, and it never throws for a caller's input. Call it, look the answer up in
+ * `arcRingState`, draw that. No `try`/`catch`, and — the important half — no pre-check of the
+ * target at the call site, because a pre-check is a second copy of this boundary and copies of this
+ * boundary are what #272 and #289 were opened to remove.
+ *
+ * NO TARGET (issue #289). `target` zero, negative or not finite is `'noTarget'`: there is nothing
+ * to be a proportion of, so the ring is the bare track and the caption says "No target set". It is
+ * NOT `met`. That was the bug — a fresh install, nothing logged, no target, and the ring said
+ * "Target hit", announcing the completion of something the person never set out to do. A `throw`
+ * was considered and rejected: the day-one screen is exactly this input, so throwing would make the
+ * first render of the app the one that needs guarding.
+ *
+ * ZERO-ISH VALUES. A value that is negative or not finite counts as zero, which is `arc-math.ts`'s
+ * rule: a degenerate ring is recoverable, `NaN` in an SVG is not.
+ *
+ * WITH a target it resolves through `position`, not through a second opinion about the comparison:
+ * a value is `'below'`, `'at'` or `'above'`, and exactly one of the four target states claims that
  * position for the metric's target direction. So `position` is load-bearing data rather than
  * documentation — move it one step and this function returns the wrong state, which
  * `tokens.test.tsx` fails on.
  *
- * Boundary, spelled out because three copies of it once existed: `value === target` is `met`, never
- * `under` and never over. One `>=` for a `>` is a day that hit its calorie budget exactly being
- * told it blew it.
- *
- * `target` must be a real target. A ring with `target: 0` is `arc-math.ts`'s separate `noTarget`
- * status — #272 leaves it untouched and it has no state here, so resolve it before calling.
+ * THE BOUNDARY, spelled out because three copies of it once existed: `value === target` is `met`,
+ * never `under` and never over. One `>=` for a `>` is a day that hit its calorie budget exactly
+ * being told it blew it.
  */
-export function arcStateFor(metric: ArcMetricName, value: number, target: number): ArcStateName {
-  const position: ArcStateSpec['position'] = value > target ? 'above' : value === target ? 'at' : 'below';
+export function arcStateFor(metric: ArcMetricName, value: number, target: number): ArcRingStateName {
+  const t = arcAmount(target);
+  if (t === 0) return 'noTarget';
+  const v = arcAmount(value);
+  const position: ArcStateSpec['position'] = v > t ? 'above' : v === t ? 'at' : 'below';
   const kind = arcTargetKind[metric];
   const state = arcStateNames.find(
     (s) =>
       arcState[s].position === position && (arcState[s].appliesTo === 'both' || arcState[s].appliesTo === kind),
   );
-  // Unreachable while the four states cover below/at/above for both target directions — which is
-  // asserted, not assumed. It throws rather than falling back to a guess, because a silent default
-  // would mask precisely the `position` slip the assertions exist to catch.
+  // Unreachable from any INPUT: with a real target, `position` is one of three values and the four
+  // states cover all three for both target directions — which `tokens.test.tsx` asserts rather than
+  // assumes. It is reachable only from a mistake in this file (a moved `position`, a dropped
+  // state), and it throws rather than falling back to a guess because a silent default would mask
+  // precisely that mistake. It stays unpinned by a test on purpose: the only way to give it a
+  // reachable case would be to make `target <= 0` throw, which is the render-path crash the
+  // `noTarget` guard above exists to avoid (issue #289).
   if (state === undefined) throw new Error(`arcStateFor: no state for a value ${position} a ${kind} target`);
   return state;
 }
 
 /** The colours one ring actually draws, roles already resolved. */
 export type ArcStateColors = {
-  /** The first lap — the target's own worth of ring. */
-  readonly firstLap: string;
+  /**
+   * The first lap — the target's own worth of ring. `null` in `noTarget`: there is no lap, so the
+   * ring is `arc.track` alone and nothing is drawn over it (issue #289).
+   */
+  readonly firstLap: string | null;
   /** The overage lap, or `null` when the value has not passed target. */
   readonly overage: string | null;
   /** The caption under the ring. */
@@ -955,17 +1083,28 @@ function arcMetricColors(arc: ColorTokens['arc'], metric: ArcMetricName) {
  * so a ring, a chart legend and the design canvas cannot each resolve it differently:
  *
  *   const { firstLap, overage, caption } = arcStateColors(color, 'kcal', arcOverState('kcal'));
+ *
+ * It takes any `ArcRingStateName`, so the answer `arcStateFor` gives can be passed straight in
+ * (issue #289). Draw the base ring in `color.arc.track` and `firstLap` over it when it is not
+ * `null`; `null` is the no-target ring, which is the track and nothing else.
  */
-export function arcStateColors(color: ColorTokens, metric: ArcMetricName, state: ArcStateName): ArcStateColors {
+export function arcStateColors(
+  color: ColorTokens,
+  metric: ArcMetricName,
+  state: ArcRingStateName,
+): ArcStateColors {
   const m = arcMetricColors(color.arc, metric);
-  const spec = arcState[state];
+  const spec = arcRingState[state];
   const caption =
     spec.captionColor === 'metricText' ? m.caption
     : spec.captionColor === 'metText' ? color.arc.metText
     : spec.captionColor === 'exceededText' ? color.arc.exceededText
     : color.arc.surplusText;
   return {
-    firstLap: spec.firstLap === 'metric' ? m.lap : m.overBase,
+    firstLap:
+      spec.firstLap === null ? null
+      : spec.firstLap === 'metric' ? m.lap
+      : m.overBase,
     overage: spec.overage === null ? null : m.overage,
     caption,
   };
@@ -1155,6 +1294,54 @@ export const contrastPairs: readonly ContrastPair[] = [
   ...measure(['button.bodyText'], ['button.bodyBg'], ['button.bodyBgPress']),
   ...measure(['button.dangerText'], ['button.dangerBg'], ['button.dangerBgPress']),
   ...measure(['button.secondaryText', 'button.dashedText'], ['bg.canvas'], ['card.bg'], ['button.secondaryBgPress']),
+];
+
+/**
+ * WCAG 1.4.11 for things that are NEVER text but still carry meaning — the ring's strokes
+ * (issue #287). A 10 pt arc that states a proportion has to be seen; it does not have to be read.
+ *
+ * It is a lower bar than `MIN_TEXT_CONTRAST` on purpose, and the lower bar is the better design:
+ * a track dragged up to 4.5:1 stops reading as empty and the ring reads as full, which is the
+ * failure #272 spent four states killing. `dimPairs` holds the other end so this one cannot be
+ * "fixed" by brightening until the distinction is gone.
+ */
+export const MIN_GRAPHIC_CONTRAST = 3;
+
+/**
+ * The never-text strokes, each on the ground it is drawn on. The reason this list exists separately
+ * from `contrastPairs`: "not text" had been taken to mean "not measured", and that is how the ring
+ * track reached 1.43:1 in dark and 1.35:1 in light without a single test objecting.
+ */
+export const graphicPairs: readonly ContrastPair[] = [
+  // The empty track — the proportion of the target still to go, on the card it is drawn on.
+  ...measure(['arc.track'], ['card.bg']),
+  // The completed first lap of an over-target ring, which replaces the bright lap rather than
+  // sitting next to it: the `arc.overKnockout` cut means each lap's only neighbour is the card.
+  ...measure(['arc.kcalOverBase', 'arc.proteinOverBase'], ['card.bg']),
+];
+
+/**
+ * The floor on how far apart a dim stroke and the full-brightness stroke it stands in for must stay.
+ *
+ * Lower than 3:1 by necessity, not by choice: in the light theme the bright lap is itself a mid-tone
+ * (`data.kcal` is 5.56:1 on white), and no colour can sit 3:1 from both white and a 5.56:1 colour —
+ * the arithmetic forbids it. So in light the distinction is carried by chroma (a saturated amber lap
+ * against a neutral grey track) with 1.79:1 of luminance behind it, and in dark by luminance outright
+ * (the track is 3.06:1 from the card and the lap is 9.17:1 — a threefold step).
+ *
+ * What this constant is for is the ceiling it implies: it goes red if a later pass lifts a dim stroke
+ * toward the text bar until "unfilled" and "filled" stop being different pictures.
+ */
+export const MIN_DIM_SEPARATION = 1.7;
+
+/** `[dim, bright]`: a stroke and the full-brightness stroke whose place it takes. */
+export const dimPairs: readonly (readonly [dim: ColorPath, bright: ColorPath])[] = [
+  // Under target: the track is what the lap has not reached yet.
+  ['arc.track', 'arc.kcal'],
+  ['arc.track', 'arc.protein'],
+  // Over target: the first lap drops to muted, so "done" cannot look like "doing".
+  ['arc.kcalOverBase', 'arc.kcal'],
+  ['arc.proteinOverBase', 'arc.protein'],
 ];
 
 /* ==================================================================== type */

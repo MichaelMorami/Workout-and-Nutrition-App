@@ -9,7 +9,8 @@ import { fileURLToPath } from 'node:url';
 import * as tokens from '../src/theme/tokens.ts';
 
 const { themes, fontInstances, space, radius, size, layout, motion, interaction, haptics, contrastPairs, MIN_TEXT_CONTRAST } = tokens;
-const { arcState, arcStateColors, arcStateFor, arcStateNames, arcTargetKind } = tokens;
+const { graphicPairs, MIN_GRAPHIC_CONTRAST, dimPairs, MIN_DIM_SEPARATION } = tokens;
+const { arcRingState, arcRingStateNames, arcStateColors, arcStateFor, arcTargetKind } = tokens;
 const TT = tokens.type;
 const EV = motion.events;
 
@@ -177,7 +178,9 @@ function toast(T, { title, meta }, { inline = false } = {}) {
 }
 
 /* --------------------------------------------------------------- ring gauge */
-/* The four states of `tokens.arcState` (issue #272), drawn from the tokens and nothing else:
+/* The five states of `tokens.arcRingState`, drawn from the tokens and nothing else:
+   - noTarget no target configured — the bare track, no lap, no tick, "No target set" (issue #289).
+              It is the first ring the app ever draws, so it is on the board first.
    - under    the metric's own colour climbing a track. No tick.
    - met      the same colour, closed, plus the 12 o'clock tick. The tick is what separates this
               from 99 % of target, where the stroke's round end caps already close the gap.
@@ -189,12 +192,12 @@ function toast(T, { title, meta }, { inline = false } = {}) {
    file's own: the generator used to carry a third copy of the at-target boundary, so a `>=`
    slip here would have drawn a canvas that contradicts the spec it exists to prove. */
 const ringCaption = (metric, value, target, amount) =>
-  arcState[arcStateFor(metric, value, target)].caption.replace('{amount}', amount);
+  arcRingState[arcStateFor(metric, value, target)].caption.replace('{amount}', amount);
 const ringCaptionColor = (T, metric, value, target) => arcStateColors(T.c, metric, arcStateFor(metric, value, target)).caption;
 
 function ring(T, { metric, value, target, label, shown, of, dia = size.arc.diameter, sw = size.arc.stroke }) {
   const A = T.c.arc;
-  const spec = arcState[arcStateFor(metric, value, target)];
+  const spec = arcRingState[arcStateFor(metric, value, target)];
   const col = arcStateColors(T.c, metric, arcStateFor(metric, value, target));
   const r = (dia - sw) / 2, C = 2 * Math.PI * r, cx = dia / 2;
   const circle = (stroke, width, extra = '') => `<circle cx="${cx}" cy="${cx}" r="${r}" fill="none" stroke="${stroke}" stroke-width="${width}"${extra}/>`;
@@ -203,7 +206,11 @@ function ring(T, { metric, value, target, label, shown, of, dia = size.arc.diame
     ? `<line x1="${cx + r - L / 2}" y1="${cx}" x2="${cx + r + L / 2}" y2="${cx}" stroke="${A.targetTickIcon}" stroke-width="${size.arc.targetTickWidth}" stroke-linecap="round"/>`
     : '';
   let strokes;
-  if (col.overage === null) {
+  if (col.firstLap === null) {
+    // No target: the bare track and nothing else. `arcStateColors` returns a null lap for
+    // `noTarget` precisely so this branch cannot accidentally paint a zero-length one (issue #289).
+    strokes = circle(A.track, sw);
+  } else if (col.overage === null) {
     const off = C * (1 - value / target);
     strokes = circle(A.track, sw) + circle(col.firstLap, sw, ` stroke-linecap="round" stroke-dasharray="${C.toFixed(1)}" stroke-dashoffset="${off.toFixed(1)}"`) + tick;
   } else {
@@ -211,13 +218,13 @@ function ring(T, { metric, value, target, label, shown, of, dia = size.arc.diame
     const dash = ` stroke-linecap="round" stroke-dasharray="${lap.toFixed(1)} ${C.toFixed(1)}"`;
     strokes = circle(col.firstLap, sw) + (spec.knockout ? circle(A.overKnockout, sw + 2 * k, dash) : '') + circle(col.overage, sw, dash) + tick;
   }
-  const glowOn = col.overage ?? col.firstLap;
+  const glowOn = col.overage ?? col.firstLap;  // null for `noTarget` — nothing lit, so nothing glows.
   return `<div style="${s({ position: 'relative', width: dia + 'px', height: dia + 'px', flex: 'none' })}">
-    <svg width="${dia}" height="${dia}" viewBox="0 0 ${dia} ${dia}" style="display:block;transform:rotate(-90deg);filter:${T.glow(glowOn)}">${strokes}</svg>
+    <svg width="${dia}" height="${dia}" viewBox="0 0 ${dia} ${dia}" style="display:block;transform:rotate(-90deg);filter:${glowOn === null ? 'none' : T.glow(glowOn)}">${strokes}</svg>
     <div style="${s({ position: 'absolute', inset: '0', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '6px' })}">
       <div style="${t('microSm', { color: A.labelText })}">${label}</div>
       <div style="${t('displayXl', { color: A.valueText })}">${shown}</div>
-      <div style="${t('ringCaption', { color: A.captionText })}">of ${of}</div>
+      ${of ? `<div style="${t('ringCaption', { color: A.captionText })}">of ${of}</div>` : ''}
     </div>
   </div>`;
 }
@@ -1016,7 +1023,8 @@ const TOKENS = [
     ['bg.floating', 'The undo toast and the rest bar. Opaque, so their text contrast is guaranteed over anything.'],
     ['bg.scrim', 'The dim over a screen while a sheet is open.'],
     ['bg.tabBar', 'The tab bar, translucent — measured over the brightest content that can scroll under it.'],
-    ['line.hairline', 'Every 1 pt divider and card border.'],
+    ['line.hairline', 'Every 1 pt divider and card border. Only ever a line between things, never a shape (issue #287).'],
+    ['line.ring', 'The unfilled remainder of a ring, and any stroke that has to read as a shape rather than as a divider. Never text — but held at the 3:1 graphic bar, which the divider colour it used to borrow cannot meet.'],
     ['line.strong', 'Dashed “add” affordances, selected-segment outlines, sheet grabbers.'],
     ['line.ghost', 'Dashed outlines for things that do not exist yet: an unlearned tile, an empty chart.'],
   ]],
@@ -1031,9 +1039,9 @@ const TOKENS = [
   ]],
   ['Data &amp; semantic', [
     ['data.kcal', 'Calories, everywhere: the ring, the tile, the average line. Also the primary action colour on Today.', { on: 'bg.press' }],
-    ['data.kcalMuted', 'Daily calorie points behind the average, and the base lap of an over-target ring. Never text.'],
+    ['data.kcalMuted', 'Daily calorie points behind the average, and the base lap of an over-target ring. Never text — scored at the 3:1 graphic bar instead.'],
     ['data.protein', 'Protein, everywhere. Never used for anything that is not protein.', { on: 'bg.press' }],
-    ['data.proteinMuted', 'Daily protein points, and the base lap of an over-target protein ring. Never text.'],
+    ['data.proteinMuted', 'Daily protein points, and the base lap of an over-target protein ring. Never text — scored at the 3:1 graphic bar instead.'],
     ['data.body', 'Body weight and its trend line. Owns the Charts tab.', { on: 'bg.press' }],
     ['data.bodyMuted', 'Raw daily scale readings — deliberately quieter than the trend through them. Never text.'],
     ['data.strength', 'Sets, reps, e1RM. Owns the Workout tab and the rest timer.', { on: 'bg.press' }],
@@ -1115,13 +1123,17 @@ const RADIUS_USE = {
   pill: 'Genuinely pill-shaped things: avatars, dots, grabbers, the slider.',
 };
 
-/* The six rings that prove the four states, per theme. Every colour and every caption below comes
-   out of `tokens.arcState` / `arcStateColors` — the board cannot say something the app will not do.
-   "Just under" is on the board deliberately: it is the state `met` has to be told apart from. */
+/* The eight rings that prove the five states, per theme. Every colour and every caption below comes
+   out of `tokens.arcRingState` / `arcStateColors` — the board cannot say something the app will not do.
+   "Just under" is on the board deliberately: it is the state `met` has to be told apart from. So is
+   the no-target ring: it is the only one that shows `arc.track` on its own, so it is where the
+   track's own contrast (issue #287) is judged, and the state the renderer must survive (issue #289). */
 const ARC_CASES = [
+  { metric: 'kcal', value: 1240, target: 0, shown: '1,240', of: '', label: 'Kcal', amount: '', note: 'No target. Bare track, no lap, no tick — and the track has to read as a ring on its own.' },
   { metric: 'kcal', value: 2380, target: 2400, shown: '2,380', of: '2,400', label: 'Kcal', amount: '20', note: 'Just under — 99 % of target. The round caps have all but closed the ring already.' },
   { metric: 'kcal', value: 2400, target: 2400, shown: '2,400', of: '2,400', label: 'Kcal', amount: '0', note: 'At target. The tick and the green caption are what separate it from the ring on its left.' },
   { metric: 'kcal', value: 2580, target: 2400, shown: '2,580', of: '2,400', label: 'Kcal', amount: '180', note: 'Over a ceiling: muted lap, a cut, and the overage in caution.' },
+  { metric: 'protein', value: 96, target: 0, shown: '96', of: '', label: 'Protein', amount: '', note: 'No target, the floor version. One state covers both metrics, so one picture does too.' },
   { metric: 'protein', value: 178, target: 180, shown: '178', of: '180 g', label: 'Protein', amount: '2 g', note: 'Just under, the floor version. Same picture, same problem.' },
   { metric: 'protein', value: 180, target: 180, shown: '180', of: '180 g', label: 'Protein', amount: '0', note: 'At target. One met state, both metrics.' },
   { metric: 'protein', value: 192, target: 180, shown: '192', of: '180 g', label: 'Protein', amount: '12 g', note: 'Over a floor: the same shape, protein’s own colour, success wording.' },
@@ -1131,21 +1143,24 @@ function arcCard(T, title) {
   const cell = (c) => `<div style="${s({ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' })}">${ring(T, c)}<div style="${t('label', { fontWeight: 650, color: ringCaptionColor(T, c.metric, c.value, c.target) })}">${ringCaption(c.metric, c.value, c.target, c.amount)}</div><div style="${t('micro', { fontSize: '9.5px', color: T.t2 })}">${arcStateFor(c.metric, c.value, c.target)}</div><div style="${t('caption', { color: T.t3, textWrap: 'pretty' })}">${c.note}</div></div>`;
   return `<div style="${s({ flex: '1', minWidth: '0', background: T.c.card.bg, border: `1px solid ${BOARD_HAIR}`, borderRadius: '20px', padding: '20px' })}">
   <div style="${t('micro', { color: T.t2, marginBottom: '16px' })}">${title}</div>
-  <div style="${s({ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: '22px 12px' })}">
+  <div style="${s({ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: '22px 12px' })}">
     ${ARC_CASES.map(cell).join('\n    ')}
   </div>
 </div>`;
 }
 
-/* The four states as a table, generated from `tokens.arcState`: what each one applies to, how it is
-   drawn, and the word it uses. This is the contract #273 implements. */
+/* The five states as a table, generated from `tokens.arcRingState`: what each one applies to, how it
+   is drawn, and the word it uses. This is the contract #273 implements. `noTarget` is a row like any
+   other because `arcStateFor` returns it like any other — a renderer never has to special-case the
+   absence of a target before it asks (issue #289). A `—` is a token that is genuinely null: the
+   no-target ring has no lap to colour, so there is no colour to name. */
 function arcStateTable() {
   const yn = (b) => (b ? '●' : '—');
   const row = (cells, head = false) => `<div style="${s({ display: 'grid', gridTemplateColumns: '1.1fr 0.9fr 1.3fr 1.4fr 1.3fr 0.45fr 0.45fr 1.2fr', gap: '10px', padding: '8px 0', borderTop: `1px solid ${BOARD_HAIR}` })}">${cells.map((x) => `<span style="${head ? t('micro', { fontSize: '9.5px', color: BOARD_T3 }) : t('caption', { fontSize: '11.5px', color: BOARD_T2 })}">${x}</span>`).join('')}</div>`;
-  const kindOf = (spec) => (spec.appliesTo === 'both' ? 'both' : `${spec.appliesTo} only`);
-  return `<div>${row(['State', 'Target', 'First lap', 'Overage lap', 'Caption colour', 'Tick', 'Cut', 'Wording'], true)}${arcStateNames.map((name) => {
-    const spec = arcState[name];
-    return row([hl(name), kindOf(spec), spec.firstLap, spec.overage ?? '—', spec.captionColor, yn(spec.tick), yn(spec.knockout), hl(spec.caption)]);
+  const kindOf = (spec) => (spec.appliesTo === null ? 'none set' : spec.appliesTo === 'both' ? 'both' : `${spec.appliesTo} only`);
+  return `<div>${row(['State', 'Target', 'First lap', 'Overage lap', 'Caption colour', 'Tick', 'Cut', 'Wording'], true)}${arcRingStateNames.map((name) => {
+    const spec = arcRingState[name];
+    return row([hl(name), kindOf(spec), spec.firstLap ?? '—', spec.overage ?? '—', spec.captionColor, yn(spec.tick), yn(spec.knockout), hl(spec.caption)]);
   }).join('')}
   <div style="${t('caption', { fontSize: '11.5px', color: BOARD_T3, marginTop: '12px', textWrap: 'pretty' })}">Roles resolve per metric: ${hl('metric')} → <code>arc[metric]</code>, ${hl('metricOverBase')} → <code>arc[metric + &#39;OverBase&#39;]</code>, ${hl('metricOverage')} → <code>arc[metric + &#39;Overage&#39;]</code>, ${hl('metricText')} → <code>arc[metric + &#39;Text&#39;]</code>. One function does it: <code>arcStateColors(color, metric, state)</code>. ${Object.entries(arcTargetKind).map(([m, k]) => `${hl(m)} is a ${k}`).join('; ')} — hard-coded, because the schema has no column that says so.</div>
 </div>`;
@@ -1170,7 +1185,7 @@ ${tokenTable(DARK, 'Dark — primary')}
 ${tokenTable(LIGHT, 'Light')}
 </div>
 
-${panel('Arcs — below, at and over target (issue #272)', `Going over a target means opposite things on the two rings, so it is drawn two ways. Calories are a ${hl('ceiling')}: the completed lap drops to ${hl('arc.kcalOverBase')} and the overage is a second lap in ${hl('arc.kcalOverage')} — the caution hue, which is deliberately not ${hl('state.danger')}, because nothing failed and nothing is about to be destroyed. Protein is a ${hl('floor')}: identical shape, but the overage keeps ${hl('arc.proteinOverage')}, protein’s own colour, and the caption turns ${hl('state.success')}. Beating a goal never wears a warning. Both over states keep the ${size.arc.overKnockout} pt ${hl('arc.overKnockout')} cut, so two laps read as two in shape alone.<br><br>The ring that needed fixing most is the middle one in each row. At 99 % of target the stroke’s round end caps have already closed the gap, so “nearly” and “done” are the same picture — which is why ${hl('met')} is the first state to draw the ${size.arc.targetTickLength} pt ${hl('arc.targetTickIcon')} across 12 o’clock, and why the caption changes colour and word at the same moment. Shape, colour and word: three independent channels, so the state survives greyscale, a screenshot and a colourblind reader. ${hl('No target set')} is untouched by all of it.`, `<div style="${s({ display: 'flex', gap: '20px' })}">${arcCard(DARK, 'Dark')}${arcCard(LIGHT, 'Light')}</div><div style="${s({ marginTop: '22px' })}">${arcStateTable()}</div>`, { marginTop: '34px' })}
+${panel('Arcs — below, at and over target (issue #272)', `Going over a target means opposite things on the two rings, so it is drawn two ways. Calories are a ${hl('ceiling')}: the completed lap drops to ${hl('arc.kcalOverBase')} and the overage is a second lap in ${hl('arc.kcalOverage')} — the caution hue, which is deliberately not ${hl('state.danger')}, because nothing failed and nothing is about to be destroyed. Protein is a ${hl('floor')}: identical shape, but the overage keeps ${hl('arc.proteinOverage')}, protein’s own colour, and the caption turns ${hl('state.success')}. Beating a goal never wears a warning. Both over states keep the ${size.arc.overKnockout} pt ${hl('arc.overKnockout')} cut, so two laps read as two in shape alone.<br><br>The ring that needed fixing most is the middle one in each row. At 99 % of target the stroke’s round end caps have already closed the gap, so “nearly” and “done” are the same picture — which is why ${hl('met')} is the first state to draw the ${size.arc.targetTickLength} pt ${hl('arc.targetTickIcon')} across 12 o’clock, and why the caption changes colour and word at the same moment. Shape, colour and word: three independent channels, so the state survives greyscale, a screenshot and a colourblind reader.<br><br>${hl('No target set')} is the fifth state rather than an absence of one, and it draws nothing new: no lap, no overage, no tick, no cut, and the caption in the metric's own text colour, exactly as it was. What did change is the ground all five stand on — ${hl('arc.track')} is its own token now, visible as a ring (issue #287), which the no-target case is the only one to show on its own.`, `<div style="${s({ display: 'flex', gap: '20px' })}">${arcCard(DARK, 'Dark')}${arcCard(LIGHT, 'Light')}</div><div style="${s({ marginTop: '22px' })}">${arcStateTable()}</div>`, { marginTop: '34px' })}
 
 ${panel('New components, both themes', 'The search bar, rows, undo toast, portion steps and slider on the grounds they actually sit on. Light is not an afterthought: every state here is in the contrast suite.', `<div style="${s({ display: 'flex', gap: '20px', alignItems: 'flex-start' })}">${componentColumn(DARK, 'Dark')}${componentColumn(LIGHT, 'Light')}</div>`)}
 
@@ -1307,6 +1322,16 @@ ${flow('A new food', '3 taps + name and numbers', [`${step(1)}${act('Search food
     ({ p, d, l }) => `${td(`${p.fg} <span style="color:${BOARD_T3}">on</span> ${p.on.join(' + ')}`, '1', { color: BOARD_T1, weight: 550, size: '13px' })}<span style="${s({ width: '150px', flex: 'none' })}">${badge(d)}</span><span style="${s({ width: '150px', flex: 'none' })}">${badge(l)}</span>`, '10px 0')}
 <div style="${s({ display: 'flex', gap: '20px', padding: '13px 0 0', borderTop: `1px solid ${BOARD_HAIR}`, alignItems: 'center' })}">${td(`Worst case across all ${scored.length} pairs`, '1', { color: BOARD_T1, weight: 700, size: '13px' })}<span style="${s({ width: '150px', flex: 'none' })}">${badge(minD)}</span><span style="${s({ width: '150px', flex: 'none' })}">${badge(minL)}</span></div>`;
 
+  // graphic contrast: the strokes that are never read, held at 3:1 (WCAG 1.4.11) by graphicPairs,
+  // and capped from above by dimPairs so "visible" never becomes "indistinguishable from the lap".
+  const gBadge = (r, min) => `<span style="${t('numericXs', { fontSize: '12px', padding: '3px 8px', borderRadius: '6px', background: r >= min ? 'rgba(123,215,127,0.16)' : 'rgba(246,109,103,0.18)', color: r >= min ? DARK.ok : DARK.danger })}">${r.toFixed(2)}:1</span>`;
+  const gScored = graphicPairs.map((p) => ({ p, d: pairRatio(DARK, p), l: pairRatio(LIGHT, p) }));
+  const dScored = dimPairs.map(([dim, bright]) => ({ dim, bright, d: cr(get(DARK.c, dim), get(DARK.c, bright)), l: cr(get(LIGHT.c, dim), get(LIGHT.c, bright)) }));
+  const graphicTable = `${table([[`Stroke on its ground — floor ${MIN_GRAPHIC_CONTRAST}:1`, '1'], ['Dark', '150px'], ['Light', '150px']], gScored,
+    ({ p, d, l }) => `${td(`${p.fg} <span style="color:${BOARD_T3}">on</span> ${p.on.join(' + ')}`, '1', { color: BOARD_T1, weight: 550, size: '13px' })}<span style="${s({ width: '150px', flex: 'none' })}">${gBadge(d, MIN_GRAPHIC_CONTRAST)}</span><span style="${s({ width: '150px', flex: 'none' })}">${gBadge(l, MIN_GRAPHIC_CONTRAST)}</span>`, '10px 0')}
+${table([[`Dim stroke against its bright lap — floor ${MIN_DIM_SEPARATION}:1`, '1'], ['Dark', '150px'], ['Light', '150px']], dScored,
+    ({ dim, bright, d, l }) => `${td(`${dim} <span style="color:${BOARD_T3}">vs</span> ${bright}`, '1', { color: BOARD_T1, weight: 550, size: '13px' })}<span style="${s({ width: '150px', flex: 'none' })}">${gBadge(d, MIN_DIM_SEPARATION)}</span><span style="${s({ width: '150px', flex: 'none' })}">${gBadge(l, MIN_DIM_SEPARATION)}</span>`, '10px 0')}`;
+
   const rules = stack([
     `Nothing runs longer than ${motion.ceilingMs} ms except the chart draw-in, which happens once per screen entry.`,
     'Every animation is interruptible. A second tap during a ring sweep retargets it; it never queues, and it never blocks the log.',
@@ -1324,7 +1349,8 @@ ${panel('Tap budget', 'What it costs to log, counted in taps. Search adds one ta
 ${panel('Rules', '', rules)}
 ${panel('Haptics', 'The haptic is what replaces the Save button. If it does not fire, the user does not know the food was logged.', hapticTable)}
 ${panel('Tap targets', `Minimum ${size.tapTargetMin} × ${size.tapTargetMin} pt. Where the painted control is smaller, the touch area is extended and both figures are listed. The header search button is gone — search is the bar under the grid.`, targetTable)}
-${panel('Text &amp; icon contrast', `WCAG AA needs ${MIN_TEXT_CONTRAST}:1. The ${scored.length} pairs in ${hl('contrastPairs')} are computed from the token values in both themes — translucent layers composited onto what sits beneath them, pressed states included — and ${hl('src/theme/tokens.test.tsx')} fails the build if any drops below. The four ${hl('data.*Muted')} colours are deliberately not text: they paint the scattered daily points and the base lap of an over-target ring, and every number they suggest is also stated in words.`, contrastTable)}
+${panel('Text &amp; icon contrast', `WCAG AA needs ${MIN_TEXT_CONTRAST}:1. The ${scored.length} pairs in ${hl('contrastPairs')} are computed from the token values in both themes — translucent layers composited onto what sits beneath them, pressed states included — and ${hl('src/theme/tokens.test.tsx')} fails the build if any drops below. Colours that are never read are not in this list — they are held to the graphic bar below instead.`, contrastTable)}
+${panel('Graphic contrast — the strokes nobody reads (issue #287)', `A ring stroke carries no words, so ${MIN_TEXT_CONTRAST}:1 is the wrong bar for it; WCAG 1.4.11 asks ${MIN_GRAPHIC_CONTRAST}:1 of a non-text object you have to be able to see. ${hl('never text')} is not a licence to be invisible, and it had become one: the unfilled remainder of a ring was drawn in the ${hl('line.hairline')} divider colour at 1.43:1 dark and 1.35:1 light, so a ring at 10 % read as a bright stub floating on the card rather than as a tenth of something. ${hl('arc.track')} is now a token of its own — ${hl('line.ring')} — and the two light ${hl('data.*Muted')} laps came up with it.<br><br>This bar has a ceiling as well as a floor, which is why there are two tables. Pushed far enough to be obvious, a dim stroke stops reading as the dim one: ${hl('dimPairs')} holds every dim/bright pair at least ${MIN_DIM_SEPARATION}:1 apart, so "unfilled" and "filled" stay two different things. In dark that separation is luminance; on white it cannot be — no colour is ${MIN_GRAPHIC_CONTRAST}:1 from white and far in luminance from a lap that is itself only 5.56:1 — so light separates by chroma and sits just over the floor by arithmetic, not by choice.`, graphicTable)}
 </div>`;
 }
 

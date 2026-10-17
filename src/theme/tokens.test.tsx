@@ -463,7 +463,10 @@ describe('arc target states (issue #272)', () => {
       for (const metric of metrics) {
         for (const [value, expected] of [[179, 'under'], [180, 'met'], [181, arcOverState(metric)]] as const) {
           const state = arcStateFor(metric, value, 180);
-          const spec = arcState[state];
+          // `arcRingState`, not `arcState`: `arcStateFor` can answer `noTarget`, so the four-state
+          // table no longer types as a total lookup for its result. The compiler says so, which is
+          // the point of the two tables (issue #289).
+          const spec = arcRingState[state];
           expect({ metric, value, state, position: spec.position }).toEqual({
             metric,
             value,
@@ -638,21 +641,27 @@ describe('arc target states (issue #272)', () => {
     /* The same rule `arc-math.ts`'s `arcStatus` applies, written out input by input, so the two
        cannot drift apart while #273 retires the copy there: a target is real only when it is finite
        and above zero, and a value that is not finite or is negative counts as zero. */
-    it.each([
+    const rule: [value: number, target: number, expected: ArcRingStateName | 'above'][] = [
+      // No real target: nothing to be a proportion of, whatever has been logged against it.
       [0, 0, 'noTarget'],
       [1240, 0, 'noTarget'],
       [0, -1, 'noTarget'],
       [1240, -2400, 'noTarget'],
       [0, Number.NaN, 'noTarget'],
       [0, Number.POSITIVE_INFINITY, 'noTarget'],
+      // A real target. A value that is negative or not finite counts as zero — a degenerate ring is
+      // recoverable, `NaN` in an SVG is not — so none of these three is an over-target ring.
       [0, 2400, 'under'],
       [Number.NaN, 2400, 'under'],
+      [Number.POSITIVE_INFINITY, 2400, 'under'],
       [-50, 2400, 'under'],
-      [Number.POSITIVE_INFINITY, 2400, 'above'],
+      // The boundary itself.
       [2399, 2400, 'under'],
       [2400, 2400, 'met'],
       [2401, 2400, 'above'],
-    ] as const)('value %p against target %p is %s', (value, target, expected) => {
+    ];
+
+    it.each(rule)('value %p against target %p is %s', (value, target, expected) => {
       for (const metric of metrics) {
         // `above` stands for whichever over-state the metric's target direction earns.
         const want: ArcRingStateName = expected === 'above' ? arcOverState(metric) : expected;
