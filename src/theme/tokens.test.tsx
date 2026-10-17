@@ -21,18 +21,24 @@
  */
 import {
   arcOverState,
+  arcRingState,
+  arcRingStateNames,
   arcState,
   arcStateColors,
   arcStateFor,
   arcStateNames,
   arcTargetKind,
   contrastPairs,
+  dimPairs,
   fontInstances,
   formFooterPaddingBottom,
   glyph,
+  graphicPairs,
   haptics,
   interaction,
   layout,
+  MIN_DIM_SEPARATION,
+  MIN_GRAPHIC_CONTRAST,
   MIN_TEXT_CONTRAST,
   motion,
   resolveThemeName,
@@ -44,6 +50,7 @@ import {
   type,
   type ColorPath,
   type ArcMetricName,
+  type ArcRingStateName,
   type ArcStateName,
 } from './tokens';
 
@@ -103,6 +110,22 @@ function luminance({ r, g, b }: Rgba): number {
 function contrast(a: Rgba, b: Rgba): number {
   const [hi, lo] = [luminance(a), luminance(b)].sort((x, y) => y - x) as [number, number];
   return (hi + 0.05) / (lo + 0.05);
+}
+
+type ThemeName = (typeof themeNames)[number];
+
+/** One token's colour, in one theme, by path. */
+function colorAt(name: ThemeName, path: ColorPath): Rgba {
+  const value = flatten(themes[name].color).get(path);
+  if (typeof value !== 'string') throw new Error(`${name}: no colour token at ${path}`);
+  return parseColor(value);
+}
+
+/** The contrast of `fg` over `on` (bottom layer first, composited upward), rounded to 2 dp. */
+function ratioAt(name: ThemeName, fg: ColorPath, on: readonly [ColorPath, ...ColorPath[]]): number {
+  const [base, ...layers] = on;
+  const bg = layers.reduce((acc, path) => over(colorAt(name, path), acc), colorAt(name, base));
+  return Math.round(contrast(over(colorAt(name, fg), bg), bg) * 100) / 100;
 }
 
 /* -------------------------------------------------------------------- tests */
@@ -198,6 +221,80 @@ describe('text and icon contrast', () => {
     const known = new Set(flatten(themes.dark.color).keys());
     const referenced = contrastPairs.flatMap((p) => [p.fg, ...p.on]);
     expect(referenced.filter((path) => !known.has(path))).toEqual([]);
+  });
+});
+
+/* The ring is the one place the design draws MEANING in a stroke rather than in a word: how much of
+   the target is left is carried by the proportion of track to lap and by nothing else. A stroke is
+   not text, so it is not held to 4.5:1 — holding it there would be a worse ring, not a better one
+   (see the dim-separation test below). It is held to WCAG 1.4.11's 3:1 instead, and `graphicPairs`
+   exists so "never text" cannot mean "never measured", which is how the track got to 1.43:1. */
+describe('graphic contrast — the ring strokes that are never text (issue #287)', () => {
+  it('sets the non-text bar at 3:1, below the text bar, and names a meaningful set of pairs', () => {
+    expect(MIN_GRAPHIC_CONTRAST).toBe(3);
+    expect(MIN_GRAPHIC_CONTRAST).toBeLessThan(MIN_TEXT_CONTRAST);
+    expect(graphicPairs.length).toBeGreaterThan(2);
+  });
+
+  const cases = themeNames.flatMap((name) =>
+    graphicPairs.map((pair) => ({ name, pair, label: `${pair.fg} on ${pair.on.join(' + ')}` })),
+  );
+
+  it.each(cases)('$name: $label clears 3:1', ({ name, pair }) => {
+    expect({ path: pair.on[0], alpha: colorAt(name, pair.on[0]).a }).toEqual({ path: pair.on[0], alpha: 1 });
+    const ratio = ratioAt(name, pair.fg, pair.on);
+    expect({ pair: `${pair.fg} on ${pair.on.join(' + ')}`, ratio, passes: ratio >= MIN_GRAPHIC_CONTRAST }).toEqual({
+      pair: `${pair.fg} on ${pair.on.join(' + ')}`,
+      ratio,
+      passes: true,
+    });
+  });
+
+  it('covers every arc stroke that carries meaning and is never text', () => {
+    const declared = new Set<string>(graphicPairs.map((p) => p.fg));
+    // The three dim strokes of the ring: the empty track, and the completed first lap of either
+    // metric once the day has gone past target. Nothing else in `arc` is a stroke that is not text.
+    const strokes = ['arc.track', 'arc.kcalOverBase', 'arc.proteinOverBase'];
+    expect(strokes.filter((path) => !declared.has(path))).toEqual([]);
+  });
+
+  it('never measures against an unknown token', () => {
+    const known = new Set(flatten(themes.dark.color).keys());
+    const referenced = graphicPairs.flatMap((p) => [p.fg, ...p.on]);
+    expect(referenced.filter((path) => !known.has(path))).toEqual([]);
+  });
+
+  it('gives the ring track a token of its own, not the 1 pt divider’s colour', () => {
+    // A 10 pt stroke that states a proportion and a 1 pt divider between two rows have opposite
+    // needs: the divider must stay quiet, the track must be seen. One token cannot serve both, and
+    // while `arc.track` aliased `line.hairline` the track inherited the divider's job.
+    for (const name of themeNames) {
+      const { color } = themes[name];
+      expect({ name, track: color.arc.track }).toEqual({ name, track: color.line.ring });
+      expect(color.arc.track).not.toBe(color.line.hairline);
+    }
+    expect(size.arc.stroke).toBeGreaterThan(1);
+  });
+
+  /* The other half of #287, and the reason the strokes are not simply promoted to the 4.5:1 list:
+     a track bright enough to be text is a ring that reads as full. Each dim stroke has to stay
+     recognisably dimmer than the full-brightness stroke it stands in for. */
+  it.each(themeNames)('%s: keeps every dim stroke recognisably dimmer than the one it stands in for', (name) => {
+    for (const [dim, bright] of dimPairs) {
+      const separation = ratioAt(name, dim, [bright]);
+      expect({ name, dim, bright, separation, separated: separation >= MIN_DIM_SEPARATION }).toEqual({
+        name,
+        dim,
+        bright,
+        separation,
+        separated: true,
+      });
+      // …and dimmer in the one direction that matters: further from the card than the bright
+      // stroke is, never nearer. This is what fails if the two are ever swapped.
+      const dimFromCard = ratioAt(name, dim, ['card.bg']);
+      const brightFromCard = ratioAt(name, bright, ['card.bg']);
+      expect({ name, dim, dimmer: dimFromCard < brightFromCard }).toEqual({ name, dim, dimmer: true });
+    }
   });
 });
 
@@ -366,7 +463,10 @@ describe('arc target states (issue #272)', () => {
       for (const metric of metrics) {
         for (const [value, expected] of [[179, 'under'], [180, 'met'], [181, arcOverState(metric)]] as const) {
           const state = arcStateFor(metric, value, 180);
-          const spec = arcState[state];
+          // `arcRingState`, not `arcState`: `arcStateFor` can answer `noTarget`, so the four-state
+          // table no longer types as a total lookup for its result. The compiler says so, which is
+          // the point of the two tables (issue #289).
+          const spec = arcRingState[state];
           expect({ metric, value, state, position: spec.position }).toEqual({
             metric,
             value,
@@ -482,11 +582,16 @@ describe('arc target states (issue #272)', () => {
   /* "The unset-target ring is left exactly as it is" (#272). The no-target ring draws `arc.track`
      plus the three texts inside it and nothing else, so pinning those four values in both themes is
      the whole of that promise. Hexes, not aliases: an alias would follow a retuned base colour and
-     the pin would never fire. */
+     the pin would never fire.
+
+     `track` is the ONE value #287 changes on purpose: #272 promised not to touch it, #287 is the
+     issue that lifts it from 1.43:1 to 3.06:1 (dark) and 1.35:1 to 3.11:1 (light), because a track
+     nobody can see is a ring that cannot say how much of the target is left. The other three are
+     still byte-identical, and the pin stays so the next change to any of them is deliberate too. */
   it.each(themeNames)('%s: leaves every colour the no-target ring draws byte-identical', (name) => {
     const expected = {
-      dark: { track: '#32353D', valueText: '#F5F7FA', labelText: '#9598A0', captionText: '#B4B7BE' },
-      light: { track: '#DBDEE3', valueText: '#1A1D24', labelText: '#63666F', captionText: '#575B63' },
+      dark: { track: '#64666D', valueText: '#F5F7FA', labelText: '#9598A0', captionText: '#B4B7BE' },
+      light: { track: '#919296', valueText: '#1A1D24', labelText: '#63666F', captionText: '#575B63' },
     }[name];
     const { track, valueText, labelText, captionText } = themes[name].color.arc;
     expect({ track, valueText, labelText, captionText }).toEqual(expected);
@@ -508,6 +613,117 @@ describe('arc target states (issue #272)', () => {
     // sweep that already runs after a log, which already answers reduce motion with an instant cut.
     expect(motion.events.arcSweep.reduced.kind).toBe('instant');
     expect(Object.keys(motion.events).filter((k) => /exceed|surplus|target/i.test(k))).toEqual([]);
+  });
+
+  /* ------------------------------------------------- a ring with no target (issue #289)
+
+     `arcStateFor('kcal', 0, 0)` used to answer `met` — a fresh install, nothing logged, no target
+     configured, and the ring said "Target hit". Two definitions of the same input disagreed:
+     `arc-math.ts`'s `arcStatus` called it `noTarget`.
+
+     The ruling: `arcStateFor` is TOTAL and safe to call straight from a render path. It answers
+     `noTarget` for any target that is not a real, positive, finite one — it does not throw. The
+     alternative on the table (throw on `target <= 0`, to match the metric guard) was rejected: the
+     first screen the app ever draws is a day with no target, so a throwing contract means either a
+     `try/catch` around a render or a pre-check at the call site — and a pre-check is a fourth copy
+     of the boundary, which is the bug class #272 and this issue exist to kill. */
+  describe('a ring with no target (issue #289)', () => {
+    it('calls a fresh day with no target `noTarget`, never `met`', () => {
+      for (const metric of metrics) {
+        expect(arcStateFor(metric, 0, 0)).toBe('noTarget');
+        expect(arcStateFor(metric, 0, 0)).not.toBe('met');
+        // And it is not one of the four target states, so no target state's colour, tick or word
+        // can reach a ring that has no target.
+        expect(arcStateNames).not.toContain(arcStateFor(metric, 0, 0));
+      }
+    });
+
+    /* The same rule `arc-math.ts`'s `arcStatus` applies, written out input by input, so the two
+       cannot drift apart while #273 retires the copy there: a target is real only when it is finite
+       and above zero, and a value that is not finite or is negative counts as zero. */
+    const rule: [value: number, target: number, expected: ArcRingStateName | 'above'][] = [
+      // No real target: nothing to be a proportion of, whatever has been logged against it.
+      [0, 0, 'noTarget'],
+      [1240, 0, 'noTarget'],
+      [0, -1, 'noTarget'],
+      [1240, -2400, 'noTarget'],
+      [0, Number.NaN, 'noTarget'],
+      [0, Number.POSITIVE_INFINITY, 'noTarget'],
+      // A real target. A value that is negative or not finite counts as zero — a degenerate ring is
+      // recoverable, `NaN` in an SVG is not — so none of these three is an over-target ring.
+      [0, 2400, 'under'],
+      [Number.NaN, 2400, 'under'],
+      [Number.POSITIVE_INFINITY, 2400, 'under'],
+      [-50, 2400, 'under'],
+      // The boundary itself.
+      [2399, 2400, 'under'],
+      [2400, 2400, 'met'],
+      [2401, 2400, 'above'],
+    ];
+
+    it.each(rule)('value %p against target %p is %s', (value, target, expected) => {
+      for (const metric of metrics) {
+        // `above` stands for whichever over-state the metric's target direction earns.
+        const want: ArcRingStateName = expected === 'above' ? arcOverState(metric) : expected;
+        expect({ metric, state: arcStateFor(metric, value, target) }).toEqual({ metric, state: want });
+      }
+    });
+
+    it('never throws on anything a render path can hand it', () => {
+      // The contract #273 builds against: call it, draw what it says. No catch, no pre-check.
+      const numbers = [0, -1, 0.5, 2400, 1e9, Number.NaN, Number.POSITIVE_INFINITY, Number.NEGATIVE_INFINITY];
+      for (const metric of metrics) {
+        for (const value of numbers) {
+          for (const target of numbers) {
+            expect(() => arcStateFor(metric, value, target)).not.toThrow();
+            expect(arcRingStateNames).toContain(arcStateFor(metric, value, target));
+          }
+        }
+      }
+    });
+
+    it('is the five-state table, built from the four so the two cannot drift', () => {
+      expect([...arcRingStateNames]).toEqual(['noTarget', 'under', 'met', 'exceeded', 'surplus']);
+      expect(Object.keys(arcRingState).sort()).toEqual([...arcRingStateNames].sort());
+      // Same objects, not copies: `arcRingState` is `arcState` plus one entry, so a change to a
+      // target state cannot reach one table and miss the other.
+      for (const state of arcStateNames) expect(arcRingState[state]).toBe(arcState[state]);
+    });
+
+    it('has no position, so the position lookup inside arcStateFor can never reach it', () => {
+      // `position` is how the four target states are resolved. `noTarget` has none: it is decided
+      // by the guard that runs BEFORE a position is computed, which is why it needs no position and
+      // why no (position, target kind) case can land on it.
+      expect(arcRingStateNames.filter((s) => arcRingState[s].position === null)).toEqual(['noTarget']);
+      expect(arcRingState.noTarget.position).toBe(null);
+    });
+
+    it('draws nothing new: no lap, no overage, no tick, no cut — the track and one caption', () => {
+      expect(arcRingState.noTarget.firstLap).toBe(null);
+      expect(arcRingState.noTarget.overage).toBe(null);
+      expect(arcRingState.noTarget.tick).toBe(false);
+      expect(arcRingState.noTarget.knockout).toBe(false);
+      // The wording `arc-math.ts` already ships, moved to where the other four captions live, and
+      // with no `{amount}`: there is no target to be any distance from.
+      expect(arcRingState.noTarget.caption).toBe('No target set');
+      expect(arcRingState.noTarget.caption).not.toContain('{amount}');
+    });
+
+    it.each(themeNames)('%s: resolves to the colours the no-target ring already draws', (name) => {
+      const { color } = themes[name];
+      for (const metric of metrics) {
+        const resolved = arcStateColors(color, metric, 'noTarget');
+        // `firstLap: null` is "this state has no lap of its own" — the ring is the bare `arc.track`,
+        // exactly as it renders today. A colour here would be a full grey lap, which reads as a
+        // completed ring: the "complete when it isn't" failure, from the other end.
+        expect({ metric, ...resolved }).toEqual({
+          metric,
+          firstLap: null,
+          overage: null,
+          caption: metric === 'kcal' ? color.arc.kcalText : color.arc.proteinText,
+        });
+      }
+    });
   });
 });
 
